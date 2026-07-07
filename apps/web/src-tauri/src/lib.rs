@@ -1,3 +1,10 @@
+mod ai;
+mod commands;
+mod errors;
+mod pdf_export;
+mod storage;
+mod web_fetch;
+
 use axum::{
     extract::State,
     http::{HeaderValue, Method},
@@ -105,7 +112,6 @@ pub fn run() {
 
     tauri::Builder::default()
         .manage(local_api_state)
-        .invoke_handler(tauri::generate_handler![native_status])
         .setup(|app| {
             if cfg!(debug_assertions) {
                 app.handle().plugin(
@@ -116,6 +122,15 @@ pub fn run() {
             }
             Ok(())
         })
+        .invoke_handler(tauri::generate_handler![
+            native_status,
+            commands::load_app_state,
+            commands::save_app_state,
+            commands::detect_ai_tools,
+            commands::run_ai_tool,
+            commands::fetch_url_text,
+            commands::export_generated_cv_pdf
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

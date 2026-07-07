@@ -1,0 +1,7 @@
+{
+	"extends": "@cv-tailor/config/tsconfig.base.json",
+	"compilerOptions": {
+		"lib": ["ESNext", "DOM"]
+	},
+	"include": ["src"]
+}

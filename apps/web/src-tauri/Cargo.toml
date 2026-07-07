@@ -22,7 +22,8 @@ axum = "0.8"
 serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 log = "0.4"
+reqwest = { version = "0.12.24", features = ["charset"] }
 tauri = { version = "2.11.3", features = [] }
 tauri-plugin-log = "2"
-tokio = { version = "1", features = ["net", "rt"] }
+tokio = { version = "1.52.3", features = ["io-util", "macros", "net", "process", "rt", "time"] }
 tower-http = { version = "0.6", features = ["cors"] }
