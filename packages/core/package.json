@@ -1,0 +1,19 @@
+{
+	"name": "@cv-tailor/core",
+	"version": "0.0.0",
+	"private": true,
+	"type": "module",
+	"exports": {
+		".": "./src/index.ts"
+	},
+	"scripts": {
+		"check-types": "tsc --noEmit"
+	},
+	"dependencies": {
+		"zod": "catalog:"
+	},
+	"devDependencies": {
+		"@cv-tailor/config": "workspace:*",
+		"typescript": "catalog:"
+	}
+}

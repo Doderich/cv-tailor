@@ -1,1 +1,97 @@
 @import "@cv-tailor/ui/globals.css";
+
+@media screen {
+	.print-cv {
+		display: none;
+	}
+}
+
+@media print {
+	@page {
+		margin: 16mm;
+	}
+
+	html,
+	body,
+	#root {
+		background: white;
+		color: black;
+		height: auto;
+	}
+
+	.app-shell,
+	[data-tanstack-router-devtools] {
+		display: none;
+	}
+
+	.print-cv {
+		display: block;
+		color: black;
+		font-family: Arial, Helvetica, sans-serif;
+		font-size: 10.5pt;
+		line-height: 1.35;
+	}
+
+	.print-cv header {
+		border-bottom: 1px solid #111;
+		margin-bottom: 10pt;
+		padding-bottom: 8pt;
+		text-align: center;
+	}
+
+	.print-cv h1 {
+		font-size: 20pt;
+		font-weight: 700;
+		margin: 0 0 2pt;
+	}
+
+	.print-headline,
+	.print-contact {
+		margin: 0;
+	}
+
+	.print-section {
+		break-inside: avoid;
+		margin: 0 0 10pt;
+	}
+
+	.print-section h2 {
+		border-bottom: 1px solid #999;
+		font-size: 11pt;
+		font-weight: 700;
+		letter-spacing: 0;
+		margin: 0 0 5pt;
+		padding-bottom: 2pt;
+		text-transform: uppercase;
+	}
+
+	.print-item {
+		break-inside: avoid;
+		margin: 0 0 8pt;
+	}
+
+	.print-item-heading {
+		display: flex;
+		gap: 10pt;
+		justify-content: space-between;
+	}
+
+	.print-item-meta {
+		color: #333;
+		font-size: 9.5pt;
+		margin: 1pt 0 2pt;
+	}
+
+	.print-cv p {
+		margin: 0 0 4pt;
+	}
+
+	.print-cv ul {
+		margin: 2pt 0 0 14pt;
+		padding: 0;
+	}
+
+	.print-cv li {
+		margin: 0 0 2pt;
+	}
+}
