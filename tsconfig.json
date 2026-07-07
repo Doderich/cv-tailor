@@ -1,0 +1,3 @@
+{
+  "extends": "@cv-tailor/config/tsconfig.base.json"
+}
