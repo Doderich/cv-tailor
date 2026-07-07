@@ -26,7 +26,27 @@ Then, run the development server:
 pnpm run dev
 ```
 
-Open [http://localhost:3001](http://localhost:3001) in your browser to see the web application.
+Open [http://localhost:1420](http://localhost:1420) in your browser to see the web application.
+
+### Local Web + Tauri
+
+Run the Tauri app in development mode:
+
+```bash
+cd apps/web && pnpm run desktop:dev
+```
+
+This starts the Vite web app at [http://localhost:1420](http://localhost:1420) and the Tauri-owned local API bridge at `http://127.0.0.1:3911`. The desktop app talks to Tauri through native commands, while a regular browser tab uses the local HTTP bridge when the Tauri process is running.
+
+If you want to run the local web tab and Tauri process separately, use two terminals:
+
+```bash
+pnpm run dev:web
+```
+
+```bash
+cd apps/web && pnpm run desktop:run
+```
 
 ## UI Customization
 
@@ -90,10 +110,11 @@ cv-tailor/
 
 - `pnpm run dev`: Start all applications in development mode
 - `pnpm run build`: Build all applications
-- `pnpm run dev:web`: Start only the web application
+- `pnpm run dev:web`: Start only the web application at http://localhost:1420
 - `pnpm run check-types`: Check TypeScript types across all apps
 - `pnpm run check`: Run Biome formatting and linting
 - `cd apps/web && pnpm run desktop:dev`: Start Tauri desktop app in development
+- `cd apps/web && pnpm run desktop:run`: Run the Tauri binary against an already-running local web server
 - `cd apps/web && pnpm run desktop:build`: Build Tauri desktop app
 - `pnpm run deploy:setup`: Link this repo to a Vercel project (first-time setup)
 - `pnpm run dev:vercel`: Run the Vercel Services dev environment locally
