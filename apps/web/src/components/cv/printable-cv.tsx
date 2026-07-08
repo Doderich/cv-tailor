@@ -8,7 +8,7 @@ interface PrintableCvProps {
 
 function joinDateRange(startDate: string, endDate: string, current = false) {
 	const end = current ? "Present" : endDate;
-	return [startDate, end].filter(Boolean).join(" - ");
+	return [startDate, end].filter(Boolean).join(" – ");
 }
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
@@ -58,7 +58,7 @@ export function PrintableCv({ profile, generatedCv }: PrintableCvProps) {
 						...profile.contact.links,
 					]
 						.filter(Boolean)
-						.join(" | ")}
+						.join("  ·  ")}
 				</p>
 			</header>
 
@@ -67,7 +67,7 @@ export function PrintableCv({ profile, generatedCv }: PrintableCvProps) {
 			</Section>
 
 			<Section title="Skills">
-				<p>{cv.skills.join(" | ")}</p>
+				<p>{cv.skills.join("  ·  ")}</p>
 			</Section>
 
 			<Section title="Experience">
@@ -85,7 +85,7 @@ export function PrintableCv({ profile, generatedCv }: PrintableCvProps) {
 							<div className="print-item-heading">
 								<strong>
 									{source.title}
-									{source.company ? `, ${source.company}` : ""}
+									{source.company ? ` · ${source.company}` : ""}
 								</strong>
 								<span>
 									{joinDateRange(
@@ -98,7 +98,7 @@ export function PrintableCv({ profile, generatedCv }: PrintableCvProps) {
 							<div className="print-item-meta">
 								{[source.location, source.technologies.join(", ")]
 									.filter(Boolean)
-									.join(" | ")}
+									.join("  ·  ")}
 							</div>
 							<BulletList items={tailoredItem.bullets} />
 						</div>
@@ -126,7 +126,7 @@ export function PrintableCv({ profile, generatedCv }: PrintableCvProps) {
 								<div className="print-item-meta">
 									{[source.url, source.technologies.join(", ")]
 										.filter(Boolean)
-										.join(" | ")}
+										.join("  ·  ")}
 								</div>
 								<p>{source.description}</p>
 								<BulletList items={tailoredItem.bullets} />
@@ -145,7 +145,9 @@ export function PrintableCv({ profile, generatedCv }: PrintableCvProps) {
 								<span>{joinDateRange(item.startDate, item.endDate)}</span>
 							</div>
 							<div className="print-item-meta">
-								{[item.institution, item.location].filter(Boolean).join(" | ")}
+								{[item.institution, item.location]
+									.filter(Boolean)
+									.join("  ·  ")}
 							</div>
 							<BulletList items={item.details} />
 						</div>
@@ -155,7 +157,7 @@ export function PrintableCv({ profile, generatedCv }: PrintableCvProps) {
 
 			{profile.languages.length > 0 ? (
 				<Section title="Languages">
-					<p>{profile.languages.join(" | ")}</p>
+					<p>{profile.languages.join("  ·  ")}</p>
 				</Section>
 			) : null}
 		</article>

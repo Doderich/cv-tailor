@@ -8,78 +8,103 @@
 
 @media print {
 	@page {
-		margin: 16mm;
+		margin: 18mm;
 	}
 
 	html,
 	body,
-	#root {
+	#root,
+	#app {
 		background: white;
-		color: black;
+		color: #16181d;
 		height: auto;
 	}
 
 	.app-shell,
 	[data-tanstack-router-devtools] {
-		display: none;
+		display: none !important;
 	}
 
 	.print-cv {
 		display: block;
-		color: black;
-		font-family: Arial, Helvetica, sans-serif;
+		color: #16181d;
+		font-family:
+			ui-sans-serif, system-ui, -apple-system, "Segoe UI", Helvetica, Arial,
+			sans-serif;
 		font-size: 10.5pt;
-		line-height: 1.35;
+		line-height: 1.45;
+		max-width: 190mm;
+		margin: 0 auto;
 	}
 
 	.print-cv header {
-		border-bottom: 1px solid #111;
-		margin-bottom: 10pt;
-		padding-bottom: 8pt;
+		margin-bottom: 16pt;
+		padding-bottom: 12pt;
 		text-align: center;
 	}
 
 	.print-cv h1 {
-		font-size: 20pt;
-		font-weight: 700;
-		margin: 0 0 2pt;
+		font-size: 21pt;
+		font-weight: 600;
+		letter-spacing: -0.01em;
+		margin: 0 0 3pt;
 	}
 
-	.print-headline,
+	.print-headline {
+		color: #4b5162;
+		font-size: 11pt;
+		margin: 0 0 4pt;
+	}
+
 	.print-contact {
+		color: #6b7180;
+		font-size: 9pt;
 		margin: 0;
 	}
 
 	.print-section {
 		break-inside: avoid;
-		margin: 0 0 10pt;
+		margin: 0 0 14pt;
 	}
 
 	.print-section h2 {
-		border-bottom: 1px solid #999;
-		font-size: 11pt;
-		font-weight: 700;
-		letter-spacing: 0;
-		margin: 0 0 5pt;
-		padding-bottom: 2pt;
+		border-bottom: 0.75pt solid #d5d8df;
+		color: #6b7180;
+		font-size: 8.5pt;
+		font-weight: 600;
+		letter-spacing: 0.12em;
+		margin: 0 0 7pt;
+		padding-bottom: 4pt;
 		text-transform: uppercase;
 	}
 
 	.print-item {
 		break-inside: avoid;
-		margin: 0 0 8pt;
+		margin: 0 0 10pt;
 	}
 
 	.print-item-heading {
+		align-items: baseline;
 		display: flex;
-		gap: 10pt;
+		gap: 12pt;
 		justify-content: space-between;
 	}
 
+	.print-item-heading strong {
+		font-size: 10.5pt;
+		font-weight: 600;
+	}
+
+	.print-item-heading span {
+		color: #6b7180;
+		font-size: 9pt;
+		white-space: nowrap;
+	}
+
 	.print-item-meta {
-		color: #333;
-		font-size: 9.5pt;
-		margin: 1pt 0 2pt;
+		color: #6b7180;
+		font-size: 9pt;
+		margin: 1pt 0 3pt;
 	}
 
 	.print-cv p {
@@ -87,11 +112,12 @@
 	}
 
 	.print-cv ul {
-		margin: 2pt 0 0 14pt;
+		margin: 3pt 0 0 14pt;
 		padding: 0;
 	}
 
 	.print-cv li {
-		margin: 0 0 2pt;
+		margin: 0 0 3pt;
+		padding-left: 2pt;
 	}
 }

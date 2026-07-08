@@ -1,14 +1,9 @@
 import type { BaseProfile, GeneratedCv, TailoredCv } from "@cv-tailor/core";
 import { Button } from "@cv-tailor/ui/components/button";
-import {
-	Card,
-	CardContent,
-	CardHeader,
-	CardTitle,
-} from "@cv-tailor/ui/components/card";
 import { Label } from "@cv-tailor/ui/components/label";
 import { Textarea } from "@cv-tailor/ui/components/textarea";
 import { RotateCcw } from "lucide-react";
+import type { ReactNode } from "react";
 
 interface GeneratedCvEditorProps {
 	profile: BaseProfile;
@@ -23,6 +18,15 @@ function splitLines(value: string) {
 		.filter(Boolean);
 }
 
+function Field({ label, children }: { label: string; children: ReactNode }) {
+	return (
+		<div className="grid gap-1.5">
+			<Label className="text-muted-foreground text-xs">{label}</Label>
+			{children}
+		</div>
+	);
+}
+
 function ArrayField({
 	label,
 	values,
@@ -35,14 +39,33 @@ function ArrayField({
 	rows?: number;
 }) {
 	return (
-		<div className="grid gap-1">
-			<Label>{label}</Label>
+		<Field label={label}>
 			<Textarea
 				value={values.join("\n")}
 				onChange={(event) => onChange(splitLines(event.target.value))}
 				rows={rows}
 			/>
-		</div>
+		</Field>
+	);
+}
+
+function EditorSection({
+	title,
+	action,
+	children,
+}: {
+	title: string;
+	action?: ReactNode;
+	children: ReactNode;
+}) {
+	return (
+		<section className="grid gap-3 rounded-xl border bg-card p-4">
+			<div className="flex items-center justify-between gap-2">
+				<h3 className="font-medium text-sm">{title}</h3>
+				{action}
+			</div>
+			{children}
+		</section>
 	);
 }
 
@@ -53,7 +76,7 @@ export function GeneratedCvEditor({
 }: GeneratedCvEditorProps) {
 	if (!generatedCv) {
 		return (
-			<div className="grid min-h-72 place-items-center border border-dashed p-6 text-center text-muted-foreground text-sm">
+			<div className="grid min-h-72 place-items-center rounded-xl border border-dashed p-6 text-center text-muted-foreground text-sm">
 				Generate or reopen a CV to edit the tailored output.
 			</div>
 		);
@@ -77,115 +100,113 @@ export function GeneratedCvEditor({
 
 	return (
 		<div className="grid gap-4">
-			<div className="grid gap-1">
-				<Label>Tailored summary</Label>
-				<Textarea
-					value={cv.summary}
-					onChange={(event) => updateCv({ summary: event.target.value })}
-					rows={5}
+			<EditorSection title="Summary & skills">
+				<Field label="Tailored summary">
+					<Textarea
+						value={cv.summary}
+						onChange={(event) => updateCv({ summary: event.target.value })}
+						rows={5}
+					/>
+				</Field>
+				<ArrayField
+					label="Tailored skills (one per line)"
+					values={cv.skills}
+					onChange={(skills) => updateCv({ skills })}
 				/>
-			</div>
-			<ArrayField
-				label="Tailored skills"
-				values={cv.skills}
-				onChange={(skills) => updateCv({ skills })}
-			/>
+			</EditorSection>
 
-			<div className="flex items-center justify-between">
-				<h3 className="font-medium text-sm">Experience bullets</h3>
-				<Button
-					size="sm"
-					variant="outline"
-					onClick={() =>
-						updateCv({
-							experience: profile.experience.map((item) => ({
-								experienceId: item.id,
-								bullets: item.bullets,
-							})),
-						})
+			<EditorSection
+				title="Experience bullets"
+				action={
+					<Button
+						size="sm"
+						variant="outline"
+						onClick={() =>
+							updateCv({
+								experience: profile.experience.map((item) => ({
+									experienceId: item.id,
+									bullets: item.bullets,
+								})),
+							})
+						}
+					>
+						<RotateCcw /> Reset to source
+					</Button>
+				}
+			>
+				<div className="grid gap-3">
+					{cv.experience.map((item) => {
+						const source = profile.experience.find(
+							(entry) => entry.id === item.experienceId,
+						);
+						return (
+							<ArrayField
+								key={item.experienceId}
+								label={`${source?.title || "Experience"}${
+									source?.company ? ` · ${source.company}` : ""
+								}`}
+								values={item.bullets}
+								onChange={(bullets) =>
+									updateExperienceBullets(item.experienceId, bullets)
+								}
+							/>
+						);
+					})}
+				</div>
+			</EditorSection>
+
+			{cv.projects.length > 0 ? (
+				<EditorSection
+					title="Project bullets"
+					action={
+						<Button
+							size="sm"
+							variant="outline"
+							onClick={() =>
+								updateCv({
+									projects: profile.projects.map((item) => ({
+										projectId: item.id,
+										bullets: item.bullets,
+									})),
+								})
+							}
+						>
+							<RotateCcw /> Reset to source
+						</Button>
 					}
 				>
-					<RotateCcw /> Source bullets
-				</Button>
-			</div>
-			<div className="grid gap-3">
-				{cv.experience.map((item) => {
-					const source = profile.experience.find(
-						(entry) => entry.id === item.experienceId,
-					);
-					return (
-						<Card key={item.experienceId} size="sm">
-							<CardHeader>
-								<CardTitle>
-									{source?.title || "Experience"}{" "}
-									{source?.company ? `at ${source.company}` : ""}
-								</CardTitle>
-							</CardHeader>
-							<CardContent>
+					<div className="grid gap-3">
+						{cv.projects.map((item) => {
+							const source = profile.projects.find(
+								(entry) => entry.id === item.projectId,
+							);
+							return (
 								<ArrayField
-									label="Bullets"
-									values={item.bullets}
-									onChange={(bullets) =>
-										updateExperienceBullets(item.experienceId, bullets)
-									}
-								/>
-							</CardContent>
-						</Card>
-					);
-				})}
-			</div>
-
-			<div className="flex items-center justify-between">
-				<h3 className="font-medium text-sm">Project bullets</h3>
-				<Button
-					size="sm"
-					variant="outline"
-					onClick={() =>
-						updateCv({
-							projects: profile.projects.map((item) => ({
-								projectId: item.id,
-								bullets: item.bullets,
-							})),
-						})
-					}
-				>
-					<RotateCcw /> Source bullets
-				</Button>
-			</div>
-			<div className="grid gap-3">
-				{cv.projects.map((item) => {
-					const source = profile.projects.find(
-						(entry) => entry.id === item.projectId,
-					);
-					return (
-						<Card key={item.projectId} size="sm">
-							<CardHeader>
-								<CardTitle>{source?.name || "Project"}</CardTitle>
-							</CardHeader>
-							<CardContent>
-								<ArrayField
-									label="Bullets"
+									key={item.projectId}
+									label={source?.name || "Project"}
 									values={item.bullets}
 									onChange={(bullets) =>
 										updateProjectBullets(item.projectId, bullets)
 									}
 								/>
-							</CardContent>
-						</Card>
-					);
-				})}
-			</div>
+							);
+						})}
+					</div>
+				</EditorSection>
+			) : null}
 
-			<ArrayField
-				label="Missing requirements"
-				values={cv.missingRequirements}
-				onChange={(missingRequirements) => updateCv({ missingRequirements })}
-			/>
-			<ArrayField
-				label="Reviewer warnings"
-				values={cv.warnings}
-				onChange={(warnings) => updateCv({ warnings })}
-			/>
+			<EditorSection title="Review notes">
+				<ArrayField
+					label="Missing requirements"
+					values={cv.missingRequirements}
+					onChange={(missingRequirements) => updateCv({ missingRequirements })}
+				/>
+				<ArrayField
+					label="Reviewer warnings"
+					values={cv.warnings}
+					onChange={(warnings) => updateCv({ warnings })}
+				/>
+			</EditorSection>
 		</div>
 	);
 }

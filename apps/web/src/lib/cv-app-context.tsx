@@ -20,9 +20,7 @@ import {
 import { loadAppState, saveAppState } from "@cv-tailor/storage";
 import {
 	createContext,
-	type Dispatch,
 	type ReactNode,
-	type SetStateAction,
 	useContext,
 	useEffect,
 	useMemo,
@@ -31,6 +29,10 @@ import {
 } from "react";
 import { toast } from "sonner";
 
+import type {
+	ApplicationView,
+	ApplicationViewType,
+} from "@/lib/application-views";
 import {
 	type AiToolStatus,
 	detectAiTools,
@@ -39,62 +41,61 @@ import {
 	runAiTool,
 } from "@/lib/tauri-ai";
 
-export interface JobDraft {
-	title: string;
-	company: string;
-	rawText: string;
-}
-
 export type SaveStatus = "idle" | "saving" | "saved" | "error";
 
-export const blankJobDraft: JobDraft = {
-	title: "",
-	company: "",
-	rawText: "",
-};
+export interface JobOfferPatch {
+	title?: string;
+	company?: string;
+	rawText?: string;
+}
+
+interface ViewsEntry {
+	views: ApplicationView[];
+	activeViewId: string;
+}
+
+type ViewsByApp = Record<string, ViewsEntry>;
 
 interface CvAppContextValue {
-	activeGeneratedCv: GeneratedCv | undefined;
-	aiStatuses: AiToolStatus[];
 	appState: AppState;
-	canGenerate: boolean;
-	canUseSelectedAi: boolean;
-	generationError: string | undefined;
-	isExportingPdf: boolean;
-	isGenerating: boolean;
-	jobDraft: JobDraft;
-	matchAnalysis: ReturnType<typeof scoreProfileAgainstJob>;
-	rawCliOutput: string | undefined;
-	saveStatus: SaveStatus;
+	profile: BaseProfile;
+	applications: GeneratedCv[];
+	activeApplications: GeneratedCv[];
+	archivedApplications: GeneratedCv[];
+	activeApplication: GeneratedCv | undefined;
+	activeId: string | undefined;
+	activeViews: ApplicationView[];
+	activeViewId: string | undefined;
+	activeView: ApplicationView | undefined;
+	aiStatuses: AiToolStatus[];
 	selectedTool: AiToolId;
-	setJobDraft: Dispatch<SetStateAction<JobDraft>>;
-	setSelectedTool: Dispatch<SetStateAction<AiToolId>>;
-	createDraftCv: () => void;
-	duplicateGeneratedCv: (generatedCv: GeneratedCv) => void;
-	exportPdf: () => Promise<void>;
-	generateCv: () => Promise<void>;
+	saveStatus: SaveStatus;
+	canUseSelectedAi: boolean;
+	canGenerateActive: boolean;
+	isGenerating: boolean;
+	isExportingPdf: boolean;
+	generationError: string | undefined;
+	rawCliOutput: string | undefined;
+	setSelectedTool: (tool: AiToolId) => void;
 	refreshAiStatuses: () => Promise<void>;
-	reopenGeneratedCv: (generatedCv: GeneratedCv) => void;
-	replaceProfile: (profile: BaseProfile) => void;
-	signals: ReturnType<typeof extractJobSignals>;
+	createApplication: () => string;
+	deleteApplication: (id: string) => void;
+	restoreApplication: (application: GeneratedCv) => void;
+	archiveApplication: (id: string, archived: boolean) => void;
+	openApplication: (id: string) => void;
+	setActiveId: (id: string) => void;
+	openView: (type: ApplicationViewType) => void;
+	closeView: (viewId: string) => void;
+	setActiveView: (viewId: string) => void;
+	updateActiveJobOffer: (patch: JobOfferPatch) => void;
 	updateActiveCv: (cv: TailoredCv) => void;
+	generateActive: () => Promise<void>;
+	exportPdf: () => Promise<void>;
+	replaceProfile: (profile: BaseProfile) => void;
 	updateProfile: (profile: BaseProfile) => void;
 }
 
 const CvAppContext = createContext<CvAppContextValue | undefined>(undefined);
-
-function createJobOffer(draft: JobDraft, id = createId("job")): JobOffer {
-	const signals = extractJobSignals(draft.rawText);
-
-	return {
-		id,
-		title: draft.title,
-		company: draft.company,
-		rawText: draft.rawText,
-		createdAt: new Date().toISOString(),
-		signals,
-	};
-}
 
 export function getErrorMessage(error: unknown) {
 	if (error instanceof Error) {
@@ -121,44 +122,52 @@ export function toolIsReady(tool: AiToolId, statuses: AiToolStatus[]) {
 	return Boolean(statuses.find((status) => status.id === tool)?.available);
 }
 
-function updateProfileInState(state: AppState, profile: BaseProfile): AppState {
-	return appStateSchema.parse({ ...state, profile });
+export function applicationTitle(application: GeneratedCv) {
+	return application.jobOffer.title.trim() || "Untitled role";
 }
 
-function replaceProfileInState(
-	state: AppState,
-	profile: BaseProfile,
-): AppState {
-	return appStateSchema.parse({
-		...state,
-		profile,
-		activeGeneratedCvId: undefined,
-	});
+export function applicationCompany(application: GeneratedCv) {
+	return application.jobOffer.company.trim() || "No company";
 }
 
-function upsertGeneratedCv(
-	state: AppState,
-	generatedCv: GeneratedCv,
-): AppState {
-	const exists = state.generatedCvs.some((item) => item.id === generatedCv.id);
-	const generatedCvs = exists
-		? state.generatedCvs.map((item) =>
-				item.id === generatedCv.id ? generatedCv : item,
-			)
-		: [generatedCv, ...state.generatedCvs];
+export function isDraftApplication(application: GeneratedCv) {
+	return application.aiTool === "draft";
+}
 
-	return appStateSchema.parse({
-		...state,
-		generatedCvs,
-		activeGeneratedCvId: generatedCv.id,
-	});
+function defaultViewsFor(appId: string): ViewsEntry {
+	const id = `${appId}:editor`;
+	return { views: [{ id, type: "editor" }], activeViewId: id };
+}
+
+function createEmptyApplication(profile: BaseProfile): GeneratedCv {
+	const now = new Date().toISOString();
+	const signals = extractJobSignals("");
+	const jobOffer: JobOffer = {
+		id: createId("job"),
+		title: "",
+		company: "",
+		rawText: "",
+		createdAt: now,
+		signals,
+	};
+
+	return {
+		id: createId("app"),
+		createdAt: now,
+		updatedAt: now,
+		jobOffer,
+		signals,
+		matchAnalysis: scoreProfileAgainstJob(profile, jobOffer),
+		cv: createDefaultTailoredCv(profile),
+		aiTool: "draft",
+	};
 }
 
 export function CvAppProvider({ children }: { children: ReactNode }) {
 	const [appState, setAppState] = useState<AppState>(() =>
 		createDefaultAppState(),
 	);
-	const [jobDraft, setJobDraft] = useState<JobDraft>(blankJobDraft);
+	const [viewsByApp, setViewsByApp] = useState<ViewsByApp>({});
 	const [selectedTool, setSelectedTool] = useState<AiToolId>("auto");
 	const [aiStatuses, setAiStatuses] = useState<AiToolStatus[]>([]);
 	const [isGenerating, setIsGenerating] = useState(false);
@@ -168,32 +177,27 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 	const [rawCliOutput, setRawCliOutput] = useState<string>();
 	const hasLoaded = useRef(false);
 
-	const signals = useMemo(
-		() => extractJobSignals(jobDraft.rawText),
-		[jobDraft.rawText],
-	);
-	const draftJobOffer = useMemo(
-		() => ({
-			id: "draft",
-			title: jobDraft.title,
-			company: jobDraft.company,
-			rawText: jobDraft.rawText,
-			createdAt: new Date(0).toISOString(),
-			signals,
-		}),
-		[jobDraft, signals],
-	);
-	const matchAnalysis = useMemo(
-		() => scoreProfileAgainstJob(appState.profile, draftJobOffer),
-		[appState.profile, draftJobOffer],
-	);
-	const activeGeneratedCv =
-		appState.generatedCvs.find(
-			(item) => item.id === appState.activeGeneratedCvId,
-		) ?? appState.generatedCvs[0];
+	const profile = appState.profile;
+	const applications = appState.generatedCvs;
+	const activeApplications = applications.filter((item) => !item.archived);
+	const archivedApplications = applications.filter((item) => item.archived);
+	const activeId = appState.activeGeneratedCvId;
+	const activeApplication =
+		applications.find((item) => item.id === activeId) ?? activeApplications[0];
+
+	const activeViewsEntry = activeApplication
+		? (viewsByApp[activeApplication.id] ??
+			defaultViewsFor(activeApplication.id))
+		: undefined;
+	const activeViews = activeViewsEntry?.views ?? [];
+	const activeViewId = activeViewsEntry?.activeViewId;
+	const activeView = activeViews.find((view) => view.id === activeViewId);
+
 	const canUseSelectedAi = toolIsReady(selectedTool, aiStatuses);
-	const canGenerate =
-		jobDraft.rawText.trim().length > 0 && canUseSelectedAi && !isGenerating;
+	const canGenerateActive =
+		Boolean(activeApplication?.jobOffer.rawText.trim()) &&
+		canUseSelectedAi &&
+		!isGenerating;
 
 	useEffect(() => {
 		let isMounted = true;
@@ -265,8 +269,210 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 		}
 	}
 
-	async function generateCv() {
-		if (!canGenerate) {
+	function createApplication() {
+		const application = createEmptyApplication(profile);
+		setAppState((state) =>
+			appStateSchema.parse({
+				...state,
+				generatedCvs: [application, ...state.generatedCvs],
+				activeGeneratedCvId: application.id,
+			}),
+		);
+		setViewsByApp((prev) => ({
+			...prev,
+			[application.id]: defaultViewsFor(application.id),
+		}));
+		return application.id;
+	}
+
+	function deleteApplication(id: string) {
+		setAppState((state) => {
+			const remaining = state.generatedCvs.filter((item) => item.id !== id);
+			const nextActive =
+				state.activeGeneratedCvId === id
+					? remaining.find((item) => !item.archived)?.id
+					: state.activeGeneratedCvId;
+			return appStateSchema.parse({
+				...state,
+				generatedCvs: remaining,
+				activeGeneratedCvId: nextActive,
+			});
+		});
+		setViewsByApp((prev) => {
+			const { [id]: _removed, ...rest } = prev;
+			return rest;
+		});
+	}
+
+	function restoreApplication(application: GeneratedCv) {
+		setAppState((state) =>
+			appStateSchema.parse({
+				...state,
+				generatedCvs: [
+					application,
+					...state.generatedCvs.filter((item) => item.id !== application.id),
+				],
+				activeGeneratedCvId: application.id,
+			}),
+		);
+	}
+
+	function archiveApplication(id: string, archived: boolean) {
+		setAppState((state) => {
+			const now = new Date().toISOString();
+			const generatedCvs = state.generatedCvs.map((item) =>
+				item.id === id ? { ...item, archived, updatedAt: now } : item,
+			);
+			let activeGeneratedCvId = state.activeGeneratedCvId;
+			if (archived && activeGeneratedCvId === id) {
+				activeGeneratedCvId = generatedCvs.find(
+					(item) => item.id !== id && !item.archived,
+				)?.id;
+			}
+			return appStateSchema.parse({
+				...state,
+				generatedCvs,
+				activeGeneratedCvId,
+			});
+		});
+	}
+
+	function openApplication(id: string) {
+		setAppState((state) =>
+			appStateSchema.parse({ ...state, activeGeneratedCvId: id }),
+		);
+	}
+
+	function setActiveId(id: string) {
+		openApplication(id);
+	}
+
+	function openView(type: ApplicationViewType) {
+		const application = activeApplication;
+		if (!application) {
+			return;
+		}
+
+		setViewsByApp((prev) => {
+			const entry = prev[application.id] ?? defaultViewsFor(application.id);
+			const existing = entry.views.find((view) => view.type === type);
+			if (existing) {
+				return {
+					...prev,
+					[application.id]: { ...entry, activeViewId: existing.id },
+				};
+			}
+
+			const view: ApplicationView = {
+				id: `${application.id}:${type}:${createId("view")}`,
+				type,
+			};
+			return {
+				...prev,
+				[application.id]: {
+					views: [...entry.views, view],
+					activeViewId: view.id,
+				},
+			};
+		});
+	}
+
+	function closeView(viewId: string) {
+		const application = activeApplication;
+		if (!application) {
+			return;
+		}
+
+		setViewsByApp((prev) => {
+			const entry = prev[application.id] ?? defaultViewsFor(application.id);
+			const index = entry.views.findIndex((view) => view.id === viewId);
+			if (index === -1) {
+				return prev;
+			}
+
+			const views = entry.views.filter((view) => view.id !== viewId);
+			if (views.length === 0) {
+				return { ...prev, [application.id]: defaultViewsFor(application.id) };
+			}
+
+			let activeViewId = entry.activeViewId;
+			if (activeViewId === viewId) {
+				activeViewId = (views[index] ?? views[index - 1] ?? views[0]).id;
+			}
+			return { ...prev, [application.id]: { views, activeViewId } };
+		});
+	}
+
+	function setActiveView(viewId: string) {
+		const application = activeApplication;
+		if (!application) {
+			return;
+		}
+
+		setViewsByApp((prev) => {
+			const entry = prev[application.id] ?? defaultViewsFor(application.id);
+			return {
+				...prev,
+				[application.id]: { ...entry, activeViewId: viewId },
+			};
+		});
+	}
+
+	function updateActiveJobOffer(patch: JobOfferPatch) {
+		setAppState((state) => {
+			const targetId = state.activeGeneratedCvId ?? state.generatedCvs[0]?.id;
+			if (!targetId) {
+				return state;
+			}
+
+			const now = new Date().toISOString();
+			return appStateSchema.parse({
+				...state,
+				generatedCvs: state.generatedCvs.map((item) => {
+					if (item.id !== targetId) {
+						return item;
+					}
+
+					const rawText = patch.rawText ?? item.jobOffer.rawText;
+					const signals = extractJobSignals(rawText);
+					const jobOffer: JobOffer = {
+						...item.jobOffer,
+						...patch,
+						signals,
+					};
+
+					return {
+						...item,
+						jobOffer,
+						signals,
+						matchAnalysis: scoreProfileAgainstJob(state.profile, jobOffer),
+						updatedAt: now,
+					};
+				}),
+			});
+		});
+	}
+
+	function updateActiveCv(cv: TailoredCv) {
+		setAppState((state) => {
+			const targetId = state.activeGeneratedCvId ?? state.generatedCvs[0]?.id;
+			if (!targetId) {
+				return state;
+			}
+
+			const now = new Date().toISOString();
+			return appStateSchema.parse({
+				...state,
+				generatedCvs: state.generatedCvs.map((item) =>
+					item.id === targetId ? { ...item, cv, updatedAt: now } : item,
+				),
+			});
+		});
+	}
+
+	async function generateActive() {
+		const application = activeApplication;
+		if (!application || !canGenerateActive) {
 			return;
 		}
 
@@ -274,15 +480,15 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 		setGenerationError(undefined);
 		setRawCliOutput(undefined);
 
-		const jobOffer = createJobOffer(jobDraft);
-		const analysis = scoreProfileAgainstJob(appState.profile, jobOffer);
-		const input = {
-			profile: appState.profile,
+		const signals = extractJobSignals(application.jobOffer.rawText);
+		const jobOffer: JobOffer = { ...application.jobOffer, signals };
+		const analysis = scoreProfileAgainstJob(profile, jobOffer);
+		const prompt = buildTailorCvPrompt({
+			profile,
 			jobOffer,
-			signals: jobOffer.signals ?? signals,
+			signals,
 			matchAnalysis: analysis,
-		};
-		const prompt = buildTailorCvPrompt(input);
+		});
 
 		try {
 			const response = await runAiTool({
@@ -297,20 +503,27 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 				setRawCliOutput(response.stdout);
 				throw parseError;
 			}
-			const now = new Date().toISOString();
-			const generatedCv: GeneratedCv = {
-				id: createId("generated"),
-				createdAt: now,
-				updatedAt: now,
-				jobOffer,
-				signals: input.signals,
-				matchAnalysis: analysis,
-				cv: parsedCv,
-				aiTool: response.tool,
-				rawAiOutput: response.stdout,
-			};
 
-			setAppState((state) => upsertGeneratedCv(state, generatedCv));
+			const now = new Date().toISOString();
+			setAppState((state) =>
+				appStateSchema.parse({
+					...state,
+					generatedCvs: state.generatedCvs.map((item) =>
+						item.id === application.id
+							? {
+									...item,
+									jobOffer,
+									signals,
+									matchAnalysis: analysis,
+									cv: parsedCv,
+									aiTool: response.tool,
+									rawAiOutput: response.stdout,
+									updatedAt: now,
+								}
+							: item,
+					),
+				}),
+			);
 			toast.success("Tailored CV generated");
 		} catch (error) {
 			const message = getErrorMessage(error);
@@ -321,70 +534,8 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 		}
 	}
 
-	function createDraftCv() {
-		const jobOffer = createJobOffer(jobDraft);
-		const analysis = scoreProfileAgainstJob(appState.profile, jobOffer);
-		const now = new Date().toISOString();
-		const generatedCv: GeneratedCv = {
-			id: createId("generated"),
-			createdAt: now,
-			updatedAt: now,
-			jobOffer,
-			signals,
-			matchAnalysis: analysis,
-			cv: {
-				...createDefaultTailoredCv(appState.profile),
-				missingRequirements: analysis.missingRequirements,
-				warnings: analysis.warnings,
-			},
-			aiTool: "deterministic-draft",
-		};
-
-		setAppState((state) => upsertGeneratedCv(state, generatedCv));
-	}
-
-	function updateActiveCv(cv: TailoredCv) {
-		setAppState((state) => {
-			const activeId = state.activeGeneratedCvId ?? state.generatedCvs[0]?.id;
-			if (!activeId) {
-				return state;
-			}
-
-			const now = new Date().toISOString();
-			return appStateSchema.parse({
-				...state,
-				generatedCvs: state.generatedCvs.map((item) =>
-					item.id === activeId ? { ...item, cv, updatedAt: now } : item,
-				),
-			});
-		});
-	}
-
-	function reopenGeneratedCv(generatedCv: GeneratedCv) {
-		setAppState((state) =>
-			appStateSchema.parse({ ...state, activeGeneratedCvId: generatedCv.id }),
-		);
-		setJobDraft({
-			title: generatedCv.jobOffer.title,
-			company: generatedCv.jobOffer.company,
-			rawText: generatedCv.jobOffer.rawText,
-		});
-	}
-
-	function duplicateGeneratedCv(generatedCv: GeneratedCv) {
-		const now = new Date().toISOString();
-		setAppState((state) =>
-			upsertGeneratedCv(state, {
-				...generatedCv,
-				id: createId("generated"),
-				createdAt: now,
-				updatedAt: now,
-			}),
-		);
-	}
-
 	async function exportPdf() {
-		if (!activeGeneratedCv) {
+		if (!activeApplication) {
 			return;
 		}
 
@@ -396,10 +547,7 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 		setIsExportingPdf(true);
 
 		try {
-			const response = await exportGeneratedCvPdf(
-				appState.profile,
-				activeGeneratedCv,
-			);
+			const response = await exportGeneratedCvPdf(profile, activeApplication);
 			toast.success("PDF exported", {
 				description: response.revealed
 					? "The PDF was revealed in Finder."
@@ -414,35 +562,69 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 		}
 	}
 
-	const value: CvAppContextValue = {
-		activeGeneratedCv,
-		aiStatuses,
-		appState,
-		canGenerate,
-		canUseSelectedAi,
-		createDraftCv,
-		duplicateGeneratedCv,
-		exportPdf,
-		generateCv,
-		generationError,
-		isExportingPdf,
-		isGenerating,
-		jobDraft,
-		matchAnalysis,
-		rawCliOutput,
-		refreshAiStatuses,
-		reopenGeneratedCv,
-		replaceProfile: (profile) =>
-			setAppState((state) => replaceProfileInState(state, profile)),
-		saveStatus,
-		selectedTool,
-		setJobDraft,
-		setSelectedTool,
-		signals,
-		updateActiveCv,
-		updateProfile: (profile) =>
-			setAppState((state) => updateProfileInState(state, profile)),
-	};
+	// biome-ignore lint/correctness/useExhaustiveDependencies: value is rebuilt from the appState + viewsByApp snapshots; handlers close over current values.
+	const value = useMemo<CvAppContextValue>(
+		() => ({
+			appState,
+			profile,
+			applications,
+			activeApplications,
+			archivedApplications,
+			activeApplication,
+			activeId,
+			activeViews,
+			activeViewId,
+			activeView,
+			aiStatuses,
+			selectedTool,
+			saveStatus,
+			canUseSelectedAi,
+			canGenerateActive,
+			isGenerating,
+			isExportingPdf,
+			generationError,
+			rawCliOutput,
+			setSelectedTool,
+			refreshAiStatuses,
+			createApplication,
+			deleteApplication,
+			restoreApplication,
+			archiveApplication,
+			openApplication,
+			setActiveId,
+			openView,
+			closeView,
+			setActiveView,
+			updateActiveJobOffer,
+			updateActiveCv,
+			generateActive,
+			exportPdf,
+			replaceProfile: (next) =>
+				setAppState((state) =>
+					appStateSchema.parse({
+						...state,
+						profile: next,
+					}),
+				),
+			updateProfile: (next) =>
+				setAppState((state) =>
+					appStateSchema.parse({ ...state, profile: next }),
+				),
+		}),
+		[
+			appState,
+			viewsByApp,
+			aiStatuses,
+			selectedTool,
+			saveStatus,
+			canUseSelectedAi,
+			canGenerateActive,
+			isGenerating,
+			isExportingPdf,
+			generationError,
+			rawCliOutput,
+		],
+	);
 
 	return (
 		<CvAppContext.Provider value={value}>{children}</CvAppContext.Provider>

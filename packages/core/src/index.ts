@@ -120,6 +120,7 @@ export const generatedCvSchema = z.object({
 	cv: tailoredCvSchema,
 	aiTool: z.string(),
 	rawAiOutput: z.string().optional(),
+	archived: z.boolean().optional(),
 });
 
 export const appStateSchema = z.object({

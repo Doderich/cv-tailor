@@ -12,11 +12,17 @@
   "app": {
     "windows": [
       {
-        "title": "cv-tailor",
-        "width": 800,
-        "height": 600,
+        "title": "CV Tailor",
+        "width": 1200,
+        "height": 820,
+        "minWidth": 720,
+        "minHeight": 560,
         "resizable": true,
-        "fullscreen": false
+        "fullscreen": false,
+        "acceptFirstMouse": true,
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": true,
+        "backgroundColor": "#101014"
       }
     ],
     "security": {
