@@ -15,12 +15,18 @@ import {
 	type BaseProfile,
 	type CvLanguage,
 	type CvRun,
+	createDefaultAppSettings,
+	createDefaultBaseProfile,
+	createDefaultProfileRecord,
 	createEmptyApplication,
 	createId,
+	createProfileRecord,
 	cvLanguageLabel,
 	cvLanguages,
 	extractJobSignals,
 	type JobOffer,
+	normalizeBaseProfile,
+	normalizeProfileRecord,
 	type ProfileRecord,
 	scoreProfileAgainstJob,
 	type TailoredCv,
@@ -78,6 +84,7 @@ type ViewsByApp = Record<string, ViewsEntry>;
 interface CvAppContextValue {
 	profile: BaseProfile;
 	profileRecord: ProfileRecord | undefined;
+	profiles: ProfileRecord[];
 	applications: ApplicationListItem[];
 	activeApplications: ApplicationListItem[];
 	archivedApplications: ApplicationListItem[];
@@ -119,8 +126,17 @@ interface CvAppContextValue {
 	generateActive: (language?: CvLanguage) => Promise<void>;
 	switchActiveRun: (runId: string) => void;
 	exportPdf: () => Promise<void>;
+	profileRevision: number;
 	replaceProfile: (profile: BaseProfile) => void;
 	updateProfile: (profile: BaseProfile) => void;
+	patchProfile: (patch: Partial<BaseProfile>) => void;
+	createProfile: (name: string, language: CvLanguage) => string;
+	switchProfile: (id: string) => void;
+	deleteProfile: (id: string) => void;
+	updateProfileMeta: (
+		id: string,
+		patch: Partial<Pick<ProfileRecord, "name" | "language">>,
+	) => void;
 }
 
 const CvAppContext = createContext<CvAppContextValue | undefined>(undefined);
@@ -226,35 +242,36 @@ function toListItem(
 
 function profileFromRecord(record: ProfileRecord | undefined): BaseProfile {
 	if (!record) {
-		return {
-			contact: {
-				name: "",
-				email: "",
-				phone: "",
-				location: "",
-				links: [],
-			},
-			headline: "",
-			summary: "",
-			targetRoles: [],
-			preferredTone: "Clear, concise, confident, and factual.",
-			skills: [],
-			achievements: [],
-			experience: [],
-			education: [],
-			projects: [],
-			languages: [],
-		};
+		return createDefaultBaseProfile();
 	}
 
+	const normalized = normalizeProfileRecord(record);
+	const defaults = createDefaultBaseProfile();
 	const {
 		id: _id,
 		name: _name,
+		language: _language,
 		createdAt: _createdAt,
 		updatedAt: _updatedAt,
 		...profile
-	} = record;
-	return profile;
+	} = normalized;
+
+	return {
+		...defaults,
+		...profile,
+		contact: {
+			...defaults.contact,
+			...profile.contact,
+			links: profile.contact?.links ?? [],
+		},
+		targetRoles: profile.targetRoles ?? [],
+		skills: profile.skills ?? [],
+		achievements: profile.achievements ?? [],
+		experience: profile.experience ?? [],
+		education: profile.education ?? [],
+		projects: profile.projects ?? [],
+		languages: profile.languages ?? [],
+	};
 }
 
 export function CvAppProvider({ children }: { children: ReactNode }) {
@@ -269,6 +286,9 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 	const [isExportingPdf, setIsExportingPdf] = useState(false);
 	const [generationError, setGenerationError] = useState<string>();
 	const [rawCliOutput, setRawCliOutput] = useState<string>();
+	const [profileRevision, setProfileRevision] = useState(0);
+	const [profileSnapshot, setProfileSnapshot] = useState<BaseProfile | undefined>();
+	const profileSnapshotUpdatedAtRef = useRef<string | undefined>(undefined);
 	const deletedSnapshots = useRef(
 		new Map<string, DeletedApplicationSnapshot>(),
 	);
@@ -291,9 +311,17 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 	);
 
 	const profileRecord =
-		profileRows.find((record) => record.id === settings?.activeProfileId) ??
-		profileRows[0];
-	const profile = profileFromRecord(profileRecord);
+		profileRows
+			.map((record) => normalizeProfileRecord(record))
+			.find((record) => record.id === settings?.activeProfileId) ??
+		(profileRows[0] ? normalizeProfileRecord(profileRows[0]) : undefined);
+	const profiles = profileRows.map((record) => normalizeProfileRecord(record));
+	const storedProfile = profileFromRecord(profileRecord);
+	const profile = profileSnapshot ?? storedProfile;
+	const profileRecordRef = useRef(profileRecord);
+	const settingsRef = useRef(settings);
+	profileRecordRef.current = profileRecord;
+	settingsRef.current = settings;
 	const applications = useMemo(
 		() =>
 			applicationRows.map((application) =>
@@ -345,6 +373,17 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 		Boolean(activeApplication?.jobOffer.rawText.trim()) &&
 		canUseSelectedAi &&
 		!isGenerating;
+
+	useEffect(() => {
+		if (!profileSnapshot || !profileRecord?.updatedAt) {
+			return;
+		}
+
+		if (profileRecord.updatedAt === profileSnapshotUpdatedAtRef.current) {
+			setProfileSnapshot(undefined);
+			profileSnapshotUpdatedAtRef.current = undefined;
+		}
+	}, [profileRecord?.updatedAt, profileRecord?.id, profileSnapshot]);
 
 	useEffect(() => {
 		if (activeRun?.language) {
@@ -415,10 +454,12 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 		}
 
 		const applicationId = createId("app");
+		const profileLanguage = profileRecord.language ?? "en";
 		const { application, draftRun } = createEmptyApplication({
 			id: applicationId,
 			profileId: profileRecord.id,
 			profile,
+			language: profileLanguage,
 		});
 
 		db.applications.insert(application);
@@ -431,7 +472,7 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 			...prev,
 			[application.id]: defaultViewsFor(application.id),
 		}));
-		setSelectedLanguageState("en");
+		setSelectedLanguageState(profileLanguage);
 		return application.id;
 	}
 
@@ -759,24 +800,237 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 		}
 	}
 
-	function replaceProfile(next: BaseProfile) {
-		if (!profileRecord) {
-			return;
-		}
+	function applyProfileFields(
+		draft: ProfileRecord,
+		next: BaseProfile,
+		updatedAt: string,
+	) {
+		draft.contact = { ...next.contact, links: [...next.contact.links] };
+		draft.headline = next.headline;
+		draft.summary = next.summary;
+		draft.targetRoles = [...next.targetRoles];
+		draft.preferredTone = next.preferredTone;
+		draft.skills = [...next.skills];
+		draft.achievements = [...next.achievements];
+		draft.experience = next.experience.map((item) => ({
+			...item,
+			bullets: [...item.bullets],
+			technologies: [...item.technologies],
+		}));
+		draft.education = next.education.map((item) => ({
+			...item,
+			details: [...item.details],
+		}));
+		draft.projects = next.projects.map((item) => ({
+			...item,
+			bullets: [...item.bullets],
+			technologies: [...item.technologies],
+		}));
+		draft.languages = [...next.languages];
+		draft.updatedAt = updatedAt;
+	}
 
+	function applyProfilePatch(
+		draft: ProfileRecord,
+		patch: Partial<BaseProfile>,
+		updatedAt: string,
+	) {
+		if (patch.contact !== undefined) {
+			draft.contact = {
+				...patch.contact,
+				links: [...(patch.contact.links ?? [])],
+			};
+		}
+		if (patch.headline !== undefined) {
+			draft.headline = patch.headline;
+		}
+		if (patch.summary !== undefined) {
+			draft.summary = patch.summary;
+		}
+		if (patch.targetRoles !== undefined) {
+			draft.targetRoles = [...patch.targetRoles];
+		}
+		if (patch.preferredTone !== undefined) {
+			draft.preferredTone = patch.preferredTone;
+		}
+		if (patch.skills !== undefined) {
+			draft.skills = [...patch.skills];
+		}
+		if (patch.achievements !== undefined) {
+			draft.achievements = [...patch.achievements];
+		}
+		if (patch.experience !== undefined) {
+			draft.experience = (patch.experience ?? []).map((item) => ({
+				...item,
+				bullets: [...item.bullets],
+				technologies: [...item.technologies],
+			}));
+		}
+		if (patch.education !== undefined) {
+			draft.education = (patch.education ?? []).map((item) => ({
+				...item,
+				details: [...item.details],
+			}));
+		}
+		if (patch.projects !== undefined) {
+			draft.projects = (patch.projects ?? []).map((item) => ({
+				...item,
+				bullets: [...item.bullets],
+				technologies: [...item.technologies],
+			}));
+		}
+		if (patch.languages !== undefined) {
+			draft.languages = [...patch.languages];
+		}
+		draft.updatedAt = updatedAt;
+	}
+
+	function ensureProfileRecord(next: BaseProfile) {
 		const now = new Date().toISOString();
-		db.profiles.update(profileRecord.id, (draft) => {
-			Object.assign(draft, next, {
-				id: draft.id,
-				name: draft.name,
-				createdAt: draft.createdAt,
-				updatedAt: now,
+		const existing = profileRecordRef.current;
+		const record: ProfileRecord = existing
+			? {
+					...existing,
+					...next,
+					updatedAt: now,
+				}
+			: {
+					...createDefaultProfileRecord(now),
+					...next,
+					updatedAt: now,
+				};
+		db.profiles.insert(record);
+		const currentSettings = settingsRef.current;
+		if (currentSettings) {
+			db.settings.update("settings", (draft) => {
+				draft.activeProfileId = record.id;
 			});
-		});
+		} else {
+			db.settings.insert(createDefaultAppSettings(record.id));
+		}
+		return record;
+	}
+
+	function replaceProfile(next: BaseProfile) {
+		const normalized = normalizeBaseProfile(next);
+		const record = profileRecordRef.current;
+		const now = new Date().toISOString();
+
+		try {
+			if (!record) {
+				const created = ensureProfileRecord(normalized);
+				profileSnapshotUpdatedAtRef.current = created.updatedAt;
+			} else {
+				db.profiles.update(record.id, (draft) => {
+					applyProfileFields(draft, normalized, now);
+				});
+				profileSnapshotUpdatedAtRef.current = now;
+			}
+
+			setProfileSnapshot(normalized);
+			setProfileRevision((current) => current + 1);
+		} catch (error) {
+			toast.error("Could not save profile", {
+				description: getErrorMessage(error),
+			});
+		}
+	}
+
+	function patchProfile(patch: Partial<BaseProfile>) {
+		const record = profileRecordRef.current;
+		const now = new Date().toISOString();
+
+		setProfileSnapshot(undefined);
+		profileSnapshotUpdatedAtRef.current = undefined;
+
+		try {
+			if (!record) {
+				ensureProfileRecord({ ...createDefaultBaseProfile(), ...patch });
+				return;
+			}
+
+			db.profiles.update(record.id, (draft) => {
+				applyProfilePatch(draft, patch, now);
+			});
+		} catch (error) {
+			toast.error("Could not save profile", {
+				description: getErrorMessage(error),
+			});
+		}
 	}
 
 	function updateProfile(next: BaseProfile) {
 		replaceProfile(next);
+	}
+
+	function createProfile(name: string, language: CvLanguage) {
+		const record = createProfileRecord({ name, language });
+		db.profiles.insert(record);
+		updateSettings({ activeProfileId: record.id });
+		setProfileSnapshot(undefined);
+		profileSnapshotUpdatedAtRef.current = undefined;
+		setProfileRevision((current) => current + 1);
+		return record.id;
+	}
+
+	function switchProfile(id: string) {
+		if (!profiles.some((item) => item.id === id)) {
+			return;
+		}
+
+		updateSettings({ activeProfileId: id });
+		setProfileSnapshot(undefined);
+		profileSnapshotUpdatedAtRef.current = undefined;
+		setProfileRevision((current) => current + 1);
+	}
+
+	function deleteProfile(id: string) {
+		if (profiles.length <= 1) {
+			toast.error("Cannot delete the last profile");
+			return;
+		}
+
+		const linkedApplications = applicationRows.filter(
+			(item) => item.profileId === id,
+		);
+		if (linkedApplications.length > 0) {
+			toast.error("Profile has applications", {
+				description: "Delete or archive those applications first.",
+			});
+			return;
+		}
+
+		db.profiles.delete(id);
+
+		if (settings?.activeProfileId === id) {
+			const nextActive = profiles.find((item) => item.id !== id)?.id;
+			if (nextActive) {
+				updateSettings({ activeProfileId: nextActive });
+			}
+		}
+
+		setProfileRevision((current) => current + 1);
+	}
+
+	function updateProfileMeta(
+		id: string,
+		patch: Partial<Pick<ProfileRecord, "name" | "language">>,
+	) {
+		const now = new Date().toISOString();
+
+		db.profiles.update(id, (draft) => {
+			if (patch.name !== undefined) {
+				const trimmed = patch.name.trim();
+				if (trimmed) {
+					draft.name = trimmed;
+				}
+			}
+			if (patch.language !== undefined) {
+				draft.language = patch.language;
+			}
+			draft.updatedAt = now;
+		});
+		setProfileRevision((current) => current + 1);
 	}
 
 	useEffect(() => {
@@ -798,6 +1052,7 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 		() => ({
 			profile,
 			profileRecord,
+			profiles,
 			applications,
 			activeApplications,
 			archivedApplications,
@@ -839,12 +1094,20 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 			generateActive,
 			switchActiveRun,
 			exportPdf,
+			profileRevision,
 			replaceProfile,
 			updateProfile,
+			patchProfile,
+			createProfile,
+			switchProfile,
+			deleteProfile,
+			updateProfileMeta,
 		}),
 		[
 			profile,
 			profileRecord,
+			profiles,
+			profileRevision,
 			applications,
 			activeApplications,
 			archivedApplications,

@@ -16,10 +16,15 @@ import { Input } from "@cv-tailor/ui/components/input";
 import { Label } from "@cv-tailor/ui/components/label";
 import { Textarea } from "@cv-tailor/ui/components/textarea";
 import { Plus, Trash2 } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { toast } from "sonner";
+
+import { getErrorMessage } from "@/lib/cv-app-context";
 
 interface ProfileEditorProps {
 	profile: BaseProfile;
-	onChange: (profile: BaseProfile) => void;
+	onPatch: (patch: Partial<BaseProfile>) => void;
+	profileRevision?: number;
 }
 
 function splitLines(value: string) {
@@ -41,7 +46,7 @@ function Field({
 	placeholder?: string;
 }) {
 	return (
-		<div className="grid gap-1">
+		<div className="grid gap-3">
 			<Label>{label}</Label>
 			<Input
 				value={value}
@@ -66,7 +71,7 @@ function TextField({
 	rows?: number;
 }) {
 	return (
-		<div className="grid gap-1">
+		<div className="grid gap-3">
 			<Label>{label}</Label>
 			<Textarea
 				value={value}
@@ -140,116 +145,237 @@ function createProject(): ProjectItem {
 	};
 }
 
-export function ProfileEditor({ profile, onChange }: ProfileEditorProps) {
-	const updateProfile = (patch: Partial<BaseProfile>) =>
-		onChange({ ...profile, ...patch });
-	const updateContact = (patch: Partial<BaseProfile["contact"]>) =>
-		updateProfile({ contact: { ...profile.contact, ...patch } });
-	const updateExperience = (id: string, patch: Partial<ExperienceItem>) =>
-		updateProfile({
-			experience: profile.experience.map((item) =>
-				item.id === id ? { ...item, ...patch } : item,
-			),
+function normalizeDraft(profile: BaseProfile): BaseProfile {
+	return {
+		...profile,
+		contact: {
+			...profile.contact,
+			links: profile.contact?.links ?? [],
+		},
+		targetRoles: profile.targetRoles ?? [],
+		skills: profile.skills ?? [],
+		achievements: profile.achievements ?? [],
+		experience: profile.experience ?? [],
+		education: profile.education ?? [],
+		projects: profile.projects ?? [],
+		languages: profile.languages ?? [],
+	};
+}
+
+function scrollToSection(id: string) {
+	requestAnimationFrame(() => {
+		document.getElementById(id)?.scrollIntoView({
+			behavior: "smooth",
+			block: "nearest",
 		});
-	const updateEducation = (id: string, patch: Partial<EducationItem>) =>
-		updateProfile({
-			education: profile.education.map((item) =>
-				item.id === id ? { ...item, ...patch } : item,
-			),
+	});
+}
+
+export function ProfileEditor({
+	profile,
+	onPatch,
+	profileRevision = 0,
+}: ProfileEditorProps) {
+	const [draft, setDraft] = useState(() => normalizeDraft(profile));
+
+	useEffect(() => {
+		setDraft(normalizeDraft(profile));
+	}, [profileRevision]);
+
+	const persistPatch = useCallback(
+		(patch: Partial<BaseProfile>) => {
+			queueMicrotask(() => {
+				try {
+					onPatch(patch);
+				} catch (error) {
+					toast.error("Could not save profile", {
+						description: getErrorMessage(error),
+					});
+				}
+			});
+		},
+		[onPatch],
+	);
+
+	const updateProfile = (patch: Partial<BaseProfile>) => {
+		setDraft((current) => {
+			const next = { ...current, ...patch };
+			persistPatch(patch);
+			return next;
 		});
-	const updateProject = (id: string, patch: Partial<ProjectItem>) =>
-		updateProfile({
-			projects: profile.projects.map((item) =>
-				item.id === id ? { ...item, ...patch } : item,
-			),
+	};
+	const updateContact = (patch: Partial<BaseProfile["contact"]>) => {
+		setDraft((current) => {
+			const contact = { ...current.contact, ...patch };
+			persistPatch({ contact });
+			return { ...current, contact };
 		});
+	};
+	const updateExperience = (id: string, patch: Partial<ExperienceItem>) => {
+		setDraft((current) => {
+			const experience = (current.experience ?? []).map((item) =>
+				item.id === id ? { ...item, ...patch } : item,
+			);
+			persistPatch({ experience });
+			return { ...current, experience };
+		});
+	};
+	const updateEducation = (id: string, patch: Partial<EducationItem>) => {
+		setDraft((current) => {
+			const education = (current.education ?? []).map((item) =>
+				item.id === id ? { ...item, ...patch } : item,
+			);
+			persistPatch({ education });
+			return { ...current, education };
+		});
+	};
+	const updateProject = (id: string, patch: Partial<ProjectItem>) => {
+		setDraft((current) => {
+			const projects = (current.projects ?? []).map((item) =>
+				item.id === id ? { ...item, ...patch } : item,
+			);
+			persistPatch({ projects });
+			return { ...current, projects };
+		});
+	};
+	const appendExperience = () => {
+		const item = createExperience();
+		setDraft((current) => {
+			const experience = [...(current.experience ?? []), item];
+			persistPatch({ experience });
+			return { ...current, experience };
+		});
+		scrollToSection(`experience-${item.id}`);
+	};
+	const removeExperience = (id: string) => {
+		setDraft((current) => {
+			const experience = (current.experience ?? []).filter(
+				(entry) => entry.id !== id,
+			);
+			persistPatch({ experience });
+			return { ...current, experience };
+		});
+	};
+	const appendProject = () => {
+		const item = createProject();
+		setDraft((current) => {
+			const projects = [...(current.projects ?? []), item];
+			persistPatch({ projects });
+			return { ...current, projects };
+		});
+		scrollToSection(`project-${item.id}`);
+	};
+	const removeProject = (id: string) => {
+		setDraft((current) => {
+			const projects = (current.projects ?? []).filter(
+				(entry) => entry.id !== id,
+			);
+			persistPatch({ projects });
+			return { ...current, projects };
+		});
+	};
+	const appendEducation = () => {
+		const item = createEducation();
+		setDraft((current) => {
+			const education = [...(current.education ?? []), item];
+			persistPatch({ education });
+			return { ...current, education };
+		});
+		scrollToSection(`education-${item.id}`);
+	};
+	const removeEducation = (id: string) => {
+		setDraft((current) => {
+			const education = (current.education ?? []).filter(
+				(entry) => entry.id !== id,
+			);
+			persistPatch({ education });
+			return { ...current, education };
+		});
+	};
 
 	return (
-		<div className="grid gap-4">
+		<div id="profile-editor" className="grid gap-4">
 			<div className="grid gap-3">
 				<div className="grid grid-cols-2 gap-2">
 					<Field
 						label="Name"
-						value={profile.contact.name}
+						value={draft.contact.name}
 						onChange={(name) => updateContact({ name })}
 					/>
 					<Field
 						label="Email"
-						value={profile.contact.email}
+						value={draft.contact.email}
 						onChange={(email) => updateContact({ email })}
 					/>
 					<Field
 						label="Phone"
-						value={profile.contact.phone}
+						value={draft.contact.phone}
 						onChange={(phone) => updateContact({ phone })}
 					/>
 					<Field
 						label="Location"
-						value={profile.contact.location}
+						value={draft.contact.location}
 						onChange={(location) => updateContact({ location })}
 					/>
 				</div>
 				<ArrayField
 					label="Links"
-					values={profile.contact.links}
+					values={draft.contact.links}
 					onChange={(links) => updateContact({ links })}
 					placeholder="https://linkedin.com/in/..."
 					rows={3}
 				/>
 				<Field
 					label="Headline"
-					value={profile.headline}
+					value={draft.headline}
 					onChange={(headline) => updateProfile({ headline })}
 				/>
 				<TextField
 					label="Base summary"
-					value={profile.summary}
+					value={draft.summary}
 					onChange={(summary) => updateProfile({ summary })}
 					placeholder="A factual reusable summary."
 				/>
 				<ArrayField
 					label="Target roles"
-					values={profile.targetRoles}
+					values={draft.targetRoles}
 					onChange={(targetRoles) => updateProfile({ targetRoles })}
 					placeholder="Frontend Engineer"
 					rows={3}
 				/>
 				<TextField
 					label="Preferred tone"
-					value={profile.preferredTone}
+					value={draft.preferredTone}
 					onChange={(preferredTone) => updateProfile({ preferredTone })}
 					rows={3}
 				/>
 				<ArrayField
 					label="Skills"
-					values={profile.skills}
+					values={draft.skills}
 					onChange={(skills) => updateProfile({ skills })}
 					placeholder="React"
 				/>
 				<ArrayField
 					label="Achievements"
-					values={profile.achievements}
+					values={draft.achievements}
 					onChange={(achievements) => updateProfile({ achievements })}
 				/>
 			</div>
 
 			<div className="flex items-center justify-between">
-				<h3 className="font-medium text-sm">Experience</h3>
+				<h3 className="font-medium text-sm font-heading">Experience</h3>
 				<Button
+					type="button"
 					size="sm"
 					variant="outline"
-					onClick={() =>
-						updateProfile({
-							experience: [...profile.experience, createExperience()],
-						})
-					}
+					onClick={appendExperience}
 				>
 					<Plus /> Add
 				</Button>
 			</div>
 			<div className="grid gap-3">
-				{profile.experience.map((item) => (
-					<Card key={item.id} size="sm">
+				{(draft.experience ?? []).map((item) => (
+					<Card key={item.id} id={`experience-${item.id}`} size="sm">
 						<CardHeader>
 							<CardTitle>
 								{item.title || item.company || "Experience"}
@@ -301,13 +427,7 @@ export function ProfileEditor({ profile, onChange }: ProfileEditorProps) {
 							<Button
 								size="sm"
 								variant="destructive"
-								onClick={() =>
-									updateProfile({
-										experience: profile.experience.filter(
-											(entry) => entry.id !== item.id,
-										),
-									})
-								}
+								onClick={() => removeExperience(item.id)}
 							>
 								<Trash2 /> Remove
 							</Button>
@@ -317,20 +437,19 @@ export function ProfileEditor({ profile, onChange }: ProfileEditorProps) {
 			</div>
 
 			<div className="flex items-center justify-between">
-				<h3 className="font-medium text-sm">Projects</h3>
+				<h3 className="font-medium text-sm font-heading">Projects</h3>
 				<Button
+					type="button"
 					size="sm"
 					variant="outline"
-					onClick={() =>
-						updateProfile({ projects: [...profile.projects, createProject()] })
-					}
+					onClick={appendProject}
 				>
 					<Plus /> Add
 				</Button>
 			</div>
 			<div className="grid gap-3">
-				{profile.projects.map((item) => (
-					<Card key={item.id} size="sm">
+				{(draft.projects ?? []).map((item) => (
+					<Card key={item.id} id={`project-${item.id}`} size="sm">
 						<CardHeader>
 							<CardTitle>{item.name || "Project"}</CardTitle>
 						</CardHeader>
@@ -376,13 +495,7 @@ export function ProfileEditor({ profile, onChange }: ProfileEditorProps) {
 							<Button
 								size="sm"
 								variant="destructive"
-								onClick={() =>
-									updateProfile({
-										projects: profile.projects.filter(
-											(entry) => entry.id !== item.id,
-										),
-									})
-								}
+								onClick={() => removeProject(item.id)}
 							>
 								<Trash2 /> Remove
 							</Button>
@@ -392,22 +505,19 @@ export function ProfileEditor({ profile, onChange }: ProfileEditorProps) {
 			</div>
 
 			<div className="flex items-center justify-between">
-				<h3 className="font-medium text-sm">Education</h3>
+				<h3 className="font-medium text-sm font-heading">Education</h3>
 				<Button
+					type="button"
 					size="sm"
 					variant="outline"
-					onClick={() =>
-						updateProfile({
-							education: [...profile.education, createEducation()],
-						})
-					}
+					onClick={appendEducation}
 				>
 					<Plus /> Add
 				</Button>
 			</div>
 			<div className="grid gap-3">
-				{profile.education.map((item) => (
-					<Card key={item.id} size="sm">
+				{(draft.education ?? []).map((item) => (
+					<Card key={item.id} id={`education-${item.id}`} size="sm">
 						<CardHeader>
 							<CardTitle>
 								{item.degree || item.institution || "Education"}
@@ -454,13 +564,7 @@ export function ProfileEditor({ profile, onChange }: ProfileEditorProps) {
 							<Button
 								size="sm"
 								variant="destructive"
-								onClick={() =>
-									updateProfile({
-										education: profile.education.filter(
-											(entry) => entry.id !== item.id,
-										),
-									})
-								}
+								onClick={() => removeEducation(item.id)}
 							>
 								<Trash2 /> Remove
 							</Button>
@@ -471,7 +575,7 @@ export function ProfileEditor({ profile, onChange }: ProfileEditorProps) {
 
 			<ArrayField
 				label="Languages"
-				values={profile.languages}
+				values={draft.languages}
 				onChange={(languages) => updateProfile({ languages })}
 				placeholder="English"
 				rows={3}

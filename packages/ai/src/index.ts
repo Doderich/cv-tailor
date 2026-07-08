@@ -66,6 +66,11 @@ export interface GenerateProfileInput {
 		status?: number;
 		error?: string;
 	}>;
+	fileSources?: Array<{
+		name: string;
+		text: string;
+		error?: string;
+	}>;
 	preferredTone?: string;
 }
 
@@ -332,6 +337,9 @@ export function buildGenerateProfilePrompt(
 		"",
 		"Fetched public source text:",
 		JSON.stringify(input.fetchedSources, null, 2),
+		"",
+		"Uploaded local file text:",
+		JSON.stringify(input.fileSources ?? [], null, 2),
 	].join("\n");
 }
 

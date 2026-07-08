@@ -20,7 +20,7 @@ export function Metric({ label, value }: { label: string; value: string }) {
 	return (
 		<div className="min-w-0 rounded-md border bg-card p-3">
 			<p className="text-muted-foreground text-xs">{label}</p>
-			<p className="mt-1 break-words font-semibold text-xl">{value}</p>
+			<p className="mt-1 break-words font-semibold text-2xl">{value}</p>
 		</div>
 	);
 }
@@ -108,7 +108,7 @@ export function AiStatusPanel({ statuses }: { statuses: AiToolStatus[] }) {
 			</CardHeader>
 			<CardContent className="grid gap-2">
 				{statuses.map((status) => (
-					<div key={status.id} className="rounded-md border p-2 text-xs">
+					<div key={status.id} className="rounded-md border p-3 text-sm">
 						<div className="flex items-center justify-between gap-2">
 							<span className="font-medium">{status.label}</span>
 							<span

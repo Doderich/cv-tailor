@@ -117,18 +117,18 @@ function ApplicationRailItem({
 				onClick={onOpen}
 				className="grid w-full gap-1 px-2.5 py-2 pr-8 text-left"
 			>
-				<span className="line-clamp-2 font-medium text-sm leading-snug">
+				<span className="line-clamp-2 font-medium text-base leading-snug">
 					{applicationTitle(application)}
 				</span>
 				<span className="flex items-center gap-1.5">
 					{application.isDraft ? (
-						<span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+						<span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
 							Draft
 						</span>
 					) : application.previewScore !== undefined ? (
 						<ScoreBadge score={application.previewScore} />
 					) : null}
-					<span className="min-w-0 truncate text-muted-foreground text-xs">
+					<span className="min-w-0 truncate text-muted-foreground text-sm">
 						{applicationCompany(application)}
 					</span>
 				</span>
@@ -231,28 +231,28 @@ function ApplicationRail({ onNavigate }: { onNavigate?: () => void }) {
 				className="flex items-center gap-2 px-1 pt-1"
 				data-tauri-drag-region={isDesktop ? "" : undefined}
 			>
-				<div className="grid size-8 shrink-0 place-items-center rounded-lg bg-primary text-primary-foreground shadow-sm">
-					<Sparkles className="size-4" />
+				<div className="grid size-9 shrink-0 place-items-center rounded-lg bg-primary text-primary-foreground shadow-sm">
+					<Sparkles className="size-4.5" />
 				</div>
 				<div className="min-w-0 leading-tight">
-					<p className="truncate font-semibold text-sm">CV Tailor</p>
-					<p className="truncate text-muted-foreground text-xs">
+					<p className="truncate font-semibold text-base font-heading">CV Tailor</p>
+					<p className="truncate text-muted-foreground text-sm">
 						{isDesktop ? "Desktop workspace" : "Web preview"}
 					</p>
 				</div>
 				<div
-					className="h-8 flex-1 self-stretch"
+					className="h-10 flex-1 self-stretch"
 					data-tauri-drag-region={isDesktop ? "" : undefined}
 				/>
 			</div>
 
 			<div className="relative">
-				<Search className="absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
+				<Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
 				<Input
 					value={query}
 					onChange={(event) => setQuery(event.target.value)}
 					placeholder="Search applications"
-					className="h-8 pl-8"
+					className="h-10 pl-9"
 				/>
 			</div>
 
@@ -263,7 +263,7 @@ function ApplicationRail({ onNavigate }: { onNavigate?: () => void }) {
 			<ScrollArea className="-mx-1 min-h-0 flex-1">
 				<div className="px-1">
 					{visibleActive.length === 0 ? (
-						<p className="px-2 py-6 text-center text-muted-foreground text-xs">
+						<p className="px-2 py-6 text-center text-muted-foreground text-sm">
 							{activeApplications.length === 0
 								? "No applications yet. Create your first to get started."
 								: "No matches."}
@@ -291,7 +291,7 @@ function ApplicationRail({ onNavigate }: { onNavigate?: () => void }) {
 							<button
 								type="button"
 								onClick={() => setShowArchived((value) => !value)}
-								className="flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-muted-foreground text-xs hover:bg-sidebar-accent/60"
+								className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-muted-foreground text-sm hover:bg-sidebar-accent/60"
 							>
 								<ChevronRight
 									className={cn(
@@ -334,7 +334,7 @@ function ApplicationRail({ onNavigate }: { onNavigate?: () => void }) {
 				>
 					<Settings /> Settings
 				</Button>
-				<div className="flex items-center justify-between gap-2 px-2 text-muted-foreground text-xs">
+				<div className="flex items-center justify-between gap-2 px-2 text-muted-foreground text-sm">
 					<span className={cn(saveStatus === "error" && "text-destructive")}>
 						{saveLabel(saveStatus)}
 					</span>
@@ -368,7 +368,7 @@ function ViewTabBar({
 	return (
 		<header
 			className={cn(
-				"flex h-10 items-center gap-1 border-b bg-background/95 px-2 backdrop-blur",
+				"flex h-12 items-center gap-1.5 border-b bg-background/95 px-3 backdrop-blur",
 			)}
 			data-tauri-drag-region={isDesktop ? "" : undefined}
 		>
@@ -392,7 +392,7 @@ function ViewTabBar({
 							<div
 								key={view.id}
 								className={cn(
-									"group flex h-8 max-w-[240px] shrink-0 items-center gap-1.5 rounded-md border pr-1 pl-2.5 text-sm transition-colors",
+									"group flex h-10 max-w-[260px] shrink-0 items-center gap-2 rounded-md border pr-1.5 pl-3 text-base transition-colors",
 									active
 										? "border-border bg-muted"
 										: "border-transparent hover:bg-muted/60",
@@ -404,13 +404,13 @@ function ViewTabBar({
 									onClick={() => setActiveView(view.id)}
 								>
 									{isEditor ? null : (
-										<Icon className="size-3.5 shrink-0 text-muted-foreground" />
+										<Icon className="size-4 shrink-0 text-muted-foreground" />
 									)}
 									<span className="truncate" title={label}>
 										{label}
 									</span>
 									{meta.available ? null : (
-										<span className="rounded-full bg-accent px-1 py-px text-[9px] text-accent-foreground uppercase">
+										<span className="rounded-full bg-accent px-1.5 py-0.5 text-[10px] text-accent-foreground uppercase">
 											soon
 										</span>
 									)}
@@ -418,11 +418,11 @@ function ViewTabBar({
 								{activeViews.length > 1 ? (
 									<button
 										type="button"
-										className="grid size-5 shrink-0 place-items-center rounded opacity-0 transition-opacity hover:bg-foreground/10 group-hover:opacity-100"
+										className="grid size-6 shrink-0 place-items-center rounded opacity-0 transition-opacity hover:bg-foreground/10 group-hover:opacity-100"
 										onClick={() => closeView(view.id)}
 										title="Close view"
 									>
-										<X className="size-3.5" />
+										<X className="size-4" />
 									</button>
 								) : null}
 							</div>
@@ -470,7 +470,7 @@ function ViewTabBar({
 				</div>
 			) : (
 				<div
-					className="flex h-full flex-1 items-center self-stretch pl-1 text-muted-foreground text-sm"
+					className="flex h-full flex-1 items-center self-stretch pl-1 text-base text-muted-foreground"
 					data-tauri-drag-region={isDesktop ? "" : undefined}
 				>
 					No application open
@@ -498,7 +498,7 @@ function RouteTopBar({
 	return (
 		<header
 			className={cn(
-				"flex h-10 items-center gap-1 border-b bg-background/95 px-2 backdrop-blur",
+				"flex h-12 items-center gap-1.5 border-b bg-background/95 px-3 backdrop-blur",
 			)}
 			data-tauri-drag-region={isDesktop ? "" : undefined}
 		>
@@ -508,7 +508,7 @@ function RouteTopBar({
 				collapsed={collapsed}
 			/>
 			{title ? (
-				<h1 className="truncate px-1 font-semibold text-sm">{title}</h1>
+				<h1 className="truncate px-1 font-semibold text-base font-heading">{title}</h1>
 			) : null}
 			<div
 				className="h-full flex-1 self-stretch"
@@ -663,11 +663,11 @@ export function PageHeader({
 						{eyebrow}
 					</p>
 				) : null}
-				<h1 className="text-balance font-semibold text-2xl tracking-tight">
+				<h1 className="text-balance font-semibold text-3xl tracking-tight font-heading">
 					{title}
 				</h1>
 				{meta ? (
-					<div className="mt-1 text-muted-foreground text-sm">{meta}</div>
+					<div className="mt-1 text-base text-muted-foreground">{meta}</div>
 				) : null}
 			</div>
 			{actions ? <div className="flex shrink-0 gap-2">{actions}</div> : null}

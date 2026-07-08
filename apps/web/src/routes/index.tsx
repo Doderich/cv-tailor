@@ -379,7 +379,7 @@ function PasteStep({
 		<div className="grid max-w-3xl gap-4">
 			<div className="grid gap-4 rounded-xl border bg-card p-5">
 				<div className="grid gap-3 sm:grid-cols-2">
-					<div className="grid gap-1.5">
+					<div className="grid gap-3">
 						<Label>Job title</Label>
 						<Input
 							value={title}
@@ -387,7 +387,7 @@ function PasteStep({
 							placeholder="Senior Frontend Engineer"
 						/>
 					</div>
-					<div className="grid gap-1.5">
+					<div className="grid gap-3">
 						<Label>Company</Label>
 						<Input
 							value={company}
@@ -396,7 +396,7 @@ function PasteStep({
 						/>
 					</div>
 				</div>
-				<div className="grid gap-1.5">
+				<div className="grid gap-3">
 					<Label>Job description</Label>
 					<Textarea
 						value={rawText}

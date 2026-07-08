@@ -14,10 +14,20 @@ import {
 } from "@cv-tailor/ui/components/card";
 import { Label } from "@cv-tailor/ui/components/label";
 import { Textarea } from "@cv-tailor/ui/components/textarea";
-import { FileSearch, Loader2 } from "lucide-react";
-import { useState } from "react";
+import { FileSearch, Loader2, Paperclip, X } from "lucide-react";
+import { useId, useRef, useState } from "react";
 import { toast } from "sonner";
 
+import {
+	mergeProfileFileSources,
+	PROFILE_SOURCE_FILE_ACCEPT,
+	type ProfileFileSource,
+	readProfileSourceFiles,
+} from "@/lib/profile-source-files";
+import {
+	formatSourceError,
+	parseSourceUrls,
+} from "@/lib/profile-source-urls";
 import { fetchUrlText, isTauriRuntime, runAiTool } from "@/lib/tauri-ai";
 import { resolveEffectiveAiModel, useCvApp } from "@/lib/cv-app-context";
 
@@ -36,23 +46,11 @@ interface SourceResult {
 }
 
 function getErrorMessage(error: unknown) {
-	if (error instanceof Error) {
-		return error.message;
-	}
-
-	if (error && typeof error === "object" && "message" in error) {
-		const message = (error as { message?: unknown }).message;
-		return typeof message === "string" ? message : JSON.stringify(error);
-	}
-
-	return String(error);
+	return formatSourceError(error);
 }
 
-function parseUrls(value: string) {
-	return value
-		.split(/\r?\n/)
-		.map((line) => line.trim())
-		.filter(Boolean);
+function hasReadableText(sources: Array<{ text: string }>) {
+	return sources.some((source) => source.text.trim().length > 0);
 }
 
 export function ProfileImporter({
@@ -62,14 +60,21 @@ export function ProfileImporter({
 	onProfileGenerated,
 }: ProfileImporterProps) {
 	const { aiModels, aiStatuses } = useCvApp();
+	const fileInputId = useId();
+	const fileInputRef = useRef<HTMLInputElement>(null);
 	const [contextText, setContextText] = useState("");
 	const [urlsText, setUrlsText] = useState("");
+	const [fileSources, setFileSources] = useState<ProfileFileSource[]>([]);
 	const [isGenerating, setIsGenerating] = useState(false);
+	const [isReadingFiles, setIsReadingFiles] = useState(false);
 	const [sourceResults, setSourceResults] = useState<SourceResult[]>([]);
 	const [rawOutput, setRawOutput] = useState<string>();
-	const sourceUrls = parseUrls(urlsText);
-	const hasInput = contextText.trim().length > 0 || sourceUrls.length > 0;
-	const canGenerate = hasInput && canUseAi && !isGenerating;
+	const sourceUrls = parseSourceUrls(urlsText);
+	const hasInput =
+		contextText.trim().length > 0 ||
+		sourceUrls.length > 0 ||
+		fileSources.length > 0;
+	const canGenerate = hasInput && canUseAi && !isGenerating && !isReadingFiles;
 
 	async function fetchSources(urls: string[]): Promise<SourceResult[]> {
 		if (urls.length === 0) {
@@ -104,6 +109,56 @@ export function ProfileImporter({
 		);
 	}
 
+	async function handleFilesSelected(files: FileList | null) {
+		if (!files || files.length === 0) {
+			return;
+		}
+
+		setIsReadingFiles(true);
+
+		try {
+			const nextFiles = await readProfileSourceFiles(files);
+			setFileSources((current) => mergeProfileFileSources(current, nextFiles));
+
+			const failed = nextFiles.filter((file) => file.error);
+			const succeeded = nextFiles.filter((file) => !file.error);
+
+			if (succeeded.length > 0) {
+				toast.success(
+					succeeded.length === 1
+						? "File added to context"
+						: `${succeeded.length} files added to context`,
+				);
+			}
+
+			if (failed.length > 0) {
+				toast.error(
+					failed.length === 1
+						? "Could not read file"
+						: "Some files could not be read",
+					{
+						description: failed[0]?.error,
+					},
+				);
+			}
+		} catch (error) {
+			toast.error("Could not read files", {
+				description: getErrorMessage(error),
+			});
+		} finally {
+			setIsReadingFiles(false);
+			if (fileInputRef.current) {
+				fileInputRef.current.value = "";
+			}
+		}
+	}
+
+	function removeFileSource(name: string) {
+		setFileSources((current) =>
+			current.filter((file) => file.name.toLowerCase() !== name.toLowerCase()),
+		);
+	}
+
 	async function handleGenerateProfile() {
 		if (!hasInput) {
 			toast.error("Add profile context first");
@@ -122,21 +177,22 @@ export function ProfileImporter({
 			const fetchedSources = await fetchSources(sourceUrls);
 			setSourceResults(fetchedSources);
 
-			const hasReadableSource = fetchedSources.some(
-				(source) => source.text.trim().length > 0,
-			);
-			if (
-				contextText.trim().length === 0 &&
-				sourceUrls.length > 0 &&
-				!hasReadableSource
-			) {
-				throw new Error("None of the URLs returned readable public text.");
+			const hasReadableSource =
+				contextText.trim().length > 0 ||
+				hasReadableText(fetchedSources) ||
+				hasReadableText(fileSources);
+
+			if (!hasReadableSource) {
+				throw new Error(
+					"No readable text was found in the context, URLs, or uploaded files.",
+				);
 			}
 
 			const prompt = buildGenerateProfilePrompt({
 				contextText,
 				sourceUrls,
 				fetchedSources,
+				fileSources,
 				preferredTone,
 			});
 			const response = await runAiTool({
@@ -152,6 +208,12 @@ export function ProfileImporter({
 				);
 				onProfileGenerated(profile);
 				toast.success("Profile created");
+				requestAnimationFrame(() => {
+					document.getElementById("profile-editor")?.scrollIntoView({
+						behavior: "smooth",
+						block: "start",
+					});
+				});
 			} catch (error) {
 				setRawOutput(response.stdout);
 				throw error;
@@ -171,7 +233,7 @@ export function ProfileImporter({
 				<CardTitle>Create Profile</CardTitle>
 			</CardHeader>
 			<CardContent className="grid gap-3">
-				<div className="grid gap-1">
+				<div className="grid gap-3">
 					<Label>Context</Label>
 					<Textarea
 						value={contextText}
@@ -180,12 +242,80 @@ export function ProfileImporter({
 						rows={6}
 					/>
 				</div>
-				<div className="grid gap-1">
+				<div className="grid gap-3">
+					<div className="flex items-center justify-between gap-2">
+						<Label>Local files</Label>
+						<Button
+							type="button"
+							variant="outline"
+							size="sm"
+							disabled={isReadingFiles}
+							onClick={() => fileInputRef.current?.click()}
+						>
+							{isReadingFiles ? (
+								<Loader2 className="animate-spin" />
+							) : (
+								<Paperclip />
+							)}
+							Add files
+						</Button>
+					</div>
+					<input
+						ref={fileInputRef}
+						id={fileInputId}
+						type="file"
+						accept={PROFILE_SOURCE_FILE_ACCEPT}
+						multiple
+						className="sr-only"
+						onChange={(event) =>
+							void handleFilesSelected(event.target.files)
+						}
+					/>
+					<p className="text-muted-foreground text-xs">
+						Upload resume files as text or PDF. PDF extraction works in the
+						desktop app.
+					</p>
+					{fileSources.length > 0 ? (
+						<div className="grid gap-1 text-xs">
+							{fileSources.map((file) => (
+								<div
+									key={file.name}
+									className="flex items-start justify-between gap-2 border p-2"
+								>
+									<div className="min-w-0">
+										<p className="truncate font-medium">{file.name}</p>
+										<p
+											className={
+												file.error
+													? "text-destructive"
+													: "text-muted-foreground"
+											}
+										>
+											{file.error
+												? file.error
+												: `${file.text.length} chars`}
+										</p>
+									</div>
+									<Button
+										type="button"
+										variant="ghost"
+										size="icon-sm"
+										onClick={() => removeFileSource(file.name)}
+										aria-label={`Remove ${file.name}`}
+									>
+										<X className="size-3.5" />
+									</Button>
+								</div>
+							))}
+						</div>
+					) : null}
+				</div>
+				<div className="grid gap-3">
 					<Label>Public URLs</Label>
 					<Textarea
 						value={urlsText}
 						onChange={(event) => setUrlsText(event.target.value)}
-						placeholder="https://www.linkedin.com/in/..."
+						placeholder={"https://www.linkedin.com/in/...\nhttps://example.com/about"}
 						rows={3}
 					/>
 				</div>

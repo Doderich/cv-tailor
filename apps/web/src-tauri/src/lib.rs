@@ -1,6 +1,7 @@
 mod ai;
 mod commands;
 mod errors;
+mod file_import;
 mod pdf_export;
 mod web_fetch;
 
@@ -127,6 +128,7 @@ pub fn run() {
             commands::detect_ai_tools,
             commands::run_ai_tool,
             commands::fetch_url_text,
+            commands::extract_profile_file_text,
             commands::export_generated_cv_pdf
         ])
         .run(tauri::generate_context!())

@@ -119,6 +119,7 @@ export const cvRunSourceSchema = z.enum(["draft", "ai", "manual"]);
 export const profileRecordSchema = baseProfileSchema.extend({
 	id: z.string(),
 	name: z.string(),
+	language: cvLanguageSchema.default("en"),
 	createdAt: z.string(),
 	updatedAt: z.string(),
 });
@@ -577,13 +578,53 @@ export function cvLanguageLabel(language: CvLanguage) {
 
 export function createDefaultProfileRecord(
 	now = new Date().toISOString(),
+	options?: {
+		id?: string;
+		name?: string;
+		language?: CvLanguage;
+	},
 ): ProfileRecord {
 	return {
-		id: defaultProfileId,
-		name: "Default",
+		id: options?.id ?? defaultProfileId,
+		name: options?.name ?? "Default",
+		language: options?.language ?? "en",
 		...createDefaultBaseProfile(),
 		createdAt: now,
 		updatedAt: now,
+	};
+}
+
+export function createProfileRecord(input: {
+	name: string;
+	language: CvLanguage;
+	now?: string;
+}): ProfileRecord {
+	const now = input.now ?? new Date().toISOString();
+	return createDefaultProfileRecord(now, {
+		id: createId("profile"),
+		name: input.name.trim() || cvLanguageLabel(input.language),
+		language: input.language,
+	});
+}
+
+export function normalizeProfileRecord(record: ProfileRecord): ProfileRecord {
+	const defaults = createDefaultBaseProfile();
+	return {
+		...defaults,
+		...record,
+		language: record.language ?? "en",
+		contact: {
+			...defaults.contact,
+			...record.contact,
+			links: record.contact?.links ?? [],
+		},
+		targetRoles: record.targetRoles ?? [],
+		skills: record.skills ?? [],
+		achievements: record.achievements ?? [],
+		experience: record.experience ?? [],
+		education: record.education ?? [],
+		projects: record.projects ?? [],
+		languages: record.languages ?? [],
 	};
 }
 
@@ -639,6 +680,7 @@ export function createEmptyApplication(input: {
 	id: string;
 	profileId: string;
 	profile: BaseProfile;
+	language?: CvLanguage;
 	now?: string;
 }): { application: Application; draftRun: CvRun } {
 	const now = input.now ?? new Date().toISOString();
@@ -652,6 +694,7 @@ export function createEmptyApplication(input: {
 		signals,
 	};
 	const runId = createId("run");
+	const language = input.language ?? "en";
 
 	return {
 		application: applicationSchema.parse({
@@ -667,7 +710,7 @@ export function createEmptyApplication(input: {
 			profileId: input.profileId,
 			profile: input.profile,
 			jobOffer,
-			language: "en",
+			language,
 			now,
 		}),
 	};

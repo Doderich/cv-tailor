@@ -26,7 +26,7 @@ function splitLines(value: string) {
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
 	return (
-		<div className="grid gap-1.5">
+		<div className="grid gap-3">
 			<Label className="text-muted-foreground text-xs">{label}</Label>
 			{children}
 		</div>

@@ -169,6 +169,7 @@ describe("buildGenerateProfilePrompt", () => {
 		expect(prompt).toContain("Do not invent employers, dates, titles");
 		expect(prompt).toContain("Ada is a frontend engineer");
 		expect(prompt).toContain("https://example.com/about");
+		expect(prompt).toContain("Uploaded local file text:");
 	});
 });
 

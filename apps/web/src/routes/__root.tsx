@@ -8,7 +8,9 @@ import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
 
 import { AppShell } from "@/components/app-shell";
 import { PrintableCv } from "@/components/cv/printable-cv";
+import { FontFamilyProvider } from "@/components/font-family-provider";
 import { PaletteProvider } from "@/components/palette-provider";
+import { TextSizeProvider } from "@/components/text-size-provider";
 import { ThemeProvider } from "@/components/theme-provider";
 import { CvAppProvider, useCvApp } from "@/lib/cv-app-context";
 import { DbBootstrap } from "@/lib/db-bootstrap";
@@ -50,15 +52,19 @@ function RootComponent() {
 				storageKey="cv-tailor-theme"
 			>
 				<PaletteProvider>
-					<DbBootstrap>
-						<CvAppProvider>
-							<AppShell>
-								<Outlet />
-							</AppShell>
-							<PrintSurface />
-						</CvAppProvider>
-					</DbBootstrap>
-					<Toaster richColors />
+					<FontFamilyProvider>
+						<TextSizeProvider>
+							<DbBootstrap>
+								<CvAppProvider>
+									<AppShell>
+										<Outlet />
+									</AppShell>
+									<PrintSurface />
+								</CvAppProvider>
+							</DbBootstrap>
+							<Toaster richColors />
+						</TextSizeProvider>
+					</FontFamilyProvider>
 				</PaletteProvider>
 			</ThemeProvider>
 			{import.meta.env.DEV ? (

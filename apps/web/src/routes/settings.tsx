@@ -1,6 +1,13 @@
 import type { AiProviderId, AiToolId } from "@cv-tailor/ai";
 import { Button } from "@cv-tailor/ui/components/button";
 import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@cv-tailor/ui/components/select";
+import {
 	Tabs,
 	TabsContent,
 	TabsList,
@@ -13,7 +20,10 @@ import { Monitor, Moon, RefreshCw, Sun } from "lucide-react";
 import { AiStatusPanel } from "@/components/cv/insights";
 import { ProfileEditor } from "@/components/cv/profile-editor";
 import { ProfileImporter } from "@/components/cv/profile-importer";
+import { ProfileManager } from "@/components/cv/profile-manager";
+import { FontPicker } from "@/components/font-picker";
 import { PalettePicker } from "@/components/palette-picker";
+import { useTextSize, type TextSizeId } from "@/components/text-size-provider";
 import { useTheme } from "@/components/theme-provider";
 import {
 	claudeModelOptions,
@@ -33,11 +43,16 @@ const themeOptions = [
 	{ id: "system", label: "System", icon: Monitor },
 ] as const;
 
+const segmentedContainerClass =
+	"inline-flex w-fit rounded-md border bg-card p-0.5";
+const segmentedButtonClass =
+	"rounded-sm px-2.5 py-1 text-sm font-medium transition-colors";
+
 function ThemeToggleGroup() {
 	const { theme, setTheme } = useTheme();
 
 	return (
-		<div className="inline-flex w-fit rounded-lg border bg-card p-1">
+		<div className={segmentedContainerClass}>
 			{themeOptions.map((option) => {
 				const Icon = option.icon;
 				const active = theme === option.id;
@@ -47,18 +62,45 @@ function ThemeToggleGroup() {
 						type="button"
 						onClick={() => setTheme(option.id)}
 						className={cn(
-							"inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 font-medium text-sm transition-colors",
+							"inline-flex items-center gap-1.5",
+							segmentedButtonClass,
 							active
 								? "bg-primary text-primary-foreground"
 								: "text-muted-foreground hover:bg-muted",
 						)}
 					>
-						<Icon className="size-4" />
+						<Icon className="size-3.5" />
 						{option.label}
 					</button>
 				);
 			})}
 		</div>
+	);
+}
+
+function TextSizeSelect() {
+	const { textSize, setTextSize, textSizeOptions } = useTextSize();
+
+	return (
+		<Select
+			value={textSize}
+			onValueChange={(value) => {
+				if (value) {
+					setTextSize(value as TextSizeId);
+				}
+			}}
+		>
+			<SelectTrigger className="max-w-xs" size="sm">
+				<SelectValue placeholder="Select text size" />
+			</SelectTrigger>
+			<SelectContent>
+				{textSizeOptions.map((option) => (
+					<SelectItem key={option.id} value={option.id}>
+						{option.label}
+					</SelectItem>
+				))}
+			</SelectContent>
+		</Select>
 	);
 }
 
@@ -79,7 +121,7 @@ function SegmentedControl<T extends string>({
 	onChange: (value: T) => void;
 }) {
 	return (
-		<div className="inline-flex w-fit rounded-lg border bg-card p-1">
+		<div className={segmentedContainerClass}>
 			{options.map((option) => {
 				const active = value === option.id;
 				return (
@@ -88,7 +130,7 @@ function SegmentedControl<T extends string>({
 						type="button"
 						onClick={() => onChange(option.id)}
 						className={cn(
-							"rounded-md px-3 py-1.5 font-medium text-sm transition-colors",
+							segmentedButtonClass,
 							active
 								? "bg-primary text-primary-foreground"
 								: "text-muted-foreground hover:bg-muted",
@@ -108,12 +150,14 @@ function SettingsRoute() {
 		aiStatuses,
 		effectiveAiProvider,
 		profile,
+		profileRecord,
+		profileRevision,
+		patchProfile,
 		refreshAiStatuses,
 		replaceProfile,
 		selectedTool,
 		setAiModel,
 		setSelectedTool,
-		updateProfile,
 	} = useCvApp();
 
 	const modelOptions =
@@ -137,12 +181,20 @@ function SettingsRoute() {
 
 				<TabsContent value="appearance" className="grid gap-4 pt-6">
 					<div className="grid gap-4">
-						<div className="grid gap-2">
-							<span className="font-medium text-sm">Mode</span>
+						<div className="grid gap-3">
+							<span className="font-medium text-base">Mode</span>
 							<ThemeToggleGroup />
 						</div>
-						<div className="grid gap-2">
-							<span className="font-medium text-sm">Palette</span>
+						<div className="grid gap-3">
+							<span className="font-medium text-base">Text size</span>
+							<TextSizeSelect />
+						</div>
+						<div className="grid gap-3">
+							<span className="font-medium text-base">Typeface</span>
+							<FontPicker />
+						</div>
+						<div className="grid gap-3">
+							<span className="font-medium text-base">Palette</span>
 							<PalettePicker />
 						</div>
 					</div>
@@ -150,8 +202,8 @@ function SettingsRoute() {
 
 				<TabsContent value="ai" className="grid gap-4 pt-6">
 					<div className="grid gap-4">
-						<div className="grid gap-2">
-							<span className="font-medium text-sm">Preferred tool</span>
+						<div className="grid gap-3">
+							<span className="font-medium text-base">Preferred tool</span>
 							<SegmentedControl
 								options={toolOptions}
 								value={selectedTool}
@@ -159,8 +211,8 @@ function SettingsRoute() {
 							/>
 						</div>
 						{effectiveAiProvider ? (
-							<div className="grid gap-2">
-								<span className="font-medium text-sm">Model</span>
+							<div className="grid gap-3">
+								<span className="font-medium text-base">Model</span>
 								<SegmentedControl
 									options={modelOptions}
 									value={activeModel ?? modelOptions[0]?.id ?? ""}
@@ -171,7 +223,11 @@ function SettingsRoute() {
 							</div>
 						) : null}
 						<div>
-							<Button variant="outline" onClick={() => void refreshAiStatuses()}>
+							<Button
+								variant="outline"
+								size="sm"
+								onClick={() => void refreshAiStatuses()}
+							>
 								<RefreshCw /> Refresh tools
 							</Button>
 						</div>
@@ -181,13 +237,19 @@ function SettingsRoute() {
 
 				<TabsContent value="profile" className="grid gap-4 pt-6">
 					<div className="grid gap-4">
+						<ProfileManager />
 						<ProfileImporter
 							selectedTool={selectedTool}
 							canUseAi={toolIsReady(selectedTool, aiStatuses)}
 							preferredTone={profile.preferredTone}
 							onProfileGenerated={replaceProfile}
 						/>
-						<ProfileEditor profile={profile} onChange={updateProfile} />
+						<ProfileEditor
+							key={`profile-editor:${profileRecord?.id ?? "none"}:${profileRevision}`}
+							profile={profile}
+							profileRevision={profileRevision}
+							onPatch={patchProfile}
+						/>
 					</div>
 				</TabsContent>
 			</Tabs>

@@ -28,3 +28,5 @@ tauri-plugin-log = "2"
 tauri-plugin-sql = { version = "2", features = ["sqlite"] }
 tokio = { version = "1.52.3", features = ["io-util", "macros", "net", "process", "rt", "time"] }
 tower-http = { version = "0.6", features = ["cors"] }
+base64 = "0.22"
+pdf-extract = "0.7"
