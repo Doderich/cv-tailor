@@ -1,6 +1,12 @@
 import {
+	type AiModels,
+	type AiProviderId,
 	type AiToolId,
 	buildTailorCvPrompt,
+	claudeModelOptions,
+	codexModelOptions,
+	cursorModelOptions,
+	defaultAiModels,
 	parseCliTailoredCvOutput,
 	tailoredCvOutputJsonSchema,
 } from "@cv-tailor/ai";
@@ -85,6 +91,9 @@ interface CvAppContextValue {
 	activeView: ApplicationView | undefined;
 	aiStatuses: AiToolStatus[];
 	selectedTool: AiToolId;
+	aiModels: AiModels;
+	effectiveAiProvider: AiProviderId | undefined;
+	effectiveAiModel: string | undefined;
 	saveStatus: SaveStatus;
 	canUseSelectedAi: boolean;
 	canGenerateActive: boolean;
@@ -93,6 +102,7 @@ interface CvAppContextValue {
 	generationError: string | undefined;
 	rawCliOutput: string | undefined;
 	setSelectedTool: (tool: AiToolId) => void;
+	setAiModel: (provider: AiProviderId, model: string) => void;
 	setSelectedLanguage: (language: CvLanguage) => void;
 	refreshAiStatuses: () => Promise<void>;
 	createApplication: () => string;
@@ -139,6 +149,50 @@ export function toolIsReady(tool: AiToolId, statuses: AiToolStatus[]) {
 
 	return Boolean(statuses.find((status) => status.id === tool)?.available);
 }
+
+export function resolveEffectiveAiProvider(
+	tool: AiToolId,
+	statuses: AiToolStatus[],
+): AiProviderId | undefined {
+	if (tool === "claude" && toolIsReady("claude", statuses)) {
+		return "claude";
+	}
+
+	if (tool === "codex" && toolIsReady("codex", statuses)) {
+		return "codex";
+	}
+
+	if (tool === "cursor" && toolIsReady("cursor", statuses)) {
+		return "cursor";
+	}
+
+	if (tool === "auto") {
+		if (toolIsReady("claude", statuses)) {
+			return "claude";
+		}
+
+		if (toolIsReady("codex", statuses)) {
+			return "codex";
+		}
+
+		if (toolIsReady("cursor", statuses)) {
+			return "cursor";
+		}
+	}
+
+	return undefined;
+}
+
+export function resolveEffectiveAiModel(
+	tool: AiToolId,
+	statuses: AiToolStatus[],
+	models: AiModels,
+) {
+	const provider = resolveEffectiveAiProvider(tool, statuses);
+	return provider ? models[provider] : undefined;
+}
+
+export { claudeModelOptions, codexModelOptions, cursorModelOptions };
 
 export function applicationTitle(application: Pick<Application, "jobOffer">) {
 	return application.jobOffer.title.trim() || "Untitled role";
@@ -207,6 +261,7 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 	const db = useDb();
 	const [viewsByApp, setViewsByApp] = useState<ViewsByApp>({});
 	const [selectedTool, setSelectedToolState] = useState<AiToolId>("auto");
+	const [aiModels, setAiModelsState] = useState<AiModels>(defaultAiModels);
 	const [selectedLanguage, setSelectedLanguageState] =
 		useState<CvLanguage>("en");
 	const [aiStatuses, setAiStatuses] = useState<AiToolStatus[]>([]);
@@ -279,6 +334,13 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 				: "saved";
 
 	const canUseSelectedAi = toolIsReady(selectedTool, aiStatuses);
+	const effectiveAiProvider = resolveEffectiveAiProvider(
+		selectedTool,
+		aiStatuses,
+	);
+	const effectiveAiModel = effectiveAiProvider
+		? aiModels[effectiveAiProvider]
+		: undefined;
 	const canGenerateActive =
 		Boolean(activeApplication?.jobOffer.rawText.trim()) &&
 		canUseSelectedAi &&
@@ -317,6 +379,14 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 	function setSelectedTool(tool: AiToolId) {
 		setSelectedToolState(tool);
 		updateSettings({ selectedAiTool: tool });
+	}
+
+	function setAiModel(provider: AiProviderId, model: string) {
+		setAiModelsState((current) => {
+			const next = { ...current, [provider]: model };
+			updateSettings({ aiModels: next });
+			return next;
+		});
 	}
 
 	function setSelectedLanguage(language: CvLanguage) {
@@ -602,6 +672,7 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 				tool: selectedTool,
 				prompt,
 				schema: tailoredCvOutputJsonSchema,
+				model: effectiveAiModel,
 			});
 			let parsedCv: TailoredCv;
 			try {
@@ -714,6 +785,14 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 		}
 	}, [settings?.selectedAiTool]);
 
+	useEffect(() => {
+		if (settings?.aiModels) {
+			setAiModelsState(
+				(current) => ({ ...current, ...settings.aiModels }) as AiModels,
+			);
+		}
+	}, [settings?.aiModels]);
+
 	// biome-ignore lint/correctness/useExhaustiveDependencies: value is rebuilt from live query snapshots.
 	const value = useMemo<CvAppContextValue>(
 		() => ({
@@ -732,6 +811,9 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 			activeView,
 			aiStatuses,
 			selectedTool,
+			aiModels,
+			effectiveAiProvider,
+			effectiveAiModel,
 			saveStatus,
 			canUseSelectedAi,
 			canGenerateActive,
@@ -740,6 +822,7 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 			generationError,
 			rawCliOutput,
 			setSelectedTool,
+			setAiModel,
 			setSelectedLanguage,
 			refreshAiStatuses,
 			createApplication,
@@ -773,6 +856,9 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 			viewsByApp,
 			aiStatuses,
 			selectedTool,
+			aiModels,
+			effectiveAiProvider,
+			effectiveAiModel,
 			saveStatus,
 			canUseSelectedAi,
 			canGenerateActive,

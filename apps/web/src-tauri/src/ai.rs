@@ -12,6 +12,8 @@ use tokio::{io::AsyncWriteExt, process::Command, time::timeout};
 use crate::errors::AppError;
 
 const AI_TIMEOUT_SECONDS: u64 = 120;
+const CURSOR_TOOL_ID: &str = "cursor";
+const CURSOR_BINARY: &str = "agent";
 
 fn schema_path(app: &AppHandle) -> Result<PathBuf, AppError> {
     let directory = app.path().app_data_dir()?.join("cv-tailor");
@@ -35,6 +37,7 @@ pub struct AiRunRequest {
     pub tool: String,
     pub prompt: String,
     pub schema: serde_json::Value,
+    pub model: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -50,11 +53,20 @@ fn label_for_tool(tool: &str) -> &'static str {
     match tool {
         "claude" => "Claude Code",
         "codex" => "Codex CLI",
+        CURSOR_TOOL_ID => "Cursor Agent",
         _ => "Unknown",
     }
 }
 
-async fn run_version(binary: &str) -> AiToolStatus {
+fn binary_for_tool(tool: &str) -> &str {
+    match tool {
+        CURSOR_TOOL_ID => CURSOR_BINARY,
+        _ => tool,
+    }
+}
+
+async fn run_version(tool: &str) -> AiToolStatus {
+    let binary = binary_for_tool(tool);
     let output = timeout(
         Duration::from_secs(6),
         Command::new(binary).arg("--version").output(),
@@ -65,16 +77,16 @@ async fn run_version(binary: &str) -> AiToolStatus {
         Ok(Ok(output)) => {
             if output.status.success() {
                 AiToolStatus {
-                    id: binary.to_string(),
-                    label: label_for_tool(binary).to_string(),
+                    id: tool.to_string(),
+                    label: label_for_tool(tool).to_string(),
                     available: true,
                     version: Some(String::from_utf8_lossy(&output.stdout).trim().to_string()),
                     error: None,
                 }
             } else {
                 AiToolStatus {
-                    id: binary.to_string(),
-                    label: label_for_tool(binary).to_string(),
+                    id: tool.to_string(),
+                    label: label_for_tool(tool).to_string(),
                     available: false,
                     version: None,
                     error: Some(String::from_utf8_lossy(&output.stderr).trim().to_string()),
@@ -82,22 +94,22 @@ async fn run_version(binary: &str) -> AiToolStatus {
             }
         }
         Ok(Err(error)) if error.kind() == ErrorKind::NotFound => AiToolStatus {
-            id: binary.to_string(),
-            label: label_for_tool(binary).to_string(),
+            id: tool.to_string(),
+            label: label_for_tool(tool).to_string(),
             available: false,
             version: None,
             error: Some(format!("{binary} was not found on PATH.")),
         },
         Ok(Err(error)) => AiToolStatus {
-            id: binary.to_string(),
-            label: label_for_tool(binary).to_string(),
+            id: tool.to_string(),
+            label: label_for_tool(tool).to_string(),
             available: false,
             version: None,
             error: Some(error.to_string()),
         },
         Err(_) => AiToolStatus {
-            id: binary.to_string(),
-            label: label_for_tool(binary).to_string(),
+            id: tool.to_string(),
+            label: label_for_tool(tool).to_string(),
             available: false,
             version: None,
             error: Some("Version check timed out.".to_string()),
@@ -106,8 +118,12 @@ async fn run_version(binary: &str) -> AiToolStatus {
 }
 
 pub async fn detect_ai_tools() -> Vec<AiToolStatus> {
-    let (claude, codex) = tokio::join!(run_version("claude"), run_version("codex"));
-    vec![claude, codex]
+    let (claude, codex, cursor) = tokio::join!(
+        run_version("claude"),
+        run_version("codex"),
+        run_version(CURSOR_TOOL_ID)
+    );
+    vec![claude, codex, cursor]
 }
 
 async fn available_tool(tool: &str) -> bool {
@@ -124,13 +140,20 @@ async fn resolve_tool(requested_tool: &str) -> Result<String, AppError> {
             return Ok("codex".to_string());
         }
 
+        if available_tool(CURSOR_TOOL_ID).await {
+            return Ok(CURSOR_TOOL_ID.to_string());
+        }
+
         return Err(AppError::new(
             "ai_tool_unavailable",
-            "Neither claude nor codex is available on PATH.",
+            "No supported AI tool is available on PATH.",
         ));
     }
 
-    if requested_tool != "claude" && requested_tool != "codex" {
+    if requested_tool != "claude"
+        && requested_tool != "codex"
+        && requested_tool != CURSOR_TOOL_ID
+    {
         return Err(AppError::with_details(
             "invalid_ai_tool",
             "Unknown AI tool requested.",
@@ -164,10 +187,11 @@ fn classify_process_error(stderr: &str) -> &'static str {
 }
 
 async fn run_with_stdin(
-    binary: &str,
+    tool: &str,
     args: &[String],
     prompt: &str,
 ) -> Result<AiRunResponse, AppError> {
+    let binary = binary_for_tool(tool);
     let start = Instant::now();
     let mut command = Command::new(binary);
     command
@@ -219,11 +243,69 @@ async fn run_with_stdin(
     }
 
     Ok(AiRunResponse {
-        tool: binary.to_string(),
+        tool: tool.to_string(),
         stdout,
         stderr,
         duration_ms: start.elapsed().as_millis(),
     })
+}
+
+async fn run_with_prompt_arg(
+    tool: &str,
+    args: &[String],
+    prompt: &str,
+) -> Result<AiRunResponse, AppError> {
+    let binary = binary_for_tool(tool);
+    let start = Instant::now();
+    let mut command = Command::new(binary);
+    command
+        .args(args)
+        .arg(prompt)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .kill_on_drop(true);
+
+    let output = match timeout(
+        Duration::from_secs(AI_TIMEOUT_SECONDS),
+        command.output(),
+    )
+    .await
+    {
+        Ok(output) => output?,
+        Err(_) => {
+            return Err(AppError::with_details(
+                "ai_timeout",
+                "The AI tool did not finish before the timeout.",
+                format!("{AI_TIMEOUT_SECONDS} seconds"),
+            ));
+        }
+    };
+    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+
+    if !output.status.success() {
+        return Err(AppError::with_details(
+            classify_process_error(&stderr),
+            "The AI tool exited with an error.",
+            stderr,
+        ));
+    }
+
+    Ok(AiRunResponse {
+        tool: tool.to_string(),
+        stdout,
+        stderr,
+        duration_ms: start.elapsed().as_millis(),
+    })
+}
+
+fn extract_cursor_result(stdout: &str) -> Result<String, AppError> {
+    let parsed: serde_json::Value = serde_json::from_str(stdout.trim())?;
+    if let Some(result) = parsed.get("result").and_then(|value| value.as_str()) {
+        return Ok(result.to_string());
+    }
+
+    Ok(stdout.to_string())
 }
 
 pub async fn run_ai_tool(
@@ -234,41 +316,67 @@ pub async fn run_ai_tool(
 
     if tool == "claude" {
         let schema = serde_json::to_string(&request.schema)?;
-        return run_with_stdin(
-            "claude",
-            &[
-                "-p".to_string(),
-                "--input-format".to_string(),
-                "text".to_string(),
-                "--output-format".to_string(),
-                "json".to_string(),
-                "--json-schema".to_string(),
-                schema,
-                "--permission-mode".to_string(),
-                "plan".to_string(),
-                "--no-session-persistence".to_string(),
-            ],
-            &request.prompt,
-        )
-        .await;
+        let mut args = vec![
+            "-p".to_string(),
+            "--input-format".to_string(),
+            "text".to_string(),
+            "--output-format".to_string(),
+            "json".to_string(),
+            "--json-schema".to_string(),
+            schema,
+            "--permission-mode".to_string(),
+            "plan".to_string(),
+            "--no-session-persistence".to_string(),
+        ];
+
+        if let Some(model) = request.model {
+            args.push("--model".to_string());
+            args.push(model);
+        }
+
+        return run_with_stdin("claude", &args, &request.prompt).await;
+    }
+
+    if tool == CURSOR_TOOL_ID {
+        let mut args = vec![
+            "-p".to_string(),
+            "--output-format".to_string(),
+            "json".to_string(),
+            "--mode".to_string(),
+            "plan".to_string(),
+            "--trust".to_string(),
+        ];
+
+        if let Some(model) = request.model.filter(|model| model != "auto") {
+            args.push("--model".to_string());
+            args.push(model);
+        }
+
+        let response = run_with_prompt_arg(CURSOR_TOOL_ID, &args, &request.prompt).await?;
+        return Ok(AiRunResponse {
+            stdout: extract_cursor_result(&response.stdout)?,
+            ..response
+        });
     }
 
     let schema_path = schema_path(app)?;
     std::fs::write(&schema_path, serde_json::to_string_pretty(&request.schema)?)?;
 
-    run_with_stdin(
-        "codex",
-        &[
-            "exec".to_string(),
-            "--ephemeral".to_string(),
-            "--sandbox".to_string(),
-            "read-only".to_string(),
-            "--skip-git-repo-check".to_string(),
-            "--output-schema".to_string(),
-            schema_path.to_string_lossy().to_string(),
-            "-".to_string(),
-        ],
-        &request.prompt,
-    )
-    .await
+    let mut args = vec![
+        "exec".to_string(),
+        "--ephemeral".to_string(),
+        "--sandbox".to_string(),
+        "read-only".to_string(),
+        "--skip-git-repo-check".to_string(),
+        "--output-schema".to_string(),
+        schema_path.to_string_lossy().to_string(),
+        "-".to_string(),
+    ];
+
+    if let Some(model) = request.model {
+        args.push("--model".to_string());
+        args.push(model);
+    }
+
+    run_with_stdin("codex", &args, &request.prompt).await
 }

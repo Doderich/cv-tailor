@@ -571,7 +571,7 @@ function TailorStep({
 				<p className="flex items-center gap-2 rounded-lg border border-accent bg-accent/40 p-3 text-xs">
 					<FileText className="size-4 shrink-0" />
 					{isTauriRuntime()
-						? "Install or authenticate claude/codex, then refresh AI tools in settings."
+						? "Install or authenticate an AI tool (Claude, Codex, or Cursor), then refresh in settings."
 						: "Open the Tauri desktop app to run local AI generation. You can still edit manually."}
 				</p>
 			) : null}

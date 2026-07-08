@@ -10,7 +10,42 @@ import {
 	tailoredCvSchema,
 } from "@cv-tailor/core";
 
-export type AiToolId = "auto" | "claude" | "codex";
+export type AiToolId = "auto" | "claude" | "codex" | "cursor";
+export type AiProviderId = "claude" | "codex" | "cursor";
+
+export type ClaudeModelId = "opus" | "sonnet" | "haiku";
+export type CodexModelId = "gpt-5.4" | "gpt-5.4-mini" | "gpt-5.3-codex";
+
+export interface AiModels {
+	claude: ClaudeModelId;
+	codex: CodexModelId;
+	cursor: string;
+}
+
+export const defaultAiModels: AiModels = {
+	claude: "sonnet",
+	codex: "gpt-5.4",
+	cursor: "composer-2.5",
+};
+
+export const claudeModelOptions: { id: ClaudeModelId; label: string }[] = [
+	{ id: "sonnet", label: "Sonnet" },
+	{ id: "opus", label: "Opus" },
+	{ id: "haiku", label: "Haiku" },
+];
+
+export const codexModelOptions: { id: CodexModelId; label: string }[] = [
+	{ id: "gpt-5.4", label: "GPT-5.4" },
+	{ id: "gpt-5.4-mini", label: "GPT-5.4 Mini" },
+	{ id: "gpt-5.3-codex", label: "GPT-5.3 Codex" },
+];
+
+export const cursorModelOptions: { id: string; label: string }[] = [
+	{ id: "auto", label: "Auto" },
+	{ id: "composer-2.5", label: "Composer 2.5" },
+	{ id: "gpt-5.4-high", label: "GPT-5.4 High" },
+	{ id: "claude-opus-4-8-thinking-high", label: "Opus 4.8 Thinking" },
+];
 
 export interface TailorCvInput {
 	profile: BaseProfile;

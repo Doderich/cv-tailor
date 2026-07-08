@@ -2,7 +2,7 @@ import type { AiToolId } from "@cv-tailor/ai";
 import type { Application, BaseProfile, CvRun } from "@cv-tailor/core";
 
 export interface AiToolStatus {
-	id: "claude" | "codex";
+	id: "claude" | "codex" | "cursor";
 	label: string;
 	available: boolean;
 	version?: string;
@@ -13,10 +13,11 @@ export interface AiRunRequest {
 	tool: AiToolId;
 	prompt: string;
 	schema: unknown;
+	model?: string;
 }
 
 export interface AiRunResponse {
-	tool: "claude" | "codex";
+	tool: "claude" | "codex" | "cursor";
 	stdout: string;
 	stderr: string;
 	durationMs: number;
@@ -61,6 +62,12 @@ export async function detectAiTools(): Promise<AiToolStatus[]> {
 			{
 				id: "codex",
 				label: "Codex CLI",
+				available: false,
+				error: "CLI generation is available in the Tauri desktop app.",
+			},
+			{
+				id: "cursor",
+				label: "Cursor Agent",
 				available: false,
 				error: "CLI generation is available in the Tauri desktop app.",
 			},

@@ -19,6 +19,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 import { fetchUrlText, isTauriRuntime, runAiTool } from "@/lib/tauri-ai";
+import { resolveEffectiveAiModel, useCvApp } from "@/lib/cv-app-context";
 
 interface ProfileImporterProps {
 	selectedTool: AiToolId;
@@ -60,6 +61,7 @@ export function ProfileImporter({
 	preferredTone,
 	onProfileGenerated,
 }: ProfileImporterProps) {
+	const { aiModels, aiStatuses } = useCvApp();
 	const [contextText, setContextText] = useState("");
 	const [urlsText, setUrlsText] = useState("");
 	const [isGenerating, setIsGenerating] = useState(false);
@@ -141,6 +143,7 @@ export function ProfileImporter({
 				tool: selectedTool,
 				prompt,
 				schema: generatedProfileOutputJsonSchema,
+				model: resolveEffectiveAiModel(selectedTool, aiStatuses, aiModels),
 			});
 
 			try {

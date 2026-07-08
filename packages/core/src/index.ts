@@ -160,6 +160,14 @@ export const appSettingsSchema = z.object({
 	activeApplicationId: z.string().optional(),
 	activeRunId: z.string().optional(),
 	selectedAiTool: z.string().optional(),
+	aiModels: z
+		.object({
+			claude: z.string(),
+			codex: z.string(),
+			cursor: z.string(),
+		})
+		.partial()
+		.optional(),
 });
 
 export type Contact = z.infer<typeof contactSchema>;
@@ -587,6 +595,11 @@ export function createDefaultAppSettings(
 		schemaVersion: 2,
 		activeProfileId: profileId,
 		selectedAiTool: "auto",
+		aiModels: {
+			claude: "sonnet",
+			codex: "gpt-5.4",
+			cursor: "composer-2.5",
+		},
 	};
 }
 

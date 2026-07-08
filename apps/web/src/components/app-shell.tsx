@@ -332,14 +332,14 @@ function ApplicationRail({ onNavigate }: { onNavigate?: () => void }) {
 						onNavigate?.();
 					}}
 				>
-					<Settings /> Profile & settings
+					<Settings /> Settings
 				</Button>
 				<div className="flex items-center justify-between gap-2 px-2 text-muted-foreground text-xs">
 					<span className={cn(saveStatus === "error" && "text-destructive")}>
 						{saveLabel(saveStatus)}
 					</span>
 					<span>
-						{readyTools}/{aiStatuses.length || 2} AI ready
+						{readyTools}/{aiStatuses.length || 3} AI ready
 					</span>
 				</div>
 			</div>
@@ -480,14 +480,20 @@ function ViewTabBar({
 	);
 }
 
+const routeTitles: Record<string, string> = {
+	"/settings": "Settings",
+};
+
 function RouteTopBar({
 	onOpenRail,
 	onToggleCollapse,
 	collapsed,
+	title,
 }: {
 	onOpenRail: () => void;
 	onToggleCollapse: () => void;
 	collapsed: boolean;
+	title?: string;
 }) {
 	return (
 		<header
@@ -501,6 +507,9 @@ function RouteTopBar({
 				onToggleCollapse={onToggleCollapse}
 				collapsed={collapsed}
 			/>
+			{title ? (
+				<h1 className="truncate px-1 font-semibold text-sm">{title}</h1>
+			) : null}
 			<div
 				className="h-full flex-1 self-stretch"
 				data-tauri-drag-region={isDesktop ? "" : undefined}
@@ -622,6 +631,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 							onOpenRail={() => setRailOpen(true)}
 							onToggleCollapse={toggleCollapsed}
 							collapsed={collapsed}
+							title={routeTitles[pathname]}
 						/>
 					)}
 					<ScrollArea className="min-h-0 flex-1">
