@@ -378,7 +378,7 @@ function ViewTabBar({
 			/>
 
 			{activeApplication ? (
-				<div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
+				<div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto overscroll-x-none">
 					{activeViews.map((view) => {
 						const meta = viewMeta(view.type);
 						const Icon = meta.icon;
