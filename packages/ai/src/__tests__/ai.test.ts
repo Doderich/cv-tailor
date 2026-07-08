@@ -130,6 +130,7 @@ const promptInput: TailorCvInput = {
 		missingRequirements: [],
 		warnings: [],
 	},
+	targetLanguage: "en",
 };
 
 describe("buildTailorCvPrompt", () => {
@@ -142,6 +143,7 @@ describe("buildTailorCvPrompt", () => {
 		expect(prompt).toContain("Use only facts present in the base profile.");
 		expect(prompt).toContain("Do not invent employers, dates, titles");
 		expect(prompt).toContain("Base profile JSON:");
+		expect(prompt).toContain("Target output language: English (en)");
 		expect(prompt).toContain("Extracted job signals JSON:");
 	});
 });

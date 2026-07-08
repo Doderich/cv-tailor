@@ -1,4 +1,4 @@
-import type { GeneratedCv } from "@cv-tailor/core";
+import type { Application, CvLanguage, CvRun } from "@cv-tailor/core";
 import { Button } from "@cv-tailor/ui/components/button";
 import { Input } from "@cv-tailor/ui/components/input";
 import { Label } from "@cv-tailor/ui/components/label";
@@ -9,6 +9,7 @@ import {
 	ArrowLeft,
 	ArrowRight,
 	FileText,
+	Languages,
 	Loader2,
 	Printer,
 	Sparkles,
@@ -19,11 +20,14 @@ import { useState } from "react";
 import { PageHeader } from "@/components/app-shell";
 import { CvPreview } from "@/components/cv/cv-preview";
 import { GeneratedCvEditor } from "@/components/cv/generated-cv-editor";
+import { HistoryRunCard } from "@/components/cv/insights";
 import { ScoreBadge } from "@/components/cv/score-badge";
 import { viewMeta } from "@/lib/application-views";
 import {
 	applicationCompany,
 	applicationTitle,
+	cvLanguageLabel,
+	cvLanguages,
 	useCvApp,
 } from "@/lib/cv-app-context";
 import { isTauriRuntime } from "@/lib/tauri-ai";
@@ -41,10 +45,15 @@ const steps: { id: StepId; label: string; hint: string }[] = [
 ];
 
 function WorkspaceRoute() {
-	const { activeApplication, activeView, createApplication } = useCvApp();
+	const { activeApplication, activeRun, activeView, createApplication } =
+		useCvApp();
 
 	if (!activeApplication) {
 		return <EmptyWorkspace onCreate={createApplication} />;
+	}
+
+	if (activeView?.type === "versions") {
+		return <VersionsWorkspace application={activeApplication} />;
 	}
 
 	if (activeView && activeView.type !== "editor") {
@@ -55,6 +64,7 @@ function WorkspaceRoute() {
 		<ApplicationWorkspace
 			key={activeApplication.id}
 			application={activeApplication}
+			run={activeRun}
 		/>
 	);
 }
@@ -62,7 +72,7 @@ function WorkspaceRoute() {
 function ComingSoonView({
 	viewType,
 }: {
-	viewType: Exclude<ReturnType<typeof viewMeta>["type"], "editor">;
+	viewType: Exclude<ReturnType<typeof viewMeta>["type"], "editor" | "versions">;
 }) {
 	const meta = viewMeta(viewType);
 	const Icon = meta.icon;
@@ -85,6 +95,50 @@ function ComingSoonView({
 	);
 }
 
+function VersionsWorkspace({ application }: { application: Application }) {
+	const { activeRuns, activeRun, switchActiveRun, openView } = useCvApp();
+	const sortedRuns = [...activeRuns].sort((left, right) =>
+		right.updatedAt.localeCompare(left.updatedAt),
+	);
+
+	return (
+		<div className="mx-auto grid w-full max-w-5xl gap-6 p-4 sm:p-6">
+			<PageHeader
+				eyebrow="Versions"
+				title={applicationTitle(application)}
+				meta={applicationCompany(application)}
+				actions={
+					<Button variant="outline" onClick={() => openView("editor")}>
+						Back to editor
+					</Button>
+				}
+			/>
+
+			{sortedRuns.length === 0 ? (
+				<div className="rounded-xl border bg-card p-6 text-center text-muted-foreground text-sm">
+					No tailored versions yet. Generate an English or German CV from the
+					editor.
+				</div>
+			) : (
+				<div className="grid gap-3 md:grid-cols-2">
+					{sortedRuns.map((run) => (
+						<HistoryRunCard
+							key={run.id}
+							active={run.id === activeRun?.id}
+							application={application}
+							run={run}
+							onOpen={() => {
+								switchActiveRun(run.id);
+								openView("editor");
+							}}
+						/>
+					))}
+				</div>
+			)}
+		</div>
+	);
+}
+
 function EmptyWorkspace({ onCreate }: { onCreate: () => string }) {
 	return (
 		<div className="grid min-h-[70vh] place-items-center p-6">
@@ -98,7 +152,7 @@ function EmptyWorkspace({ onCreate }: { onCreate: () => string }) {
 					</h2>
 					<p className="text-muted-foreground text-sm">
 						Paste a job offer, review how well your profile matches, then tailor
-						and export a focused CV.
+						and export focused CVs in English or German.
 					</p>
 				</div>
 				<Button size="lg" onClick={() => onCreate()}>
@@ -166,9 +220,49 @@ function Metric({ label, value }: { label: string; value: string }) {
 	);
 }
 
-function ApplicationWorkspace({ application }: { application: GeneratedCv }) {
+function LanguagePicker({
+	value,
+	onChange,
+}: {
+	value: CvLanguage;
+	onChange: (language: CvLanguage) => void;
+}) {
+	return (
+		<div className="inline-flex rounded-lg border bg-card p-1">
+			{cvLanguages.map((language) => {
+				const active = value === language;
+				return (
+					<button
+						key={language}
+						type="button"
+						onClick={() => onChange(language)}
+						className={cn(
+							"inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 font-medium text-sm transition-colors",
+							active
+								? "bg-primary text-primary-foreground"
+								: "text-muted-foreground hover:bg-muted",
+						)}
+					>
+						<Languages className="size-3.5" />
+						{cvLanguageLabel(language)}
+					</button>
+				);
+			})}
+		</div>
+	);
+}
+
+function ApplicationWorkspace({
+	application,
+	run,
+}: {
+	application: Application;
+	run: CvRun | undefined;
+}) {
 	const {
 		profile,
+		selectedLanguage,
+		setSelectedLanguage,
 		updateActiveJobOffer,
 		updateActiveCv,
 		generateActive,
@@ -179,9 +273,12 @@ function ApplicationWorkspace({ application }: { application: GeneratedCv }) {
 		generationError,
 		rawCliOutput,
 		exportPdf,
+		openView,
 	} = useCvApp();
 	const hasJob = application.jobOffer.rawText.trim().length > 0;
 	const [step, setStep] = useState<StepId>(hasJob ? "review" : "paste");
+	const previewRun = run;
+	const previewScore = previewRun?.matchAnalysis.score;
 
 	return (
 		<div className="mx-auto grid w-full max-w-[1500px] gap-6 p-4 sm:p-6">
@@ -191,27 +288,29 @@ function ApplicationWorkspace({ application }: { application: GeneratedCv }) {
 				meta={
 					<span className="flex flex-wrap items-center gap-2">
 						{applicationCompany(application)}
-						{hasJob ? (
-							<ScoreBadge
-								score={application.matchAnalysis.score}
-								label=" match"
-							/>
+						{hasJob && previewScore !== undefined ? (
+							<ScoreBadge score={previewScore} label=" match" />
 						) : null}
 					</span>
 				}
 				actions={
-					<Button
-						variant="outline"
-						onClick={() => void exportPdf()}
-						disabled={isExportingPdf}
-					>
-						{isExportingPdf ? (
-							<Loader2 className="animate-spin" />
-						) : (
-							<Printer />
-						)}
-						Export PDF
-					</Button>
+					<div className="flex flex-wrap items-center gap-2">
+						<Button variant="outline" onClick={() => openView("versions")}>
+							Versions
+						</Button>
+						<Button
+							variant="outline"
+							onClick={() => void exportPdf()}
+							disabled={isExportingPdf || !run}
+						>
+							{isExportingPdf ? (
+								<Loader2 className="animate-spin" />
+							) : (
+								<Printer />
+							)}
+							Export PDF
+						</Button>
+					</div>
 				}
 			/>
 
@@ -230,7 +329,7 @@ function ApplicationWorkspace({ application }: { application: GeneratedCv }) {
 
 			{step === "review" ? (
 				<ReviewStep
-					application={application}
+					run={previewRun}
 					onBack={() => setStep("paste")}
 					onContinue={() => setStep("tailor")}
 				/>
@@ -239,9 +338,12 @@ function ApplicationWorkspace({ application }: { application: GeneratedCv }) {
 			{step === "tailor" ? (
 				<TailorStep
 					application={application}
+					run={run}
 					profile={profile}
+					selectedLanguage={selectedLanguage}
+					onLanguageChange={setSelectedLanguage}
 					onBack={() => setStep("review")}
-					onGenerate={() => void generateActive()}
+					onGenerate={(language) => void generateActive(language)}
 					onEditCv={updateActiveCv}
 					canGenerate={canGenerateActive}
 					canUseSelectedAi={canUseSelectedAi}
@@ -314,15 +416,23 @@ function PasteStep({
 }
 
 function ReviewStep({
-	application,
+	run,
 	onBack,
 	onContinue,
 }: {
-	application: GeneratedCv;
+	run: CvRun | undefined;
 	onBack: () => void;
 	onContinue: () => void;
 }) {
-	const { matchAnalysis, signals } = application;
+	if (!run) {
+		return (
+			<div className="rounded-xl border bg-card p-6 text-muted-foreground text-sm">
+				No CV run selected yet.
+			</div>
+		);
+	}
+
+	const { matchAnalysis, signals } = run;
 
 	return (
 		<div className="grid max-w-4xl gap-4">
@@ -394,7 +504,10 @@ function ReviewStep({
 
 function TailorStep({
 	application,
+	run,
 	profile,
+	selectedLanguage,
+	onLanguageChange,
 	onBack,
 	onGenerate,
 	onEditCv,
@@ -404,10 +517,13 @@ function TailorStep({
 	generationError,
 	rawCliOutput,
 }: {
-	application: GeneratedCv;
+	application: Application;
+	run: CvRun | undefined;
 	profile: ReturnType<typeof useCvApp>["profile"];
+	selectedLanguage: CvLanguage;
+	onLanguageChange: (language: CvLanguage) => void;
 	onBack: () => void;
-	onGenerate: () => void;
+	onGenerate: (language: CvLanguage) => void;
 	onEditCv: ReturnType<typeof useCvApp>["updateActiveCv"];
 	canGenerate: boolean;
 	canUseSelectedAi: boolean;
@@ -415,27 +531,38 @@ function TailorStep({
 	generationError: string | undefined;
 	rawCliOutput: string | undefined;
 }) {
+	const hasRunForLanguage = run?.language === selectedLanguage;
+
 	return (
 		<div className="grid gap-4">
 			<div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-card p-4">
-				<div className="grid gap-0.5">
+				<div className="grid gap-2">
 					<p className="font-medium text-sm">Tailor the CV to this offer</p>
 					<p className="text-muted-foreground text-xs">
-						Generate with your local AI, then refine any section. The preview
-						updates live.
+						Choose a language, generate with your local AI, then refine any
+						section. Each language keeps its own version.
 					</p>
+					<LanguagePicker
+						value={selectedLanguage}
+						onChange={onLanguageChange}
+					/>
 				</div>
 				<div className="flex items-center gap-2">
 					<Button variant="ghost" onClick={onBack}>
 						<ArrowLeft /> Back
 					</Button>
-					<Button onClick={onGenerate} disabled={!canGenerate}>
+					<Button
+						onClick={() => onGenerate(selectedLanguage)}
+						disabled={!canGenerate}
+					>
 						{isGenerating ? (
 							<Loader2 className="animate-spin" />
 						) : (
 							<WandSparkles />
 						)}
-						{application.aiTool === "draft" ? "Generate" : "Regenerate"}
+						{hasRunForLanguage && run?.source !== "draft"
+							? `Regenerate ${cvLanguageLabel(selectedLanguage)}`
+							: `Generate ${cvLanguageLabel(selectedLanguage)}`}
 					</Button>
 				</div>
 			</div>
@@ -446,6 +573,13 @@ function TailorStep({
 					{isTauriRuntime()
 						? "Install or authenticate claude/codex, then refresh AI tools in settings."
 						: "Open the Tauri desktop app to run local AI generation. You can still edit manually."}
+				</p>
+			) : null}
+
+			{!hasRunForLanguage ? (
+				<p className="rounded-lg border bg-muted/40 p-3 text-muted-foreground text-sm">
+					No {cvLanguageLabel(selectedLanguage)} version yet. Generate one to
+					start editing and exporting.
 				</p>
 			) : null}
 
@@ -461,20 +595,27 @@ function TailorStep({
 				</pre>
 			) : null}
 
-			<div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-				<section className="min-w-0">
-					<GeneratedCvEditor
-						profile={profile}
-						generatedCv={application}
-						onChange={onEditCv}
-					/>
-				</section>
-				<section className="min-w-0">
-					<div className="xl:sticky xl:top-4">
-						<CvPreview profile={profile} generatedCv={application} />
-					</div>
-				</section>
-			</div>
+			{hasRunForLanguage && run ? (
+				<div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+					<section className="min-w-0">
+						<GeneratedCvEditor
+							profile={profile}
+							application={application}
+							run={run}
+							onChange={onEditCv}
+						/>
+					</section>
+					<section className="min-w-0">
+						<div className="xl:sticky xl:top-4">
+							<CvPreview
+								profile={profile}
+								application={application}
+								run={run}
+							/>
+						</div>
+					</section>
+				</div>
+			) : null}
 		</div>
 	);
 }

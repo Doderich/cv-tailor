@@ -1,16 +1,23 @@
 use std::{
     io::ErrorKind,
+    path::PathBuf,
     process::Stdio,
     time::{Duration, Instant},
 };
 
 use serde::{Deserialize, Serialize};
-use tauri::AppHandle;
+use tauri::{AppHandle, Manager};
 use tokio::{io::AsyncWriteExt, process::Command, time::timeout};
 
-use crate::{errors::AppError, storage};
+use crate::errors::AppError;
 
 const AI_TIMEOUT_SECONDS: u64 = 120;
+
+fn schema_path(app: &AppHandle) -> Result<PathBuf, AppError> {
+    let directory = app.path().app_data_dir()?.join("cv-tailor");
+    std::fs::create_dir_all(&directory)?;
+    Ok(directory.join("tailored_cv_output.schema.json"))
+}
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -246,7 +253,7 @@ pub async fn run_ai_tool(
         .await;
     }
 
-    let schema_path = storage::schema_path(app)?;
+    let schema_path = schema_path(app)?;
     std::fs::write(&schema_path, serde_json::to_string_pretty(&request.schema)?)?;
 
     run_with_stdin(

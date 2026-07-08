@@ -1,4 +1,9 @@
-import type { GeneratedCv, JobSignals, MatchAnalysis } from "@cv-tailor/core";
+import type {
+	Application,
+	CvRun,
+	JobSignals,
+	MatchAnalysis,
+} from "@cv-tailor/core";
 import { Button } from "@cv-tailor/ui/components/button";
 import {
 	Card,
@@ -7,7 +12,7 @@ import {
 	CardTitle,
 } from "@cv-tailor/ui/components/card";
 import { cn } from "@cv-tailor/ui/lib/utils";
-import { CheckCircle2, Copy, ExternalLink } from "lucide-react";
+import { CheckCircle2, ExternalLink } from "lucide-react";
 
 import type { AiToolStatus } from "@/lib/tauri-ai";
 
@@ -127,13 +132,13 @@ export function AiStatusPanel({ statuses }: { statuses: AiToolStatus[] }) {
 
 export function HistoryRunCard({
 	active,
-	generatedCv,
-	onDuplicate,
+	application,
+	run,
 	onOpen,
 }: {
 	active: boolean;
-	generatedCv: GeneratedCv;
-	onDuplicate: () => void;
+	application: Application;
+	run: CvRun;
 	onOpen: () => void;
 }) {
 	return (
@@ -155,31 +160,28 @@ export function HistoryRunCard({
 		>
 			<CardHeader>
 				<CardTitle className="flex items-center gap-2">
-					<span className="truncate">
-						{generatedCv.jobOffer.title || "Untitled role"}
-					</span>
+					<span className="truncate">{run.label}</span>
 					{active ? <CheckCircle2 className="size-4 text-primary" /> : null}
 				</CardTitle>
 			</CardHeader>
 			<CardContent className="grid gap-3">
 				<div className="grid gap-1 text-xs">
 					<p className="text-muted-foreground">
-						{generatedCv.jobOffer.company || "Unknown company"} ·{" "}
-						{generatedCv.aiTool}
+						{applicationTitle(application)} · {run.aiTool}
 					</p>
 					<p className="text-muted-foreground">
-						{new Date(generatedCv.updatedAt).toLocaleString()}
+						{new Date(run.updatedAt).toLocaleString()}
 					</p>
 				</div>
 				<div className="grid gap-2 text-xs sm:grid-cols-3">
-					<Metric label="Match" value={`${generatedCv.matchAnalysis.score}%`} />
+					<Metric label="Match" value={`${run.matchAnalysis.score}%`} />
 					<Metric
 						label="Keywords"
-						value={generatedCv.signals.keywords.length.toString()}
+						value={run.signals.keywords.length.toString()}
 					/>
-					<Metric label="Level" value={generatedCv.signals.seniority} />
+					<Metric label="Level" value={run.signals.seniority} />
 				</div>
-				<TokenList values={generatedCv.signals.keywords.slice(0, 10)} />
+				<TokenList values={run.signals.keywords.slice(0, 10)} />
 				<div className="flex gap-2">
 					<Button
 						size="sm"
@@ -191,19 +193,12 @@ export function HistoryRunCard({
 					>
 						<ExternalLink /> Open
 					</Button>
-					<Button
-						size="icon-sm"
-						variant="ghost"
-						onClick={(event) => {
-							event.stopPropagation();
-							onDuplicate();
-						}}
-						title="Duplicate"
-					>
-						<Copy />
-					</Button>
 				</div>
 			</CardContent>
 		</Card>
 	);
+}
+
+function applicationTitle(application: Application) {
+	return application.jobOffer.title.trim() || "Untitled role";
 }

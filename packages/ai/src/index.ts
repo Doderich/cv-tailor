@@ -1,6 +1,8 @@
 import {
 	type BaseProfile,
 	baseProfileSchema,
+	type CvLanguage,
+	cvLanguageLabel,
 	type JobOffer,
 	type JobSignals,
 	type MatchAnalysis,
@@ -15,6 +17,7 @@ export interface TailorCvInput {
 	jobOffer: JobOffer;
 	signals: JobSignals;
 	matchAnalysis: MatchAnalysis;
+	targetLanguage: CvLanguage;
 }
 
 export type TailoredCvOutput = TailoredCv;
@@ -242,6 +245,7 @@ export function buildTailorCvPrompt(input: TailorCvInput): string {
 		"",
 		"Style rules:",
 		`- Preferred tone: ${input.profile.preferredTone || "Clear, concise, confident, and factual."}`,
+		`- Target output language: ${cvLanguageLabel(input.targetLanguage)} (${input.targetLanguage}). Write all CV text in this language.`,
 		"- Optimize for ATS readability.",
 		"- Keep bullets specific and evidence-based.",
 		"",

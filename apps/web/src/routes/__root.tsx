@@ -11,6 +11,7 @@ import { PrintableCv } from "@/components/cv/printable-cv";
 import { PaletteProvider } from "@/components/palette-provider";
 import { ThemeProvider } from "@/components/theme-provider";
 import { CvAppProvider, useCvApp } from "@/lib/cv-app-context";
+import { DbBootstrap } from "@/lib/db-bootstrap";
 
 import "../index.css";
 
@@ -49,12 +50,14 @@ function RootComponent() {
 				storageKey="cv-tailor-theme"
 			>
 				<PaletteProvider>
-					<CvAppProvider>
-						<AppShell>
-							<Outlet />
-						</AppShell>
-						<PrintSurface />
-					</CvAppProvider>
+					<DbBootstrap>
+						<CvAppProvider>
+							<AppShell>
+								<Outlet />
+							</AppShell>
+							<PrintSurface />
+						</CvAppProvider>
+					</DbBootstrap>
 					<Toaster richColors />
 				</PaletteProvider>
 			</ThemeProvider>
@@ -66,7 +69,13 @@ function RootComponent() {
 }
 
 function PrintSurface() {
-	const { activeApplication, profile } = useCvApp();
+	const { activeApplication, activeRun, profile } = useCvApp();
 
-	return <PrintableCv profile={profile} generatedCv={activeApplication} />;
+	return (
+		<PrintableCv
+			profile={profile}
+			application={activeApplication}
+			run={activeRun}
+		/>
+	);
 }

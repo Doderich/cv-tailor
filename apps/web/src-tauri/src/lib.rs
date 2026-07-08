@@ -2,7 +2,6 @@ mod ai;
 mod commands;
 mod errors;
 mod pdf_export;
-mod storage;
 mod web_fetch;
 
 use axum::{
@@ -112,6 +111,7 @@ pub fn run() {
 
     tauri::Builder::default()
         .manage(local_api_state)
+        .plugin(tauri_plugin_sql::Builder::default().build())
         .setup(|app| {
             if cfg!(debug_assertions) {
                 app.handle().plugin(
@@ -124,8 +124,6 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             native_status,
-            commands::load_app_state,
-            commands::save_app_state,
             commands::detect_ai_tools,
             commands::run_ai_tool,
             commands::fetch_url_text,

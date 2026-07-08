@@ -36,5 +36,12 @@
 		"vitest": "^4.0.15",
 		"vercel": "^54.18.6"
 	},
-	"packageManager": "pnpm@10.15.0"
+	"packageManager": "pnpm@10.15.0",
+	"pnpm": {
+		"onlyBuiltDependencies": [
+			"@journeyapps/wa-sqlite",
+			"esbuild",
+			"sharp"
+		]
+	}
 }

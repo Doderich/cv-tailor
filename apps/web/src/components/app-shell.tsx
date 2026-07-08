@@ -1,4 +1,3 @@
-import type { GeneratedCv } from "@cv-tailor/core";
 import { Button } from "@cv-tailor/ui/components/button";
 import {
 	DropdownMenu,
@@ -30,10 +29,10 @@ import { toast } from "sonner";
 import { CommandPalette } from "@/components/command-palette";
 import { ScoreBadge } from "@/components/cv/score-badge";
 import { applicationViewRegistry, viewMeta } from "@/lib/application-views";
+import type { ApplicationListItem } from "@/lib/cv-app-context";
 import {
 	applicationCompany,
 	applicationTitle,
-	isDraftApplication,
 	useCvApp,
 } from "@/lib/cv-app-context";
 import { isTauriRuntime } from "@/lib/tauri-ai";
@@ -96,7 +95,7 @@ function ApplicationRailItem({
 	onArchiveToggle,
 	onDelete,
 }: {
-	application: GeneratedCv;
+	application: ApplicationListItem;
 	active: boolean;
 	onOpen: () => void;
 	onArchiveToggle: () => void;
@@ -122,13 +121,13 @@ function ApplicationRailItem({
 					{applicationTitle(application)}
 				</span>
 				<span className="flex items-center gap-1.5">
-					{isDraftApplication(application) ? (
+					{application.isDraft ? (
 						<span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
 							Draft
 						</span>
-					) : (
-						<ScoreBadge score={application.matchAnalysis.score} />
-					)}
+					) : application.previewScore !== undefined ? (
+						<ScoreBadge score={application.previewScore} />
+					) : null}
 					<span className="min-w-0 truncate text-muted-foreground text-xs">
 						{applicationCompany(application)}
 					</span>
@@ -193,7 +192,7 @@ function ApplicationRail({ onNavigate }: { onNavigate?: () => void }) {
 	const [showArchived, setShowArchived] = useState(false);
 
 	const term = query.trim().toLowerCase();
-	const matches = (application: GeneratedCv) =>
+	const matches = (application: ApplicationListItem) =>
 		`${application.jobOffer.title} ${application.jobOffer.company}`
 			.toLowerCase()
 			.includes(term);
@@ -213,14 +212,16 @@ function ApplicationRail({ onNavigate }: { onNavigate?: () => void }) {
 		onNavigate?.();
 	}
 
-	function handleDelete(application: GeneratedCv) {
-		deleteApplication(application.id);
+	function handleDelete(application: ApplicationListItem) {
+		const snapshot = deleteApplication(application.id);
 		toast("Application deleted", {
 			description: applicationTitle(application),
-			action: {
-				label: "Undo",
-				onClick: () => restoreApplication(application),
-			},
+			action: snapshot
+				? {
+						label: "Undo",
+						onClick: () => restoreApplication(snapshot),
+					}
+				: undefined,
 		});
 	}
 

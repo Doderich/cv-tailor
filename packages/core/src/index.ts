@@ -110,24 +110,56 @@ export const matchAnalysisSchema = z.object({
 	warnings: z.array(z.string()),
 });
 
-export const generatedCvSchema = z.object({
+export const cvLanguages = ["en", "de"] as const;
+
+export const cvLanguageSchema = z.enum(cvLanguages);
+
+export const cvRunSourceSchema = z.enum(["draft", "ai", "manual"]);
+
+export const profileRecordSchema = baseProfileSchema.extend({
 	id: z.string(),
+	name: z.string(),
 	createdAt: z.string(),
 	updatedAt: z.string(),
-	jobOffer: jobOfferSchema,
-	signals: jobSignalsSchema,
-	matchAnalysis: matchAnalysisSchema,
-	cv: tailoredCvSchema,
-	aiTool: z.string(),
-	rawAiOutput: z.string().optional(),
-	archived: z.boolean().optional(),
 });
 
-export const appStateSchema = z.object({
-	version: z.literal(1),
-	profile: baseProfileSchema,
-	generatedCvs: z.array(generatedCvSchema),
-	activeGeneratedCvId: z.string().optional(),
+export const applicationSchema = z.object({
+	id: z.string(),
+	profileId: z.string(),
+	jobOffer: jobOfferSchema,
+	archived: z.boolean().optional(),
+	createdAt: z.string(),
+	updatedAt: z.string(),
+});
+
+export const cvRunSchema = z.object({
+	id: z.string(),
+	applicationId: z.string(),
+	profileId: z.string(),
+	language: cvLanguageSchema,
+	label: z.string(),
+	cv: tailoredCvSchema,
+	signals: jobSignalsSchema,
+	matchAnalysis: matchAnalysisSchema,
+	aiTool: z.string(),
+	source: cvRunSourceSchema,
+	createdAt: z.string(),
+	updatedAt: z.string(),
+});
+
+export const aiOutputSchema = z.object({
+	id: z.string(),
+	cvRunId: z.string(),
+	stdout: z.string(),
+});
+
+export const appSettingsSchema = z.object({
+	id: z.literal("settings"),
+	schemaVersion: z.literal(2),
+	activeProfileId: z.string(),
+	activeApplicationId: z.string().optional(),
+	activeRunId: z.string().optional(),
+	selectedAiTool: z.string().optional(),
 });
 
 export type Contact = z.infer<typeof contactSchema>;
@@ -139,8 +171,13 @@ export type JobSignals = z.infer<typeof jobSignalsSchema>;
 export type JobOffer = z.infer<typeof jobOfferSchema>;
 export type TailoredCv = z.infer<typeof tailoredCvSchema>;
 export type MatchAnalysis = z.infer<typeof matchAnalysisSchema>;
-export type GeneratedCv = z.infer<typeof generatedCvSchema>;
-export type AppState = z.infer<typeof appStateSchema>;
+export type CvLanguage = z.infer<typeof cvLanguageSchema>;
+export type CvRunSource = z.infer<typeof cvRunSourceSchema>;
+export type ProfileRecord = z.infer<typeof profileRecordSchema>;
+export type Application = z.infer<typeof applicationSchema>;
+export type CvRun = z.infer<typeof cvRunSchema>;
+export type AiOutput = z.infer<typeof aiOutputSchema>;
+export type AppSettings = z.infer<typeof appSettingsSchema>;
 
 const stopWords = new Set([
 	"a",
@@ -524,11 +561,102 @@ export function createDefaultTailoredCv(profile: BaseProfile): TailoredCv {
 	};
 }
 
-export function createDefaultAppState(): AppState {
+export const defaultProfileId = "profile-default";
+
+export function cvLanguageLabel(language: CvLanguage) {
+	return language === "de" ? "German" : "English";
+}
+
+export function createDefaultProfileRecord(
+	now = new Date().toISOString(),
+): ProfileRecord {
 	return {
-		version: 1,
-		profile: createDefaultBaseProfile(),
-		generatedCvs: [],
+		id: defaultProfileId,
+		name: "Default",
+		...createDefaultBaseProfile(),
+		createdAt: now,
+		updatedAt: now,
+	};
+}
+
+export function createDefaultAppSettings(
+	profileId = defaultProfileId,
+): AppSettings {
+	return {
+		id: "settings",
+		schemaVersion: 2,
+		activeProfileId: profileId,
+		selectedAiTool: "auto",
+	};
+}
+
+export function createDraftCvRun(input: {
+	id: string;
+	applicationId: string;
+	profileId: string;
+	profile: BaseProfile;
+	jobOffer: JobOffer;
+	language: CvLanguage;
+	now?: string;
+}): CvRun {
+	const now = input.now ?? new Date().toISOString();
+	const signals =
+		input.jobOffer.signals ?? extractJobSignals(input.jobOffer.rawText);
+
+	return cvRunSchema.parse({
+		id: input.id,
+		applicationId: input.applicationId,
+		profileId: input.profileId,
+		language: input.language,
+		label: cvLanguageLabel(input.language),
+		cv: createDefaultTailoredCv(input.profile),
+		signals,
+		matchAnalysis: scoreProfileAgainstJob(input.profile, {
+			...input.jobOffer,
+			signals,
+		}),
+		aiTool: "draft",
+		source: "draft",
+		createdAt: now,
+		updatedAt: now,
+	});
+}
+
+export function createEmptyApplication(input: {
+	id: string;
+	profileId: string;
+	profile: BaseProfile;
+	now?: string;
+}): { application: Application; draftRun: CvRun } {
+	const now = input.now ?? new Date().toISOString();
+	const signals = extractJobSignals("");
+	const jobOffer: JobOffer = {
+		id: createId("job"),
+		title: "",
+		company: "",
+		rawText: "",
+		createdAt: now,
+		signals,
+	};
+	const runId = createId("run");
+
+	return {
+		application: applicationSchema.parse({
+			id: input.id,
+			profileId: input.profileId,
+			jobOffer,
+			createdAt: now,
+			updatedAt: now,
+		}),
+		draftRun: createDraftCvRun({
+			id: runId,
+			applicationId: input.id,
+			profileId: input.profileId,
+			profile: input.profile,
+			jobOffer,
+			language: "en",
+			now,
+		}),
 	};
 }
 

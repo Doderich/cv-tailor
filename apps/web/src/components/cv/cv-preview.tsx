@@ -1,4 +1,4 @@
-import type { BaseProfile, GeneratedCv } from "@cv-tailor/core";
+import type { Application, BaseProfile, CvRun } from "@cv-tailor/core";
 import type { ReactNode } from "react";
 
 function joinDateRange(startDate: string, endDate: string, current = false) {
@@ -33,12 +33,14 @@ function Bullets({ items }: { items: string[] }) {
 
 export function CvPreview({
 	profile,
-	generatedCv,
+	application: _application,
+	run,
 }: {
 	profile: BaseProfile;
-	generatedCv: GeneratedCv | undefined;
+	application: Application | undefined;
+	run: CvRun | undefined;
 }) {
-	const cv = generatedCv?.cv;
+	const cv = run?.cv;
 
 	if (!cv) {
 		return null;

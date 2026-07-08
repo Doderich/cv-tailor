@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import tailwindcss from "@tailwindcss/vite";
 import { tanstackRouter } from "@tanstack/router-plugin/vite";
 import react from "@vitejs/plugin-react";
@@ -45,6 +46,14 @@ export default defineConfig({
 			},
 		},
 	},
+	optimizeDeps: {
+		exclude: [
+			"@tanstack/db",
+			"@tanstack/browser-db-sqlite-persistence",
+			"@tanstack/db-sqlite-persistence-core",
+			"@journeyapps/wa-sqlite",
+		],
+	},
 	server: {
 		port: 1420,
 		strictPort: true,
@@ -57,6 +66,50 @@ export default defineConfig({
 		tsconfigPaths: true,
 	},
 	plugins: [
+		{
+			name: "serve-wasm-files",
+			configureServer(server) {
+				const wasmHandler = (
+					req: { url?: string },
+					res: {
+						writeHead: (
+							status: number,
+							headers: Record<string, string>,
+						) => void;
+						end: (body: Buffer) => void;
+					},
+					next: () => void,
+				) => {
+					const urlWithoutQuery = (req.url ?? "").split("?")[0];
+					if (!urlWithoutQuery.endsWith(".wasm")) {
+						return next();
+					}
+
+					const fsPrefix = "/@fs";
+					let filePath: string | undefined;
+					if (urlWithoutQuery.startsWith(fsPrefix)) {
+						filePath = urlWithoutQuery.slice(fsPrefix.length);
+					}
+
+					if (!filePath || !fs.existsSync(filePath)) {
+						return next();
+					}
+
+					const content = fs.readFileSync(filePath);
+					res.writeHead(200, {
+						"Content-Type": "application/wasm",
+						"Content-Length": String(content.byteLength),
+						"Cache-Control": "no-cache",
+					});
+					res.end(content);
+				};
+
+				server.middlewares.stack.unshift({
+					route: "",
+					handle: wasmHandler,
+				});
+			},
+		},
 		tailwindcss(),
 		tanstackRouter({
 			target: "react",

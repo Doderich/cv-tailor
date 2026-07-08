@@ -1,23 +1,11 @@
-use serde_json::Value;
 use tauri::AppHandle;
 
 use crate::{
     ai::{self, AiRunRequest, AiRunResponse, AiToolStatus},
     errors::AppError,
     pdf_export::{self, ExportPdfRequest, ExportPdfResponse},
-    storage,
     web_fetch::{self, FetchUrlTextRequest, FetchUrlTextResponse},
 };
-
-#[tauri::command]
-pub fn load_app_state(app: AppHandle) -> Result<Value, AppError> {
-    storage::load_app_state(&app)
-}
-
-#[tauri::command]
-pub fn save_app_state(app: AppHandle, state: Value) -> Result<(), AppError> {
-    storage::save_app_state(&app, state)
-}
 
 #[tauri::command]
 pub async fn detect_ai_tools() -> Result<Vec<AiToolStatus>, AppError> {

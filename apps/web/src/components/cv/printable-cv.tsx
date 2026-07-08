@@ -1,9 +1,10 @@
-import type { BaseProfile, GeneratedCv } from "@cv-tailor/core";
+import type { Application, BaseProfile, CvRun } from "@cv-tailor/core";
 import type { ReactNode } from "react";
 
 interface PrintableCvProps {
 	profile: BaseProfile;
-	generatedCv: GeneratedCv | undefined;
+	application: Application | undefined;
+	run: CvRun | undefined;
 }
 
 function joinDateRange(startDate: string, endDate: string, current = false) {
@@ -34,8 +35,12 @@ function BulletList({ items }: { items: string[] }) {
 	);
 }
 
-export function PrintableCv({ profile, generatedCv }: PrintableCvProps) {
-	const cv = generatedCv?.cv;
+export function PrintableCv({
+	profile,
+	application: _application,
+	run,
+}: PrintableCvProps) {
+	const cv = run?.cv;
 
 	if (!cv) {
 		return null;

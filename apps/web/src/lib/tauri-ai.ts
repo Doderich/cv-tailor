@@ -1,5 +1,5 @@
 import type { AiToolId } from "@cv-tailor/ai";
-import type { BaseProfile, GeneratedCv } from "@cv-tailor/core";
+import type { Application, BaseProfile, CvRun } from "@cv-tailor/core";
 
 export interface AiToolStatus {
 	id: "claude" | "codex";
@@ -94,7 +94,8 @@ export async function fetchUrlText(url: string): Promise<FetchUrlTextResponse> {
 
 export async function exportGeneratedCvPdf(
 	profile: BaseProfile,
-	generatedCv: GeneratedCv,
+	application: Application,
+	run: CvRun,
 ): Promise<ExportPdfResponse> {
 	const invoke = await loadInvoke();
 
@@ -107,7 +108,16 @@ export async function exportGeneratedCvPdf(
 	return invoke<ExportPdfResponse>("export_generated_cv_pdf", {
 		request: {
 			profile,
-			generatedCv,
+			generatedCv: {
+				id: application.id,
+				createdAt: run.createdAt,
+				updatedAt: run.updatedAt,
+				jobOffer: application.jobOffer,
+				signals: run.signals,
+				matchAnalysis: run.matchAnalysis,
+				cv: run.cv,
+				aiTool: run.aiTool,
+			},
 		},
 	});
 }

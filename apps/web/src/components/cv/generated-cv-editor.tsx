@@ -1,4 +1,9 @@
-import type { BaseProfile, GeneratedCv, TailoredCv } from "@cv-tailor/core";
+import type {
+	Application,
+	BaseProfile,
+	CvRun,
+	TailoredCv,
+} from "@cv-tailor/core";
 import { Button } from "@cv-tailor/ui/components/button";
 import { Label } from "@cv-tailor/ui/components/label";
 import { Textarea } from "@cv-tailor/ui/components/textarea";
@@ -7,7 +12,8 @@ import type { ReactNode } from "react";
 
 interface GeneratedCvEditorProps {
 	profile: BaseProfile;
-	generatedCv: GeneratedCv | undefined;
+	application: Application | undefined;
+	run: CvRun | undefined;
 	onChange: (cv: TailoredCv) => void;
 }
 
@@ -71,10 +77,11 @@ function EditorSection({
 
 export function GeneratedCvEditor({
 	profile,
-	generatedCv,
+	application: _application,
+	run,
 	onChange,
 }: GeneratedCvEditorProps) {
-	if (!generatedCv) {
+	if (!run) {
 		return (
 			<div className="grid min-h-72 place-items-center rounded-xl border border-dashed p-6 text-center text-muted-foreground text-sm">
 				Generate or reopen a CV to edit the tailored output.
@@ -82,7 +89,7 @@ export function GeneratedCvEditor({
 		);
 	}
 
-	const cv = generatedCv.cv;
+	const cv = run.cv;
 	const updateCv = (patch: Partial<TailoredCv>) =>
 		onChange({ ...cv, ...patch });
 	const updateExperienceBullets = (experienceId: string, bullets: string[]) =>

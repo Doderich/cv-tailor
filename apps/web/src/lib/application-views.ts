@@ -47,8 +47,9 @@ export const applicationViewRegistry: ApplicationViewMeta[] = [
 		type: "versions",
 		label: "Versions",
 		icon: Layers,
-		description: "Compare multiple tailored CV versions for this role.",
-		available: false,
+		description:
+			"Compare English and German tailored CV versions for this role.",
+		available: true,
 	},
 	{
 		type: "chat",
