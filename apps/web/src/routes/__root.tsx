@@ -6,7 +6,10 @@ import {
 } from "@tanstack/react-router";
 import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
 
+import { AppShell } from "@/components/app-shell";
+import { PrintableCv } from "@/components/cv/printable-cv";
 import { ThemeProvider } from "@/components/theme-provider";
+import { CvAppProvider, useCvApp } from "@/lib/cv-app-context";
 
 import "../index.css";
 
@@ -39,18 +42,29 @@ function RootComponent() {
 			<HeadContent />
 			<ThemeProvider
 				attribute="class"
-				defaultTheme="dark"
+				defaultTheme="light"
 				disableTransitionOnChange
-				storageKey="vite-ui-theme"
+				storageKey="cv-tailor-theme"
 			>
-				<div className="grid h-svh">
-					<Outlet />
-				</div>
+				<CvAppProvider>
+					<AppShell>
+						<Outlet />
+					</AppShell>
+					<PrintSurface />
+				</CvAppProvider>
 				<Toaster richColors />
 			</ThemeProvider>
 			{import.meta.env.DEV ? (
-				<TanStackRouterDevtools position="bottom-left" />
+				<TanStackRouterDevtools position="bottom-right" />
 			) : null}
 		</>
+	);
+}
+
+function PrintSurface() {
+	const { activeGeneratedCv, appState } = useCvApp();
+
+	return (
+		<PrintableCv profile={appState.profile} generatedCv={activeGeneratedCv} />
 	);
 }
