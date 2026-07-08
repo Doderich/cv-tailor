@@ -1,0 +1,19 @@
+apps/web/src/components/app-shell.tsx
+  s_7fefb8a29314a6::t_db01ac2890ab75 381
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "97dcdb7f1065f57159c7b3d122bbfa4da9ada103",
+  "prompts": {},
+  "sessions": {
+    "s_7fefb8a29314a6": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "ae1ad474-bfc3-4531-bcc4-feee90daff8a",
+        "model": "unknown"
+      },
+      "human_author": "Malte Budig <malte.budig@gmx.net>"
+    }
+  }
+}
