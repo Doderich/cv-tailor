@@ -6,12 +6,18 @@ use std::{
 };
 
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, Manager};
-use tokio::{io::AsyncWriteExt, process::Command, time::timeout};
+use tauri::{AppHandle, Emitter, Manager};
+use tokio::{
+    io::{AsyncBufReadExt, BufReader},
+    io::AsyncWriteExt,
+    process::{Child, Command},
+    time::timeout,
+};
 
 use crate::errors::AppError;
 
-const AI_TIMEOUT_SECONDS: u64 = 120;
+const AI_TIMEOUT_SECONDS: u64 = 300;
+const AI_RUN_PROGRESS_EVENT: &str = "ai-run-progress";
 const CURSOR_TOOL_ID: &str = "cursor";
 const CURSOR_BINARY: &str = "agent";
 
@@ -38,6 +44,15 @@ pub struct AiRunRequest {
     pub prompt: String,
     pub schema: serde_json::Value,
     pub model: Option<String>,
+    pub run_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AiRunProgressEvent {
+    pub run_id: String,
+    pub stream: String,
+    pub text: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -186,15 +201,156 @@ fn classify_process_error(stderr: &str) -> &'static str {
     }
 }
 
+fn emit_run_progress(app: Option<&AppHandle>, run_id: &str, stream: &str, text: &str) {
+    let Some(app) = app else {
+        return;
+    };
+
+    let _ = app.emit(
+        AI_RUN_PROGRESS_EVENT,
+        AiRunProgressEvent {
+            run_id: run_id.to_string(),
+            stream: stream.to_string(),
+            text: text.to_string(),
+        },
+    );
+}
+
+async fn collect_stream(
+    app: Option<AppHandle>,
+    run_id: String,
+    stream: &str,
+    output: Option<tokio::process::ChildStdout>,
+) -> String {
+    let Some(output) = output else {
+        return String::new();
+    };
+
+    let mut collected = String::new();
+    let mut reader = BufReader::new(output).lines();
+
+    while let Ok(Some(line)) = reader.next_line().await {
+        if !line.trim().is_empty() {
+            emit_run_progress(app.as_ref(), &run_id, stream, &line);
+        }
+        collected.push_str(&line);
+        collected.push('\n');
+    }
+
+    collected
+}
+
+async fn collect_stderr(
+    app: Option<AppHandle>,
+    run_id: String,
+    output: Option<tokio::process::ChildStderr>,
+) -> String {
+    let Some(output) = output else {
+        return String::new();
+    };
+
+    let mut collected = String::new();
+    let mut reader = BufReader::new(output).lines();
+
+    while let Ok(Some(line)) = reader.next_line().await {
+        if !line.trim().is_empty() {
+            emit_run_progress(app.as_ref(), &run_id, "stderr", &line);
+        }
+        collected.push_str(&line);
+        collected.push('\n');
+    }
+
+    collected
+}
+
+async fn finish_child(
+    app: Option<&AppHandle>,
+    run_id: &str,
+    tool: &str,
+    start: Instant,
+    mut child: Child,
+    stdout_output: Option<tokio::process::ChildStdout>,
+    stderr_output: Option<tokio::process::ChildStderr>,
+) -> Result<AiRunResponse, AppError> {
+    let app_for_stdout = app.cloned();
+    let app_for_stderr = app.cloned();
+    let run_id_for_stdout = run_id.to_string();
+    let run_id_for_stderr = run_id.to_string();
+
+    let stdout_task = tokio::spawn(collect_stream(
+        app_for_stdout,
+        run_id_for_stdout,
+        "stdout",
+        stdout_output,
+    ));
+    let stderr_task = tokio::spawn(collect_stderr(
+        app_for_stderr,
+        run_id_for_stderr,
+        stderr_output,
+    ));
+
+    let status = match timeout(
+        Duration::from_secs(AI_TIMEOUT_SECONDS),
+        child.wait(),
+    )
+    .await
+    {
+        Ok(status) => status?,
+        Err(_) => {
+            let _ = child.kill().await;
+            return Err(AppError::with_details(
+                "ai_timeout",
+                "The AI tool did not finish before the timeout.",
+                format!("{AI_TIMEOUT_SECONDS} seconds"),
+            ));
+        }
+    };
+
+    let stdout = stdout_task.await.unwrap_or_default();
+    let stderr = stderr_task.await.unwrap_or_default();
+
+    if !status.success() {
+        return Err(AppError::with_details(
+            classify_process_error(&stderr),
+            "The AI tool exited with an error.",
+            stderr,
+        ));
+    }
+
+    emit_run_progress(
+        app,
+        run_id,
+        "status",
+        &format!("{tool} finished in {} ms", start.elapsed().as_millis()),
+    );
+
+    Ok(AiRunResponse {
+        tool: tool.to_string(),
+        stdout,
+        stderr,
+        duration_ms: start.elapsed().as_millis(),
+    })
+}
+
 async fn run_with_stdin(
+    app: Option<&AppHandle>,
+    run_id: &str,
     tool: &str,
     args: &[String],
     prompt: &str,
 ) -> Result<AiRunResponse, AppError> {
     let binary = binary_for_tool(tool);
     let start = Instant::now();
+    emit_run_progress(
+        app,
+        run_id,
+        "status",
+        &format!("Starting {tool} and sending prompt..."),
+    );
+
     let mut command = Command::new(binary);
     command
+        .current_dir(std::env::temp_dir())
         .args(args)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -212,97 +368,70 @@ async fn run_with_stdin(
         }
         Err(error) => return Err(AppError::from(error)),
     };
+
     if let Some(mut stdin) = child.stdin.take() {
         stdin.write_all(prompt.as_bytes()).await?;
     }
 
-    let output = match timeout(
-        Duration::from_secs(AI_TIMEOUT_SECONDS),
-        child.wait_with_output(),
-    )
-    .await
-    {
-        Ok(output) => output?,
-        Err(_) => {
-            return Err(AppError::with_details(
-                "ai_timeout",
-                "The AI tool did not finish before the timeout.",
-                format!("{AI_TIMEOUT_SECONDS} seconds"),
-            ));
-        }
-    };
-    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
-    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+    let stdout = child.stdout.take();
+    let stderr = child.stderr.take();
 
-    if !output.status.success() {
-        return Err(AppError::with_details(
-            classify_process_error(&stderr),
-            "The AI tool exited with an error.",
-            stderr,
-        ));
-    }
-
-    Ok(AiRunResponse {
-        tool: tool.to_string(),
-        stdout,
-        stderr,
-        duration_ms: start.elapsed().as_millis(),
-    })
+    finish_child(app, run_id, tool, start, child, stdout, stderr).await
 }
 
 async fn run_with_prompt_arg(
+    app: Option<&AppHandle>,
+    run_id: &str,
     tool: &str,
     args: &[String],
     prompt: &str,
 ) -> Result<AiRunResponse, AppError> {
     let binary = binary_for_tool(tool);
     let start = Instant::now();
+    emit_run_progress(
+        app,
+        run_id,
+        "status",
+        &format!("Starting {tool} with inline prompt..."),
+    );
+
     let mut command = Command::new(binary);
     command
+        .current_dir(std::env::temp_dir())
         .args(args)
         .arg(prompt)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .kill_on_drop(true);
 
-    let output = match timeout(
-        Duration::from_secs(AI_TIMEOUT_SECONDS),
-        command.output(),
-    )
-    .await
-    {
-        Ok(output) => output?,
-        Err(_) => {
+    let mut child = match command.spawn() {
+        Ok(child) => child,
+        Err(error) if error.kind() == ErrorKind::NotFound => {
             return Err(AppError::with_details(
-                "ai_timeout",
-                "The AI tool did not finish before the timeout.",
-                format!("{AI_TIMEOUT_SECONDS} seconds"),
+                "ai_tool_unavailable",
+                "The requested AI tool was not found on PATH.",
+                binary,
             ));
         }
+        Err(error) => return Err(AppError::from(error)),
     };
-    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
-    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
 
-    if !output.status.success() {
-        return Err(AppError::with_details(
-            classify_process_error(&stderr),
-            "The AI tool exited with an error.",
-            stderr,
-        ));
-    }
+    let stdout = child.stdout.take();
+    let stderr = child.stderr.take();
 
-    Ok(AiRunResponse {
-        tool: tool.to_string(),
-        stdout,
-        stderr,
-        duration_ms: start.elapsed().as_millis(),
-    })
+    finish_child(app, run_id, tool, start, child, stdout, stderr).await
 }
 
 fn extract_cursor_result(stdout: &str) -> Result<String, AppError> {
     let parsed: serde_json::Value = serde_json::from_str(stdout.trim())?;
-    if let Some(result) = parsed.get("result").and_then(|value| value.as_str()) {
-        return Ok(result.to_string());
+    if let Some(result) = parsed.get("result") {
+        if let Some(text) = result.as_str() {
+            return Ok(text.to_string());
+        }
+
+        if result.is_object() || result.is_array() {
+            return Ok(result.to_string());
+        }
     }
 
     Ok(stdout.to_string())
@@ -313,6 +442,15 @@ pub async fn run_ai_tool(
     request: AiRunRequest,
 ) -> Result<AiRunResponse, AppError> {
     let tool = resolve_tool(&request.tool).await?;
+    let has_progress = request
+        .run_id
+        .as_ref()
+        .is_some_and(|value| !value.trim().is_empty());
+    let run_id = request
+        .run_id
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or_else(|| "anonymous".to_string());
+    let progress_app = has_progress.then(|| app.clone());
 
     if tool == "claude" {
         let schema = serde_json::to_string(&request.schema)?;
@@ -324,8 +462,6 @@ pub async fn run_ai_tool(
             "json".to_string(),
             "--json-schema".to_string(),
             schema,
-            "--permission-mode".to_string(),
-            "plan".to_string(),
             "--no-session-persistence".to_string(),
         ];
 
@@ -334,7 +470,14 @@ pub async fn run_ai_tool(
             args.push(model);
         }
 
-        return run_with_stdin("claude", &args, &request.prompt).await;
+        return run_with_stdin(
+            progress_app.as_ref(),
+            &run_id,
+            "claude",
+            &args,
+            &request.prompt,
+        )
+        .await;
     }
 
     if tool == CURSOR_TOOL_ID {
@@ -343,7 +486,7 @@ pub async fn run_ai_tool(
             "--output-format".to_string(),
             "json".to_string(),
             "--mode".to_string(),
-            "plan".to_string(),
+            "ask".to_string(),
             "--trust".to_string(),
         ];
 
@@ -352,7 +495,14 @@ pub async fn run_ai_tool(
             args.push(model);
         }
 
-        let response = run_with_prompt_arg(CURSOR_TOOL_ID, &args, &request.prompt).await?;
+        let response = run_with_prompt_arg(
+            progress_app.as_ref(),
+            &run_id,
+            CURSOR_TOOL_ID,
+            &args,
+            &request.prompt,
+        )
+        .await?;
         return Ok(AiRunResponse {
             stdout: extract_cursor_result(&response.stdout)?,
             ..response
@@ -378,5 +528,12 @@ pub async fn run_ai_tool(
         args.push(model);
     }
 
-    run_with_stdin("codex", &args, &request.prompt).await
+    run_with_stdin(
+        progress_app.as_ref(),
+        &run_id,
+        "codex",
+        &args,
+        &request.prompt,
+    )
+    .await
 }

@@ -166,10 +166,22 @@ describe("buildGenerateProfilePrompt", () => {
 			JSON.stringify(generatedProfileOutputJsonSchema, null, 2),
 		);
 		expect(prompt).toContain("Use only facts present in the supplied context");
+		expect(prompt).toContain("Do not explore repositories, files, directories");
 		expect(prompt).toContain("Do not invent employers, dates, titles");
 		expect(prompt).toContain("Ada is a frontend engineer");
 		expect(prompt).toContain("https://example.com/about");
 		expect(prompt).toContain("Uploaded local file text:");
+	});
+
+	it("includes the target profile language", () => {
+		const prompt = buildGenerateProfilePrompt({
+			contextText: "Ada is a frontend engineer.",
+			sourceUrls: [],
+			fetchedSources: [],
+			targetLanguage: "de",
+		});
+
+		expect(prompt).toContain("Target profile language: German (de)");
 	});
 });
 
@@ -221,5 +233,21 @@ describe("parseCliGeneratedProfileOutput", () => {
 		expect(parseCliGeneratedProfileOutput(JSON.stringify(envelope))).toEqual(
 			validProfileOutput,
 		);
+	});
+
+	it("parses cursor result envelopes with progress log lines", () => {
+		const envelope = {
+			type: "result",
+			subtype: "success",
+			result: JSON.stringify(validProfileOutput),
+		};
+		const stdout = [
+			"Preparing profile context...",
+			"Running local AI tool...",
+			JSON.stringify(envelope),
+			"cursor finished in 20847 ms",
+		].join("\n");
+
+		expect(parseCliGeneratedProfileOutput(stdout)).toEqual(validProfileOutput);
 	});
 });

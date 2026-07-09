@@ -154,7 +154,6 @@ function SettingsRoute() {
 		profileRevision,
 		patchProfile,
 		refreshAiStatuses,
-		replaceProfile,
 		selectedTool,
 		setAiModel,
 		setSelectedTool,
@@ -242,7 +241,6 @@ function SettingsRoute() {
 							selectedTool={selectedTool}
 							canUseAi={toolIsReady(selectedTool, aiStatuses)}
 							preferredTone={profile.preferredTone}
-							onProfileGenerated={replaceProfile}
 						/>
 						<ProfileEditor
 							key={`profile-editor:${profileRecord?.id ?? "none"}:${profileRevision}`}

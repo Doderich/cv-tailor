@@ -1,4 +1,9 @@
-import { cvLanguageLabel, cvLanguages, type CvLanguage } from "@cv-tailor/core";
+import {
+	cvLanguageLabel,
+	cvLanguages,
+	type CvLanguage,
+	type ProfileRecord,
+} from "@cv-tailor/core";
 import { Button } from "@cv-tailor/ui/components/button";
 import { Input } from "@cv-tailor/ui/components/input";
 import {
@@ -10,13 +15,31 @@ import {
 } from "@cv-tailor/ui/components/select";
 import { cn } from "@cv-tailor/ui/lib/utils";
 import { Check, Plus, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
 import { useCvApp } from "@/lib/cv-app-context";
+
+function profilePreview(record: ProfileRecord) {
+	if (record.contact.name.trim()) {
+		return record.contact.name.trim();
+	}
+
+	if (record.summary.trim()) {
+		return record.summary.trim();
+	}
+
+	if (record.headline.trim()) {
+		return record.headline.trim();
+	}
+
+	return "No content yet";
+}
 
 function ProfileCard({
 	name,
 	language,
+	preview,
+	updatedAt,
 	active,
 	canDelete,
 	onSelect,
@@ -26,6 +49,8 @@ function ProfileCard({
 }: {
 	name: string;
 	language: CvLanguage;
+	preview: string;
+	updatedAt: string;
 	active: boolean;
 	canDelete: boolean;
 	onSelect: () => void;
@@ -49,6 +74,12 @@ function ProfileCard({
 					<span className="font-medium text-sm">{name}</span>
 					<span className="text-muted-foreground text-xs">
 						{cvLanguageLabel(language)} CV
+					</span>
+					<span className="truncate text-muted-foreground text-xs">
+						{preview}
+					</span>
+					<span className="text-[11px] text-muted-foreground">
+						Updated {new Date(updatedAt).toLocaleString()}
 					</span>
 				</button>
 				<div className="flex items-center gap-1">
@@ -115,6 +146,13 @@ export function ProfileManager() {
 	const [isAdding, setIsAdding] = useState(false);
 	const [newName, setNewName] = useState("");
 	const [newLanguage, setNewLanguage] = useState<CvLanguage>("en");
+	const sortedProfiles = useMemo(
+		() =>
+			[...profiles].sort((left, right) =>
+				right.updatedAt.localeCompare(left.updatedAt),
+			),
+		[profiles],
+	);
 
 	function handleCreate() {
 		const name =
@@ -128,7 +166,12 @@ export function ProfileManager() {
 	return (
 		<div className="grid gap-3">
 			<div className="flex items-center justify-between gap-2">
-				<span className="font-medium text-base">Profiles</span>
+				<div className="grid gap-1">
+					<span className="font-medium text-base">Your profiles</span>
+					<span className="text-muted-foreground text-xs">
+						{profiles.length} saved · click a profile to open it
+					</span>
+				</div>
 				<Button
 					type="button"
 					variant="outline"
@@ -136,15 +179,17 @@ export function ProfileManager() {
 					onClick={() => setIsAdding((current) => !current)}
 				>
 					<Plus />
-					Add profile
+					Add empty profile
 				</Button>
 			</div>
 			<div className="grid gap-2 sm:grid-cols-2">
-				{profiles.map((item) => (
+				{sortedProfiles.map((item) => (
 					<ProfileCard
 						key={item.id}
 						name={item.name}
 						language={item.language}
+						preview={profilePreview(item)}
+						updatedAt={item.updatedAt}
 						active={item.id === profileRecord?.id}
 						canDelete={profiles.length > 1}
 						onSelect={() => switchProfile(item.id)}

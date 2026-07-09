@@ -27,6 +27,7 @@ import {
 	type JobOffer,
 	normalizeBaseProfile,
 	normalizeProfileRecord,
+	profilesHaveSameContent,
 	type ProfileRecord,
 	scoreProfileAgainstJob,
 	type TailoredCv,
@@ -137,6 +138,14 @@ interface CvAppContextValue {
 		id: string,
 		patch: Partial<Pick<ProfileRecord, "name" | "language">>,
 	) => void;
+	applyGeneratedProfile: (
+		profile: BaseProfile,
+		options: {
+			mode: "current" | "new";
+			language: CvLanguage;
+			name?: string;
+		},
+	) => Promise<void>;
 }
 
 const CvAppContext = createContext<CvAppContextValue | undefined>(undefined);
@@ -322,6 +331,17 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 	const settingsRef = useRef(settings);
 	profileRecordRef.current = profileRecord;
 	settingsRef.current = settings;
+
+	useEffect(() => {
+		if (!profileSnapshot) {
+			return;
+		}
+
+		if (profilesHaveSameContent(profileSnapshot, storedProfile)) {
+			setProfileSnapshot(undefined);
+			profileSnapshotUpdatedAtRef.current = undefined;
+		}
+	}, [profileSnapshot, storedProfile]);
 	const applications = useMemo(
 		() =>
 			applicationRows.map((application) =>
@@ -375,17 +395,6 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 		!isGenerating;
 
 	useEffect(() => {
-		if (!profileSnapshot || !profileRecord?.updatedAt) {
-			return;
-		}
-
-		if (profileRecord.updatedAt === profileSnapshotUpdatedAtRef.current) {
-			setProfileSnapshot(undefined);
-			profileSnapshotUpdatedAtRef.current = undefined;
-		}
-	}, [profileRecord?.updatedAt, profileRecord?.id, profileSnapshot]);
-
-	useEffect(() => {
 		if (activeRun?.language) {
 			setSelectedLanguageState(activeRun.language);
 		}
@@ -413,6 +422,55 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 		db.settings.update("settings", (draft) => {
 			Object.assign(draft, patch);
 		});
+	}
+
+	async function persistSettings(patch: Partial<typeof settings>) {
+		if (!settingsRef.current) {
+			return;
+		}
+
+		await awaitPersisted(
+			db.settings.update("settings", (draft) => {
+				Object.assign(draft, patch);
+			}),
+		);
+	}
+
+	async function awaitPersisted(
+		transaction: { isPersisted: { promise: Promise<unknown> } },
+	) {
+		await transaction.isPersisted.promise;
+	}
+
+	function cloneProfileRecord(record: ProfileRecord): ProfileRecord {
+		return normalizeProfileRecord(
+			JSON.parse(JSON.stringify(record)) as ProfileRecord,
+		);
+	}
+
+	async function persistProfileRecord(record: ProfileRecord) {
+		const plain = cloneProfileRecord(record);
+		const content = profileFromRecord(plain);
+
+		try {
+			if (db.profiles.has(plain.id)) {
+				await awaitPersisted(
+					db.profiles.update(plain.id, (draft) => {
+						applyProfileFields(draft, content, plain.updatedAt);
+					}),
+				);
+				return;
+			}
+
+			await awaitPersisted(db.profiles.insert(plain));
+		} catch (error) {
+			const message = getErrorMessage(error);
+			throw new Error(
+				message.toLowerCase().includes("database")
+					? message
+					: `Could not write profile to the database: ${message}`,
+			);
+		}
 	}
 
 	function setSelectedTool(tool: AiToolId) {
@@ -916,24 +974,28 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 		const record = profileRecordRef.current;
 		const now = new Date().toISOString();
 
-		try {
-			if (!record) {
-				const created = ensureProfileRecord(normalized);
-				profileSnapshotUpdatedAtRef.current = created.updatedAt;
-			} else {
-				db.profiles.update(record.id, (draft) => {
-					applyProfileFields(draft, normalized, now);
-				});
-				profileSnapshotUpdatedAtRef.current = now;
-			}
+		void (async () => {
+			try {
+				if (!record) {
+					const created = ensureProfileRecord(normalized);
+					await persistProfileRecord(created);
+					profileSnapshotUpdatedAtRef.current = created.updatedAt;
+				} else {
+					const nextRecord = cloneProfileRecord(record);
+					applyProfileFields(nextRecord, normalized, now);
+					await persistProfileRecord(nextRecord);
+					profileSnapshotUpdatedAtRef.current = now;
+				}
 
-			setProfileSnapshot(normalized);
-			setProfileRevision((current) => current + 1);
-		} catch (error) {
-			toast.error("Could not save profile", {
-				description: getErrorMessage(error),
-			});
-		}
+				setProfileSnapshot(undefined);
+				profileSnapshotUpdatedAtRef.current = undefined;
+				setProfileRevision((current) => current + 1);
+			} catch (error) {
+				toast.error("Could not save profile", {
+					description: getErrorMessage(error),
+				});
+			}
+		})();
 	}
 
 	function patchProfile(patch: Partial<BaseProfile>) {
@@ -1033,6 +1095,53 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 		setProfileRevision((current) => current + 1);
 	}
 
+	async function applyGeneratedProfile(
+		next: BaseProfile,
+		options: {
+			mode: "current" | "new";
+			language: CvLanguage;
+			name?: string;
+		},
+	) {
+		const normalized = normalizeBaseProfile(next);
+		const now = new Date().toISOString();
+		const profileName =
+			options.name?.trim() || cvLanguageLabel(options.language);
+
+		let record: ProfileRecord;
+		if (options.mode === "new") {
+			record = createProfileRecord({
+				name: profileName,
+				language: options.language,
+				now,
+			});
+			applyProfileFields(record, normalized, now);
+		} else {
+			const existing = profileRecordRef.current;
+			if (!existing) {
+				record = createProfileRecord({
+					name: profileName,
+					language: options.language,
+					now,
+				});
+			} else {
+				record = cloneProfileRecord(existing);
+				record.language = options.language;
+			}
+			applyProfileFields(record, normalized, now);
+		}
+
+		await persistProfileRecord(record);
+		if (settingsRef.current?.activeProfileId !== record.id) {
+			await persistSettings({ activeProfileId: record.id });
+		} else {
+			updateSettings({ activeProfileId: record.id });
+		}
+		setProfileSnapshot(normalized);
+		profileSnapshotUpdatedAtRef.current = record.updatedAt;
+		setProfileRevision((current) => current + 1);
+	}
+
 	useEffect(() => {
 		if (settings?.selectedAiTool) {
 			setSelectedToolState(settings.selectedAiTool as AiToolId);
@@ -1102,6 +1211,7 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 			switchProfile,
 			deleteProfile,
 			updateProfileMeta,
+			applyGeneratedProfile,
 		}),
 		[
 			profile,

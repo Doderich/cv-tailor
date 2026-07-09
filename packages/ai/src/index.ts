@@ -72,6 +72,7 @@ export interface GenerateProfileInput {
 		error?: string;
 	}>;
 	preferredTone?: string;
+	targetLanguage?: CvLanguage;
 }
 
 export type GeneratedProfileOutput = BaseProfile;
@@ -276,6 +277,12 @@ export function buildTailorCvPrompt(input: TailorCvInput): string {
 	return [
 		"You are tailoring a CV for a specific job application.",
 		"",
+		"Task constraints:",
+		"- This is a data transformation task, not a coding task.",
+		"- Do not explore repositories, files, directories, or the internet.",
+		"- Use only the JSON inputs provided in this prompt.",
+		"- Your entire response must be one JSON object matching the output schema.",
+		"",
 		"Safety rules:",
 		"- Use only facts present in the base profile.",
 		"- Do not invent employers, dates, titles, degrees, certifications, metrics, tools, clients, or outcomes.",
@@ -312,6 +319,12 @@ export function buildGenerateProfilePrompt(
 	return [
 		"You are creating a reusable base CV profile from user-provided career context.",
 		"",
+		"Task constraints:",
+		"- This is a data extraction task, not a coding task.",
+		"- Do not explore repositories, files, directories, or the internet.",
+		"- Use only the career context provided in this prompt.",
+		"- Your entire response must be one JSON object matching the output schema.",
+		"",
 		"Safety rules:",
 		"- Use only facts present in the supplied context or fetched public source text.",
 		"- Do not invent employers, dates, titles, degrees, certifications, metrics, tools, clients, or outcomes.",
@@ -322,6 +335,7 @@ export function buildGenerateProfilePrompt(
 		"",
 		"Profile-writing rules:",
 		`- Preferred tone: ${input.preferredTone || "Clear, concise, confident, and factual."}`,
+		`- Target profile language: ${cvLanguageLabel(input.targetLanguage ?? "en")} (${input.targetLanguage ?? "en"}). Write all profile text in this language.`,
 		"- The summary should be reusable across jobs, not tailored to one job posting.",
 		"- Bullets should preserve the user's actual accomplishments and scope.",
 		"- Contact links should include source URLs when they appear to belong to the user.",

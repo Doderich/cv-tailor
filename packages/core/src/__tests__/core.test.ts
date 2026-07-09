@@ -4,8 +4,11 @@ import {
 	type BaseProfile,
 	createDefaultBaseProfile,
 	extractJobSignals,
+	hasMeaningfulProfileContent,
 	type JobOffer,
+	profilesHaveSameContent,
 	scoreProfileAgainstJob,
+	summarizeProfileContent,
 } from "../index";
 
 function profileWith(values: Partial<BaseProfile>): BaseProfile {
@@ -98,5 +101,83 @@ describe("scoreProfileAgainstJob", () => {
 		);
 		expect(analysis.missingKeywords).not.toContain("and");
 		expect(analysis.score).toBeGreaterThan(50);
+	});
+});
+
+describe("profile content helpers", () => {
+	it("detects meaningful profile content", () => {
+		expect(hasMeaningfulProfileContent(createDefaultBaseProfile())).toBe(false);
+		expect(
+			hasMeaningfulProfileContent(
+				profileWith({
+					experience: [
+						{
+							id: "exp-1",
+							company: "",
+							title: "",
+							location: "",
+							startDate: "",
+							endDate: "",
+							current: false,
+							bullets: [],
+							technologies: [],
+						},
+					],
+				}),
+			),
+		).toBe(false);
+		expect(
+			hasMeaningfulProfileContent(
+				profileWith({
+					contact: {
+						name: "Ada Example",
+						email: "",
+						phone: "",
+						location: "",
+						links: [],
+					},
+				}),
+			),
+		).toBe(true);
+	});
+
+	it("summarizes parsed profile content", () => {
+		expect(
+			summarizeProfileContent(
+				profileWith({
+					contact: {
+						name: "Ada Example",
+						email: "",
+						phone: "",
+						location: "",
+						links: [],
+					},
+					experience: [
+						{
+							id: "exp-1",
+							company: "Example Co",
+							title: "Engineer",
+							location: "",
+							startDate: "2021",
+							endDate: "",
+							current: true,
+							bullets: ["Built things"],
+							technologies: ["TypeScript"],
+						},
+					],
+					skills: ["TypeScript"],
+				}),
+			),
+		).toContain("Ada Example");
+	});
+
+	it("compares normalized profile content", () => {
+		const left = profileWith({ summary: "Backend engineer" });
+		const right = profileWith({ summary: "Backend engineer", skills: [] });
+
+		expect(profilesHaveSameContent(left, right)).toBe(true);
+		expect(
+			profilesHaveSameContent(left, profileWith({ summary: "Different" })),
+		).toBe(false);
 	});
 });

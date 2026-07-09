@@ -14,6 +14,7 @@ export interface AiRunRequest {
 	prompt: string;
 	schema: unknown;
 	model?: string;
+	runId?: string;
 }
 
 export interface AiRunResponse {
@@ -22,6 +23,14 @@ export interface AiRunResponse {
 	stderr: string;
 	durationMs: number;
 }
+
+export interface AiRunProgressEvent {
+	runId: string;
+	stream: "stderr" | "stdout" | "status";
+	text: string;
+}
+
+export const AI_RUN_PROGRESS_EVENT = "ai-run-progress";
 
 export interface FetchUrlTextResponse {
 	url: string;
@@ -77,7 +86,12 @@ export async function detectAiTools(): Promise<AiToolStatus[]> {
 	return invoke<AiToolStatus[]>("detect_ai_tools");
 }
 
-export async function runAiTool(request: AiRunRequest): Promise<AiRunResponse> {
+export async function runAiTool(
+	request: AiRunRequest,
+	options?: {
+		onProgress?: (event: AiRunProgressEvent) => void;
+	},
+): Promise<AiRunResponse> {
 	const invoke = await loadInvoke();
 
 	if (!invoke) {
@@ -86,7 +100,28 @@ export async function runAiTool(request: AiRunRequest): Promise<AiRunResponse> {
 		);
 	}
 
-	return invoke<AiRunResponse>("run_ai_tool", { request });
+	const runId = request.runId ?? crypto.randomUUID();
+	let unlisten: (() => void) | undefined;
+
+	if (options?.onProgress) {
+		const { listen } = await import("@tauri-apps/api/event");
+		unlisten = await listen<AiRunProgressEvent>(AI_RUN_PROGRESS_EVENT, (event) => {
+			if (event.payload.runId === runId) {
+				options.onProgress?.(event.payload);
+			}
+		});
+	}
+
+	try {
+		return await invoke<AiRunResponse>("run_ai_tool", {
+			request: {
+				...request,
+				runId,
+			},
+		});
+	} finally {
+		unlisten?.();
+	}
 }
 
 export async function fetchUrlText(url: string): Promise<FetchUrlTextResponse> {

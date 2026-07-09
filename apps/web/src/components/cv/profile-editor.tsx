@@ -4,6 +4,7 @@ import {
 	type EducationItem,
 	type ExperienceItem,
 	type ProjectItem,
+	summarizeProfileContent,
 } from "@cv-tailor/core";
 import { Button } from "@cv-tailor/ui/components/button";
 import {
@@ -16,7 +17,7 @@ import { Input } from "@cv-tailor/ui/components/input";
 import { Label } from "@cv-tailor/ui/components/label";
 import { Textarea } from "@cv-tailor/ui/components/textarea";
 import { Plus, Trash2 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { getErrorMessage } from "@/lib/cv-app-context";
@@ -176,11 +177,18 @@ export function ProfileEditor({
 	onPatch,
 	profileRevision = 0,
 }: ProfileEditorProps) {
+	const profileRef = useRef(profile);
+	profileRef.current = profile;
 	const [draft, setDraft] = useState(() => normalizeDraft(profile));
+	const [isDirty, setIsDirty] = useState(false);
+	const visible = isDirty ? draft : normalizeDraft(profile);
+	const profileContentKey = summarizeProfileContent(profile);
 
+	// biome-ignore lint/correctness/useExhaustiveDependencies: revision bumps and content keys are explicit external profile replacements.
 	useEffect(() => {
 		setDraft(normalizeDraft(profile));
-	}, [profileRevision]);
+		setIsDirty(false);
+	}, [profileRevision, profileContentKey]);
 
 	const persistPatch = useCallback(
 		(patch: Partial<BaseProfile>) => {
@@ -198,98 +206,120 @@ export function ProfileEditor({
 	);
 
 	const updateProfile = (patch: Partial<BaseProfile>) => {
+		setIsDirty(true);
 		setDraft((current) => {
-			const next = { ...current, ...patch };
+			const base = isDirty ? current : normalizeDraft(profileRef.current);
+			const next = { ...base, ...patch };
 			persistPatch(patch);
 			return next;
 		});
 	};
 	const updateContact = (patch: Partial<BaseProfile["contact"]>) => {
+		setIsDirty(true);
 		setDraft((current) => {
-			const contact = { ...current.contact, ...patch };
+			const base = isDirty ? current : normalizeDraft(profileRef.current);
+			const contact = { ...base.contact, ...patch };
 			persistPatch({ contact });
-			return { ...current, contact };
+			return { ...base, contact };
 		});
 	};
 	const updateExperience = (id: string, patch: Partial<ExperienceItem>) => {
+		setIsDirty(true);
 		setDraft((current) => {
-			const experience = (current.experience ?? []).map((item) =>
+			const base = isDirty ? current : normalizeDraft(profileRef.current);
+			const experience = (base.experience ?? []).map((item) =>
 				item.id === id ? { ...item, ...patch } : item,
 			);
 			persistPatch({ experience });
-			return { ...current, experience };
+			return { ...base, experience };
 		});
 	};
 	const updateEducation = (id: string, patch: Partial<EducationItem>) => {
+		setIsDirty(true);
 		setDraft((current) => {
-			const education = (current.education ?? []).map((item) =>
+			const base = isDirty ? current : normalizeDraft(profileRef.current);
+			const education = (base.education ?? []).map((item) =>
 				item.id === id ? { ...item, ...patch } : item,
 			);
 			persistPatch({ education });
-			return { ...current, education };
+			return { ...base, education };
 		});
 	};
 	const updateProject = (id: string, patch: Partial<ProjectItem>) => {
+		setIsDirty(true);
 		setDraft((current) => {
-			const projects = (current.projects ?? []).map((item) =>
+			const base = isDirty ? current : normalizeDraft(profileRef.current);
+			const projects = (base.projects ?? []).map((item) =>
 				item.id === id ? { ...item, ...patch } : item,
 			);
 			persistPatch({ projects });
-			return { ...current, projects };
+			return { ...base, projects };
 		});
 	};
 	const appendExperience = () => {
 		const item = createExperience();
+		setIsDirty(true);
 		setDraft((current) => {
-			const experience = [...(current.experience ?? []), item];
+			const base = isDirty ? current : normalizeDraft(profileRef.current);
+			const experience = [...(base.experience ?? []), item];
 			persistPatch({ experience });
-			return { ...current, experience };
+			return { ...base, experience };
 		});
 		scrollToSection(`experience-${item.id}`);
 	};
 	const removeExperience = (id: string) => {
+		setIsDirty(true);
 		setDraft((current) => {
-			const experience = (current.experience ?? []).filter(
+			const base = isDirty ? current : normalizeDraft(profileRef.current);
+			const experience = (base.experience ?? []).filter(
 				(entry) => entry.id !== id,
 			);
 			persistPatch({ experience });
-			return { ...current, experience };
+			return { ...base, experience };
 		});
 	};
 	const appendProject = () => {
 		const item = createProject();
+		setIsDirty(true);
 		setDraft((current) => {
-			const projects = [...(current.projects ?? []), item];
+			const base = isDirty ? current : normalizeDraft(profileRef.current);
+			const projects = [...(base.projects ?? []), item];
 			persistPatch({ projects });
-			return { ...current, projects };
+			return { ...base, projects };
 		});
 		scrollToSection(`project-${item.id}`);
 	};
 	const removeProject = (id: string) => {
+		setIsDirty(true);
 		setDraft((current) => {
-			const projects = (current.projects ?? []).filter(
+			const base = isDirty ? current : normalizeDraft(profileRef.current);
+			const projects = (base.projects ?? []).filter(
 				(entry) => entry.id !== id,
 			);
 			persistPatch({ projects });
-			return { ...current, projects };
+			return { ...base, projects };
 		});
 	};
 	const appendEducation = () => {
 		const item = createEducation();
+		setIsDirty(true);
 		setDraft((current) => {
-			const education = [...(current.education ?? []), item];
+			const base = isDirty ? current : normalizeDraft(profileRef.current);
+			const education = [...(base.education ?? []), item];
 			persistPatch({ education });
-			return { ...current, education };
+			return { ...base, education };
 		});
 		scrollToSection(`education-${item.id}`);
 	};
 	const removeEducation = (id: string) => {
+		setIsDirty(true);
 		setDraft((current) => {
-			const education = (current.education ?? []).filter(
+			const base = isDirty ? current : normalizeDraft(profileRef.current);
+			const education = (base.education ?? []).filter(
 				(entry) => entry.id !== id,
 			);
 			persistPatch({ education });
-			return { ...current, education };
+			return { ...base, education };
 		});
 	};
 
@@ -299,65 +329,65 @@ export function ProfileEditor({
 				<div className="grid grid-cols-2 gap-2">
 					<Field
 						label="Name"
-						value={draft.contact.name}
+						value={visible.contact.name}
 						onChange={(name) => updateContact({ name })}
 					/>
 					<Field
 						label="Email"
-						value={draft.contact.email}
+						value={visible.contact.email}
 						onChange={(email) => updateContact({ email })}
 					/>
 					<Field
 						label="Phone"
-						value={draft.contact.phone}
+						value={visible.contact.phone}
 						onChange={(phone) => updateContact({ phone })}
 					/>
 					<Field
 						label="Location"
-						value={draft.contact.location}
+						value={visible.contact.location}
 						onChange={(location) => updateContact({ location })}
 					/>
 				</div>
 				<ArrayField
 					label="Links"
-					values={draft.contact.links}
+					values={visible.contact.links}
 					onChange={(links) => updateContact({ links })}
 					placeholder="https://linkedin.com/in/..."
 					rows={3}
 				/>
 				<Field
 					label="Headline"
-					value={draft.headline}
+					value={visible.headline}
 					onChange={(headline) => updateProfile({ headline })}
 				/>
 				<TextField
 					label="Base summary"
-					value={draft.summary}
+					value={visible.summary}
 					onChange={(summary) => updateProfile({ summary })}
 					placeholder="A factual reusable summary."
 				/>
 				<ArrayField
 					label="Target roles"
-					values={draft.targetRoles}
+					values={visible.targetRoles}
 					onChange={(targetRoles) => updateProfile({ targetRoles })}
 					placeholder="Frontend Engineer"
 					rows={3}
 				/>
 				<TextField
 					label="Preferred tone"
-					value={draft.preferredTone}
+					value={visible.preferredTone}
 					onChange={(preferredTone) => updateProfile({ preferredTone })}
 					rows={3}
 				/>
 				<ArrayField
 					label="Skills"
-					values={draft.skills}
+					values={visible.skills}
 					onChange={(skills) => updateProfile({ skills })}
 					placeholder="React"
 				/>
 				<ArrayField
 					label="Achievements"
-					values={draft.achievements}
+					values={visible.achievements}
 					onChange={(achievements) => updateProfile({ achievements })}
 				/>
 			</div>
@@ -374,7 +404,7 @@ export function ProfileEditor({
 				</Button>
 			</div>
 			<div className="grid gap-3">
-				{(draft.experience ?? []).map((item) => (
+				{(visible.experience ?? []).map((item) => (
 					<Card key={item.id} id={`experience-${item.id}`} size="sm">
 						<CardHeader>
 							<CardTitle>
@@ -448,7 +478,7 @@ export function ProfileEditor({
 				</Button>
 			</div>
 			<div className="grid gap-3">
-				{(draft.projects ?? []).map((item) => (
+				{(visible.projects ?? []).map((item) => (
 					<Card key={item.id} id={`project-${item.id}`} size="sm">
 						<CardHeader>
 							<CardTitle>{item.name || "Project"}</CardTitle>
@@ -516,7 +546,7 @@ export function ProfileEditor({
 				</Button>
 			</div>
 			<div className="grid gap-3">
-				{(draft.education ?? []).map((item) => (
+				{(visible.education ?? []).map((item) => (
 					<Card key={item.id} id={`education-${item.id}`} size="sm">
 						<CardHeader>
 							<CardTitle>
@@ -575,7 +605,7 @@ export function ProfileEditor({
 
 			<ArrayField
 				label="Languages"
-				values={draft.languages}
+				values={visible.languages}
 				onChange={(languages) => updateProfile({ languages })}
 				placeholder="English"
 				rows={3}

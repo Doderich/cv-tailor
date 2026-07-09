@@ -733,6 +733,83 @@ function ensureUniqueId(
 	return uniqueId;
 }
 
+function hasNonEmptyText(values: string[]) {
+	return values.some((value) => value.trim().length > 0);
+}
+
+export function hasMeaningfulProfileContent(profile: BaseProfile): boolean {
+	const normalized = normalizeBaseProfile(profile);
+	const hasContact =
+		normalized.contact.name.trim().length > 0 ||
+		normalized.contact.email.trim().length > 0 ||
+		normalized.contact.phone.trim().length > 0 ||
+		normalized.contact.location.trim().length > 0;
+	const hasSummary =
+		normalized.summary.trim().length > 0 ||
+		normalized.headline.trim().length > 0;
+	const hasExperience = normalized.experience.some(
+		(item) =>
+			item.company.trim().length > 0 ||
+			item.title.trim().length > 0 ||
+			hasNonEmptyText(item.bullets),
+	);
+	const hasEducation = normalized.education.some(
+		(item) =>
+			item.institution.trim().length > 0 || item.degree.trim().length > 0,
+	);
+	const hasProjects = normalized.projects.some(
+		(item) =>
+			item.name.trim().length > 0 || hasNonEmptyText(item.bullets),
+	);
+	const hasSkills = hasNonEmptyText(normalized.skills);
+
+	return (
+		hasContact ||
+		hasSummary ||
+		hasExperience ||
+		hasEducation ||
+		hasProjects ||
+		hasSkills
+	);
+}
+
+export function summarizeProfileContent(profile: BaseProfile): string {
+	const normalized = normalizeBaseProfile(profile);
+	const parts: string[] = [];
+
+	if (normalized.contact.name.trim()) {
+		parts.push(normalized.contact.name.trim());
+	}
+
+	if (normalized.experience.length > 0) {
+		parts.push(
+			`${normalized.experience.length} experience ${
+				normalized.experience.length === 1 ? "entry" : "entries"
+			}`,
+		);
+	}
+
+	if (normalized.skills.length > 0) {
+		parts.push(`${normalized.skills.length} skills`);
+	}
+
+	if (normalized.summary.trim()) {
+		parts.push("summary");
+	}
+
+	return parts.length > 0 ? parts.join(" · ") : "no visible fields";
+}
+
+export function profilesHaveSameContent(
+	left: BaseProfile,
+	right: BaseProfile,
+): boolean {
+	return (
+		JSON.stringify(normalizeBaseProfile(left)) ===
+		JSON.stringify(normalizeBaseProfile(right))
+	);
+}
+
 export function normalizeBaseProfile(profile: BaseProfile): BaseProfile {
 	const experienceIds = new Set<string>();
 	const educationIds = new Set<string>();
