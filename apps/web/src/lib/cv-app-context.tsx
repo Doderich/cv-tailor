@@ -56,6 +56,7 @@ import type {
 } from "@/lib/application-views";
 import { useDb } from "@/lib/db-provider";
 import { createDebouncedCallback } from "@/lib/debounce";
+import { exportAllData as exportBackup, importAllData as importBackup } from "@/lib/data-backup";
 import {
 	type AiToolStatus,
 	detectAiTools,
@@ -141,6 +142,13 @@ interface CvAppContextValue {
 	generateActive: (language?: CvLanguage) => Promise<void>;
 	switchActiveRun: (runId: string) => void;
 	exportPdf: () => Promise<void>;
+	exportAllData: () => Promise<void>;
+	importAllData: (
+		file: File,
+		mode: "replace" | "merge",
+	) => Promise<void>;
+	isExportingData: boolean;
+	isImportingData: boolean;
 	profileRevision: number;
 	replaceProfile: (profile: BaseProfile) => void;
 	updateProfile: (profile: BaseProfile) => void;
@@ -321,6 +329,8 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 	const [isGenerating, setIsGenerating] = useState(false);
 	const [isReviewingJobOffer, setIsReviewingJobOffer] = useState(false);
 	const [isExportingPdf, setIsExportingPdf] = useState(false);
+	const [isExportingData, setIsExportingData] = useState(false);
+	const [isImportingData, setIsImportingData] = useState(false);
 	const [generationError, setGenerationError] = useState<string>();
 	const [jobReviewError, setJobReviewError] = useState<string>();
 	const [rawCliOutput, setRawCliOutput] = useState<string>();
@@ -1133,6 +1143,47 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 		}
 	}
 
+	async function exportAllData() {
+		setIsExportingData(true);
+		try {
+			const summary = await exportBackup(db);
+			toast.success("Backup exported", {
+				description: `${summary.profiles} profiles, ${summary.applications} applications, ${summary.cvRuns} CV versions.`,
+			});
+		} catch (error) {
+			toast.error("Export failed", {
+				description: getErrorMessage(error),
+			});
+		} finally {
+			setIsExportingData(false);
+		}
+	}
+
+	async function importAllData(
+		file: File,
+		mode: "replace" | "merge",
+	) {
+		setIsImportingData(true);
+		try {
+			const content = await file.text();
+			const summary = await importBackup(db, content, mode);
+			setProfileRevision((current) => current + 1);
+			toast.success(
+				mode === "replace" ? "Backup restored" : "Backup merged",
+				{
+					description: `${summary.profiles} profiles, ${summary.applications} applications, ${summary.cvRuns} CV versions.`,
+				},
+			);
+		} catch (error) {
+			toast.error("Import failed", {
+				description: getErrorMessage(error),
+			});
+			throw error;
+		} finally {
+			setIsImportingData(false);
+		}
+	}
+
 	function applyProfileFields(
 		draft: ProfileRecord,
 		next: BaseProfile,
@@ -1481,6 +1532,8 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 			isGenerating,
 			isReviewingJobOffer,
 			isExportingPdf,
+			isExportingData,
+			isImportingData,
 			generationError,
 			jobReviewError,
 			rawCliOutput,
@@ -1504,6 +1557,8 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 			generateActive,
 			switchActiveRun,
 			exportPdf,
+			exportAllData,
+			importAllData,
 			profileRevision,
 			replaceProfile,
 			updateProfile,
@@ -1539,6 +1594,8 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 			isGenerating,
 			isReviewingJobOffer,
 			isExportingPdf,
+			isExportingData,
+			isImportingData,
 			generationError,
 			jobReviewError,
 			rawCliOutput,
