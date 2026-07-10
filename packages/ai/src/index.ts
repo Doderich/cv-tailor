@@ -5,6 +5,7 @@ import {
 	cvLanguageLabel,
 	type JobOffer,
 	type JobSignals,
+	jobSignalsSchema,
 	type MatchAnalysis,
 	type TailoredCv,
 	tailoredCvSchema,
@@ -76,6 +77,16 @@ export interface GenerateProfileInput {
 }
 
 export type GeneratedProfileOutput = BaseProfile;
+
+export interface ReviewJobPostingInput {
+	jobOffer: JobOffer;
+	rawText: string;
+}
+
+export interface JobPostingReviewOutput {
+	signals: JobSignals;
+	summary: string;
+}
 
 export interface AiAdapter {
 	generateTailoredCv(input: TailorCvInput): Promise<TailoredCvOutput>;
@@ -154,6 +165,74 @@ export const tailoredCvOutputJsonSchema = {
 			type: "array",
 			items: { type: "string" },
 			description: "Short factuality or matching caveats for the reviewer.",
+		},
+	},
+} as const;
+
+export const jobPostingReviewOutputJsonSchema = {
+	type: "object",
+	additionalProperties: false,
+	required: ["signals", "summary"],
+	properties: {
+		summary: {
+			type: "string",
+			description:
+				"Brief plain-language overview of the role, seniority, and key expectations.",
+		},
+		signals: {
+			type: "object",
+			additionalProperties: false,
+			required: [
+				"keywords",
+				"requirements",
+				"responsibilities",
+				"seniority",
+				"technologies",
+				"softSkills",
+			],
+			properties: {
+				keywords: {
+					type: "array",
+					items: { type: "string" },
+					description:
+						"Meaningful role-specific terms such as domains, tools, and methodologies. Exclude stopwords and filler words.",
+				},
+				requirements: {
+					type: "array",
+					items: { type: "string" },
+					description:
+						"Must-have criteria quoted or closely paraphrased from the posting.",
+				},
+				responsibilities: {
+					type: "array",
+					items: { type: "string" },
+					description: "Key duties paraphrased from the posting.",
+				},
+				seniority: {
+					type: "string",
+					enum: [
+						"unspecified",
+						"intern",
+						"junior",
+						"mid",
+						"senior",
+						"lead",
+						"executive",
+					],
+				},
+				technologies: {
+					type: "array",
+					items: { type: "string" },
+					description:
+						"Concrete tools, languages, frameworks, platforms, and infrastructure.",
+				},
+				softSkills: {
+					type: "array",
+					items: { type: "string" },
+					description:
+						"Interpersonal or working-style skills explicitly mentioned in the posting.",
+				},
+			},
 		},
 	},
 } as const;
@@ -313,6 +392,50 @@ export function buildTailorCvPrompt(input: TailorCvInput): string {
 	].join("\n");
 }
 
+export function buildReviewJobPostingPrompt(
+	input: ReviewJobPostingInput,
+): string {
+	return [
+		"You are analyzing a job posting to extract structured hiring signals for CV tailoring.",
+		"",
+		"Task constraints:",
+		"- This is a data extraction task, not a coding task.",
+		"- Do not explore repositories, files, directories, or the internet.",
+		"- Use only the job posting text and metadata provided in this prompt.",
+		"- Your entire response must be one JSON object matching the output schema.",
+		"",
+		"Extraction rules:",
+		"- keywords: meaningful role-specific terms only. Exclude articles, conjunctions, pronouns, and filler words.",
+		"- technologies: concrete tools, languages, frameworks, platforms, and infrastructure.",
+		"- requirements: factual must-have criteria quoted or closely paraphrased from the posting.",
+		"- responsibilities: key duties paraphrased from the posting.",
+		"- softSkills: interpersonal or working-style skills explicitly mentioned.",
+		"- seniority: infer from title, scope, and experience expectations.",
+		"- summary: 2-4 sentences describing the role, seniority, and main expectations.",
+		"- Normalize keywords and technologies to lowercase.",
+		"- Preserve the posting language in requirements, responsibilities, summary, and softSkills.",
+		"- Return JSON only matching the output schema. Do not include Markdown, prose, or code fences.",
+		"",
+		"Output schema:",
+		JSON.stringify(jobPostingReviewOutputJsonSchema, null, 2),
+		"",
+		"Job metadata JSON:",
+		JSON.stringify(
+			{
+				title: input.jobOffer.title,
+				company: input.jobOffer.company,
+				position: input.jobOffer.position,
+				links: input.jobOffer.links,
+			},
+			null,
+			2,
+		),
+		"",
+		"Job posting text:",
+		input.rawText,
+	].join("\n");
+}
+
 export function buildGenerateProfilePrompt(
 	input: GenerateProfileInput,
 ): string {
@@ -444,6 +567,15 @@ function looksLikeBaseProfile(value: unknown) {
 	return "contact" in record && "headline" in record && "experience" in record;
 }
 
+function looksLikeJobPostingReview(value: unknown) {
+	if (!value || typeof value !== "object") {
+		return false;
+	}
+
+	const record = value as Record<string, unknown>;
+	return "signals" in record && "summary" in record;
+}
+
 function parseCliJsonLike(
 	stdout: string,
 	looksLikeExpectedOutput: (value: unknown) => boolean,
@@ -474,4 +606,15 @@ export function parseCliGeneratedProfileOutput(
 ): GeneratedProfileOutput {
 	const parsed = parseCliJsonLike(stdout, looksLikeBaseProfile);
 	return baseProfileSchema.parse(parsed);
+}
+
+export function parseCliJobPostingReviewOutput(
+	stdout: string,
+): JobPostingReviewOutput {
+	const parsed = parseCliJsonLike(stdout, looksLikeJobPostingReview);
+	const record = parsed as Record<string, unknown>;
+	return {
+		signals: jobSignalsSchema.parse(record.signals),
+		summary: typeof record.summary === "string" ? record.summary : "",
+	};
 }

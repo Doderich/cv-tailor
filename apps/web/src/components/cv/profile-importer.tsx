@@ -47,7 +47,7 @@ import {
 import {
 	fetchUrlText,
 	isTauriRuntime,
-	runAiTool,
+	runAiToolResilient,
 	type AiRunProgressEvent,
 } from "@/lib/tauri-ai";
 import { resolveEffectiveAiModel, useCvApp } from "@/lib/cv-app-context";
@@ -305,14 +305,19 @@ export function ProfileImporter({
 				preferredTone,
 				targetLanguage,
 			});
-			const response = await runAiTool(
+			const response = await runAiToolResilient(
 				{
 					tool: selectedTool,
 					prompt,
 					schema: generatedProfileOutputJsonSchema,
 					model: resolveEffectiveAiModel(selectedTool, aiStatuses, aiModels),
 				},
-				{ onProgress: handleAiProgress },
+				{
+					statuses: aiStatuses,
+					model: resolveEffectiveAiModel(selectedTool, aiStatuses, aiModels),
+					models: aiModels,
+					onProgress: handleAiProgress,
+				},
 			);
 			setRawOutput(response.stdout);
 

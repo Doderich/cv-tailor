@@ -187,18 +187,45 @@ async fn resolve_tool(requested_tool: &str) -> Result<String, AppError> {
     Ok(requested_tool.to_string())
 }
 
-fn classify_process_error(stderr: &str) -> &'static str {
-    let lower = stderr.to_lowercase();
+fn classify_process_error(stderr: &str, stdout: &str) -> &'static str {
+    let lower = format!("{stderr}\n{stdout}").to_lowercase();
 
     if lower.contains("auth")
         || lower.contains("login")
         || lower.contains("api key")
         || lower.contains("unauthorized")
+        || lower.contains("not logged in")
     {
         "ai_auth_required"
     } else {
         "ai_process_failed"
     }
+}
+
+fn extract_process_error_details(stdout: &str, stderr: &str) -> String {
+    if !stderr.trim().is_empty() {
+        return stderr.trim().to_string();
+    }
+
+    if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(stdout.trim()) {
+        if parsed.get("is_error").and_then(|value| value.as_bool()) == Some(true) {
+            if let Some(result) = parsed.get("result").and_then(|value| value.as_str()) {
+                return result.trim().to_string();
+            }
+        }
+
+        if let Some(error) = parsed.get("error") {
+            if let Some(message) = error.get("message").and_then(|value| value.as_str()) {
+                return message.trim().to_string();
+            }
+        }
+    }
+
+    if !stdout.trim().is_empty() {
+        return stdout.trim().to_string();
+    }
+
+    String::new()
 }
 
 fn emit_run_progress(app: Option<&AppHandle>, run_id: &str, stream: &str, text: &str) {
@@ -310,10 +337,11 @@ async fn finish_child(
     let stderr = stderr_task.await.unwrap_or_default();
 
     if !status.success() {
+        let details = extract_process_error_details(&stdout, &stderr);
         return Err(AppError::with_details(
-            classify_process_error(&stderr),
+            classify_process_error(&stderr, &stdout),
             "The AI tool exited with an error.",
-            stderr,
+            details,
         ));
     }
 

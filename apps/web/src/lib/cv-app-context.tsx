@@ -2,11 +2,14 @@ import {
 	type AiModels,
 	type AiProviderId,
 	type AiToolId,
+	buildReviewJobPostingPrompt,
 	buildTailorCvPrompt,
 	claudeModelOptions,
 	codexModelOptions,
 	cursorModelOptions,
 	defaultAiModels,
+	jobPostingReviewOutputJsonSchema,
+	parseCliJobPostingReviewOutput,
 	parseCliTailoredCvOutput,
 	tailoredCvOutputJsonSchema,
 } from "@cv-tailor/ai";
@@ -23,14 +26,17 @@ import {
 	createProfileRecord,
 	cvLanguageLabel,
 	cvLanguages,
-	extractJobSignals,
 	type JobOffer,
+	type JobPostingReview,
+	jobOfferNeedsReview,
 	normalizeBaseProfile,
 	normalizeProfileRecord,
 	profilesHaveSameContent,
 	type ProfileRecord,
+	resolveJobSignals,
 	scoreProfileAgainstJob,
 	type TailoredCv,
+	type AppSettings,
 } from "@cv-tailor/core";
 import { useLiveQuery } from "@tanstack/react-db";
 import {
@@ -49,12 +55,14 @@ import type {
 	ApplicationViewType,
 } from "@/lib/application-views";
 import { useDb } from "@/lib/db-provider";
+import { createDebouncedCallback } from "@/lib/debounce";
 import {
 	type AiToolStatus,
 	detectAiTools,
 	exportGeneratedCvPdf,
+	formatAppError,
 	isTauriRuntime,
-	runAiTool,
+	runAiToolResilient,
 } from "@/lib/tauri-ai";
 
 export type SaveStatus = "idle" | "saving" | "saved" | "error";
@@ -62,6 +70,8 @@ export type SaveStatus = "idle" | "saving" | "saved" | "error";
 export interface JobOfferPatch {
 	title?: string;
 	company?: string;
+	position?: JobOffer["position"];
+	links?: string[];
 	rawText?: string;
 }
 
@@ -106,9 +116,12 @@ interface CvAppContextValue {
 	canUseSelectedAi: boolean;
 	canGenerateActive: boolean;
 	isGenerating: boolean;
+	isReviewingJobOffer: boolean;
 	isExportingPdf: boolean;
 	generationError: string | undefined;
+	jobReviewError: string | undefined;
 	rawCliOutput: string | undefined;
+	rawJobReviewOutput: string | undefined;
 	setSelectedTool: (tool: AiToolId) => void;
 	setAiModel: (provider: AiProviderId, model: string) => void;
 	setSelectedLanguage: (language: CvLanguage) => void;
@@ -124,6 +137,7 @@ interface CvAppContextValue {
 	setActiveView: (viewId: string) => void;
 	updateActiveJobOffer: (patch: JobOfferPatch) => void;
 	updateActiveCv: (cv: TailoredCv) => void;
+	reviewActiveJobOffer: (options?: { force?: boolean }) => Promise<void>;
 	generateActive: (language?: CvLanguage) => Promise<void>;
 	switchActiveRun: (runId: string) => void;
 	exportPdf: () => Promise<void>;
@@ -151,16 +165,7 @@ interface CvAppContextValue {
 const CvAppContext = createContext<CvAppContextValue | undefined>(undefined);
 
 export function getErrorMessage(error: unknown) {
-	if (error instanceof Error) {
-		return error.message;
-	}
-
-	if (error && typeof error === "object" && "message" in error) {
-		const message = (error as { message?: unknown }).message;
-		return typeof message === "string" ? message : JSON.stringify(error);
-	}
-
-	return String(error);
+	return formatAppError(error);
 }
 
 export function toolIsReady(tool: AiToolId, statuses: AiToolStatus[]) {
@@ -283,24 +288,52 @@ function profileFromRecord(record: ProfileRecord | undefined): BaseProfile {
 	};
 }
 
+const persistDebounceMs = 400;
+
+function mergeProfilePatch(
+	current: Partial<BaseProfile>,
+	patch: Partial<BaseProfile>,
+): Partial<BaseProfile> {
+	const next: Partial<BaseProfile> = { ...current, ...patch };
+	if (patch.contact !== undefined) {
+		next.contact = { ...current.contact, ...patch.contact };
+	}
+	return next;
+}
+
+function mergeJobOfferPatch(
+	current: JobOfferPatch,
+	patch: JobOfferPatch,
+): JobOfferPatch {
+	const next: JobOfferPatch = { ...current, ...patch };
+	if (patch.links !== undefined) {
+		next.links = [...patch.links];
+	}
+	return next;
+}
+
 export function CvAppProvider({ children }: { children: ReactNode }) {
 	const db = useDb();
 	const [viewsByApp, setViewsByApp] = useState<ViewsByApp>({});
-	const [selectedTool, setSelectedToolState] = useState<AiToolId>("auto");
-	const [aiModels, setAiModelsState] = useState<AiModels>(defaultAiModels);
 	const [selectedLanguage, setSelectedLanguageState] =
 		useState<CvLanguage>("en");
 	const [aiStatuses, setAiStatuses] = useState<AiToolStatus[]>([]);
 	const [isGenerating, setIsGenerating] = useState(false);
+	const [isReviewingJobOffer, setIsReviewingJobOffer] = useState(false);
 	const [isExportingPdf, setIsExportingPdf] = useState(false);
 	const [generationError, setGenerationError] = useState<string>();
+	const [jobReviewError, setJobReviewError] = useState<string>();
 	const [rawCliOutput, setRawCliOutput] = useState<string>();
+	const [rawJobReviewOutput, setRawJobReviewOutput] = useState<string>();
 	const [profileRevision, setProfileRevision] = useState(0);
 	const [profileSnapshot, setProfileSnapshot] = useState<BaseProfile | undefined>();
 	const profileSnapshotUpdatedAtRef = useRef<string | undefined>(undefined);
 	const deletedSnapshots = useRef(
 		new Map<string, DeletedApplicationSnapshot>(),
 	);
+	const pendingAiSettingsRef = useRef<
+		Partial<Pick<AppSettings, "selectedAiTool" | "aiModels">>
+	>({});
 
 	const {
 		data: settings,
@@ -329,8 +362,65 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 	const profile = profileSnapshot ?? storedProfile;
 	const profileRecordRef = useRef(profileRecord);
 	const settingsRef = useRef(settings);
+	const pendingProfilePatchRef = useRef<Partial<BaseProfile>>({});
+	const pendingJobOfferPatchRef = useRef<JobOfferPatch>({});
+	const pendingCvRef = useRef<TailoredCv | undefined>(undefined);
+	const applicationRowsRef = useRef(applicationRows);
+	const runRowsRef = useRef(runRows);
+	const selectedLanguageRef = useRef(selectedLanguage);
+	const persistProfilePatchRef = useRef<(patch: Partial<BaseProfile>) => void>(
+		() => undefined,
+	);
+	const persistJobOfferPatchRef = useRef<(patch: JobOfferPatch) => void>(
+		() => undefined,
+	);
+	const persistCvRef = useRef<(cv: TailoredCv) => void>(() => undefined);
+	const debouncedPersistProfilePatch = useRef(
+		createDebouncedCallback(() => {
+			const patch = pendingProfilePatchRef.current;
+			if (Object.keys(patch).length === 0) {
+				return;
+			}
+			pendingProfilePatchRef.current = {};
+			persistProfilePatchRef.current(patch);
+		}, persistDebounceMs),
+	);
+	const debouncedPersistJobOfferPatch = useRef(
+		createDebouncedCallback(() => {
+			const patch = pendingJobOfferPatchRef.current;
+			if (Object.keys(patch).length === 0) {
+				return;
+			}
+			pendingJobOfferPatchRef.current = {};
+			persistJobOfferPatchRef.current(patch);
+		}, persistDebounceMs),
+	);
+	const debouncedPersistCv = useRef(
+		createDebouncedCallback(() => {
+			const cv = pendingCvRef.current;
+			if (!cv) {
+				return;
+			}
+			pendingCvRef.current = undefined;
+			persistCvRef.current(cv);
+		}, persistDebounceMs),
+	);
 	profileRecordRef.current = profileRecord;
 	settingsRef.current = settings;
+	applicationRowsRef.current = applicationRows;
+	runRowsRef.current = runRows;
+	selectedLanguageRef.current = selectedLanguage;
+
+	const selectedTool =
+		(settings?.selectedAiTool as AiToolId | undefined) ?? "auto";
+	const aiModels = useMemo(
+		() =>
+			({
+				...defaultAiModels,
+				...(settings?.aiModels ?? {}),
+			}) as AiModels,
+		[settings?.aiModels],
+	);
 
 	useEffect(() => {
 		if (!profileSnapshot) {
@@ -473,16 +563,37 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 		}
 	}
 
+	async function persistAiSettings(
+		patch: Partial<Pick<AppSettings, "selectedAiTool" | "aiModels">>,
+	) {
+		if (!settingsRef.current) {
+			pendingAiSettingsRef.current = {
+				...pendingAiSettingsRef.current,
+				...patch,
+			};
+			return;
+		}
+
+		try {
+			await persistSettings(patch);
+		} catch (error) {
+			toast.error("Could not save AI settings", {
+				description: getErrorMessage(error),
+			});
+		}
+	}
+
 	function setSelectedTool(tool: AiToolId) {
-		setSelectedToolState(tool);
-		updateSettings({ selectedAiTool: tool });
+		void persistAiSettings({ selectedAiTool: tool });
 	}
 
 	function setAiModel(provider: AiProviderId, model: string) {
-		setAiModelsState((current) => {
-			const next = { ...current, [provider]: model };
-			updateSettings({ aiModels: next });
-			return next;
+		const current = {
+			...defaultAiModels,
+			...(settingsRef.current?.aiModels ?? {}),
+		};
+		void persistAiSettings({
+			aiModels: { ...current, [provider]: model },
 		});
 	}
 
@@ -698,36 +809,91 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 	}
 
 	function updateActiveJobOffer(patch: JobOfferPatch) {
-		const application = activeApplication;
-		if (!application || !profileRecord) {
+		pendingJobOfferPatchRef.current = mergeJobOfferPatch(
+			pendingJobOfferPatchRef.current,
+			patch,
+		);
+		debouncedPersistJobOfferPatch.current.debounced();
+	}
+
+	function persistActiveJobOffer(patch: JobOfferPatch) {
+		const settingsValue = settingsRef.current;
+		const record = profileRecordRef.current;
+		const applications = applicationRowsRef.current;
+		const runs = runRowsRef.current;
+		const activeId = settingsValue?.activeApplicationId;
+		const application =
+			applications.find((item) => item.id === activeId) ?? applications[0];
+		if (!application || !record) {
 			return;
 		}
 
+		const profileForScoring = profileFromRecord(record);
 		const now = new Date().toISOString();
-		const rawText = patch.rawText ?? application.jobOffer.rawText;
-		const signals = extractJobSignals(rawText);
+		const previousRawText = application.jobOffer.rawText.trim();
+		const rawText = (patch.rawText ?? application.jobOffer.rawText).trim();
+		const rawTextChanged =
+			patch.rawText !== undefined && rawText !== previousRawText;
+		let review = application.jobOffer.review;
+		if (rawTextChanged) {
+			review = undefined;
+		}
+
 		const jobOffer: JobOffer = {
 			...application.jobOffer,
 			...patch,
-			signals,
+			links: patch.links ?? application.jobOffer.links ?? [],
+			position: patch.position ?? application.jobOffer.position ?? "unspecified",
+			review,
+			signals: review
+				? review.signals
+				: rawTextChanged
+					? undefined
+					: application.jobOffer.signals,
 		};
+		const signals = resolveJobSignals(jobOffer);
+		const jobOfferForScoring = { ...jobOffer, signals };
 
 		db.applications.update(application.id, (draft) => {
 			draft.jobOffer = jobOffer;
 			draft.updatedAt = now;
 		});
 
-		for (const run of activeRuns) {
+		for (const run of runs.filter(
+			(entry) => entry.applicationId === application.id,
+		)) {
 			db.cvRuns.update(run.id, (draft) => {
 				draft.signals = signals;
-				draft.matchAnalysis = scoreProfileAgainstJob(profile, jobOffer);
+				draft.matchAnalysis = scoreProfileAgainstJob(
+					profileForScoring,
+					jobOfferForScoring,
+				);
 				draft.updatedAt = now;
 			});
 		}
 	}
 
 	function updateActiveCv(cv: TailoredCv) {
-		const run = activeRun;
+		pendingCvRef.current = cv;
+		debouncedPersistCv.current.debounced();
+	}
+
+	function persistActiveCv(cv: TailoredCv) {
+		const settingsValue = settingsRef.current;
+		const applications = applicationRowsRef.current;
+		const runs = runRowsRef.current;
+		const activeId = settingsValue?.activeApplicationId;
+		const activeApplication =
+			applications.find((item) => item.id === activeId) ?? applications[0];
+		const activeRuns = runs.filter(
+			(run) => run.applicationId === activeApplication?.id,
+		);
+		const run =
+			activeRuns.find((entry) => entry.id === settingsValue?.activeRunId) ??
+			activeRuns.find(
+				(entry) => entry.language === selectedLanguageRef.current,
+			) ??
+			activeRuns[0];
 		if (!run) {
 			return;
 		}
@@ -745,6 +911,108 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 		}
 	}
 
+	async function reviewActiveJobOffer(options?: { force?: boolean }) {
+		const settingsValue = settingsRef.current;
+		const record = profileRecordRef.current;
+		const applications = applicationRowsRef.current;
+		const runs = runRowsRef.current;
+		const activeId = settingsValue?.activeApplicationId;
+		const application =
+			applications.find((item) => item.id === activeId) ?? applications[0];
+		if (!application || !record) {
+			return;
+		}
+
+		const rawText = application.jobOffer.rawText.trim();
+		if (!rawText) {
+			return;
+		}
+
+		if (!options?.force && !jobOfferNeedsReview(application.jobOffer)) {
+			return;
+		}
+
+		if (!canUseSelectedAi) {
+			setJobReviewError("No AI tool is available for job review.");
+			return;
+		}
+
+		setIsReviewingJobOffer(true);
+		setJobReviewError(undefined);
+		setRawJobReviewOutput(undefined);
+
+		try {
+			const prompt = buildReviewJobPostingPrompt({
+				jobOffer: application.jobOffer,
+				rawText,
+			});
+			const response = await runAiToolResilient(
+				{
+					tool: selectedTool,
+					prompt,
+					schema: jobPostingReviewOutputJsonSchema,
+					model: effectiveAiModel,
+				},
+				{
+					statuses: aiStatuses,
+					model: effectiveAiModel,
+					models: aiModels,
+				},
+			);
+			let parsedReview: { signals: JobPostingReview["signals"]; summary: string };
+			try {
+				parsedReview = parseCliJobPostingReviewOutput(response.stdout);
+			} catch (parseError) {
+				setRawJobReviewOutput(response.stdout);
+				throw parseError;
+			}
+
+			const now = new Date().toISOString();
+			const review: JobPostingReview = {
+				signals: parsedReview.signals,
+				summary: parsedReview.summary,
+				rawText,
+				reviewedAt: now,
+				reviewTool: response.tool,
+			};
+			const jobOffer: JobOffer = {
+				...application.jobOffer,
+				review,
+				signals: parsedReview.signals,
+			};
+			const profileForScoring = profileFromRecord(record);
+
+			db.applications.update(application.id, (draft) => {
+				draft.jobOffer = jobOffer;
+				draft.updatedAt = now;
+			});
+
+			for (const run of runs.filter(
+				(entry) => entry.applicationId === application.id,
+			)) {
+				db.cvRuns.update(run.id, (draft) => {
+					draft.signals = parsedReview.signals;
+					draft.matchAnalysis = scoreProfileAgainstJob(
+						profileForScoring,
+						jobOffer,
+					);
+					draft.updatedAt = now;
+				});
+			}
+		} catch (error) {
+			const message = getErrorMessage(error);
+			setJobReviewError(
+				message.toLowerCase().includes("not logged in") ||
+					message.toLowerCase().includes("login")
+					? `${message} Try Settings → AI tool and pick Cursor, or run \`claude /login\`.`
+					: message,
+			);
+			toast.error("Job review failed", { description: message });
+		} finally {
+			setIsReviewingJobOffer(false);
+		}
+	}
+
 	async function generateActive(language = selectedLanguage) {
 		const application = activeApplication;
 		if (!application || !profileRecord || !canGenerateActive) {
@@ -755,7 +1023,7 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 		setGenerationError(undefined);
 		setRawCliOutput(undefined);
 
-		const signals = extractJobSignals(application.jobOffer.rawText);
+		const signals = resolveJobSignals(application.jobOffer);
 		const jobOffer: JobOffer = { ...application.jobOffer, signals };
 		const analysis = scoreProfileAgainstJob(profile, jobOffer);
 		const prompt = buildTailorCvPrompt({
@@ -767,12 +1035,19 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 		});
 
 		try {
-			const response = await runAiTool({
-				tool: selectedTool,
-				prompt,
-				schema: tailoredCvOutputJsonSchema,
-				model: effectiveAiModel,
-			});
+			const response = await runAiToolResilient(
+				{
+					tool: selectedTool,
+					prompt,
+					schema: tailoredCvOutputJsonSchema,
+					model: effectiveAiModel,
+				},
+				{
+					statuses: aiStatuses,
+					model: effectiveAiModel,
+					models: aiModels,
+				},
+			);
 			let parsedCv: TailoredCv;
 			try {
 				parsedCv = parseCliTailoredCvOutput(response.stdout);
@@ -998,7 +1273,7 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 		})();
 	}
 
-	function patchProfile(patch: Partial<BaseProfile>) {
+	function flushProfilePatch(patch: Partial<BaseProfile>) {
 		const record = profileRecordRef.current;
 		const now = new Date().toISOString();
 
@@ -1019,6 +1294,20 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 				description: getErrorMessage(error),
 			});
 		}
+	}
+
+	persistProfilePatchRef.current = flushProfilePatch;
+	persistJobOfferPatchRef.current = persistActiveJobOffer;
+	persistCvRef.current = persistActiveCv;
+
+	function patchProfile(patch: Partial<BaseProfile>) {
+		pendingProfilePatchRef.current = mergeProfilePatch(
+			pendingProfilePatchRef.current,
+			patch,
+		);
+		setProfileSnapshot(undefined);
+		profileSnapshotUpdatedAtRef.current = undefined;
+		debouncedPersistProfilePatch.current.debounced();
 	}
 
 	function updateProfile(next: BaseProfile) {
@@ -1143,18 +1432,26 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 	}
 
 	useEffect(() => {
-		if (settings?.selectedAiTool) {
-			setSelectedToolState(settings.selectedAiTool as AiToolId);
+		if (!settings) {
+			return;
 		}
-	}, [settings?.selectedAiTool]);
+
+		const pending = pendingAiSettingsRef.current;
+		if (Object.keys(pending).length === 0) {
+			return;
+		}
+
+		pendingAiSettingsRef.current = {};
+		void persistAiSettings(pending);
+	}, [settings]);
 
 	useEffect(() => {
-		if (settings?.aiModels) {
-			setAiModelsState(
-				(current) => ({ ...current, ...settings.aiModels }) as AiModels,
-			);
-		}
-	}, [settings?.aiModels]);
+		return () => {
+			debouncedPersistProfilePatch.current.flush();
+			debouncedPersistJobOfferPatch.current.flush();
+			debouncedPersistCv.current.flush();
+		};
+	}, []);
 
 	// biome-ignore lint/correctness/useExhaustiveDependencies: value is rebuilt from live query snapshots.
 	const value = useMemo<CvAppContextValue>(
@@ -1182,9 +1479,12 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 			canUseSelectedAi,
 			canGenerateActive,
 			isGenerating,
+			isReviewingJobOffer,
 			isExportingPdf,
 			generationError,
+			jobReviewError,
 			rawCliOutput,
+			rawJobReviewOutput,
 			setSelectedTool,
 			setAiModel,
 			setSelectedLanguage,
@@ -1200,6 +1500,7 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 			setActiveView,
 			updateActiveJobOffer,
 			updateActiveCv,
+			reviewActiveJobOffer,
 			generateActive,
 			switchActiveRun,
 			exportPdf,
@@ -1236,9 +1537,12 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 			canUseSelectedAi,
 			canGenerateActive,
 			isGenerating,
+			isReviewingJobOffer,
 			isExportingPdf,
 			generationError,
+			jobReviewError,
 			rawCliOutput,
+			rawJobReviewOutput,
 		],
 	);
 
