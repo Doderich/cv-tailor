@@ -22,9 +22,38 @@ export async function seedDefaults(collections: DbCollections) {
 		}
 	}
 
+	for (const application of collections.applications.values()) {
+		const needsLinks = !application.jobOffer.links;
+		const needsPosition = !application.jobOffer.position;
+		if (needsLinks || needsPosition) {
+			collections.applications.update(application.id, (draft) => {
+				draft.jobOffer.links = draft.jobOffer.links ?? [];
+				draft.jobOffer.position = draft.jobOffer.position ?? "unspecified";
+			});
+		}
+	}
+
 	const hasSettings = collections.settings.has("settings");
 	if (hasSettings) {
 		const settings = collections.settings.get("settings");
+		if (settings) {
+			const needsAiSettings =
+				!settings.selectedAiTool ||
+				!settings.aiModels?.claude ||
+				!settings.aiModels?.codex ||
+				!settings.aiModels?.cursor;
+			if (needsAiSettings) {
+				const defaults = createDefaultAppSettings(settings.activeProfileId);
+				collections.settings.update("settings", (draft) => {
+					draft.selectedAiTool = draft.selectedAiTool ?? defaults.selectedAiTool;
+					draft.aiModels = {
+						...defaults.aiModels,
+						...draft.aiModels,
+					};
+				});
+			}
+		}
+
 		if (
 			settings &&
 			!collections.profiles.has(settings.activeProfileId) &&

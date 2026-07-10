@@ -21,6 +21,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { getErrorMessage } from "@/lib/cv-app-context";
+import { ArrayLinesField } from "@/components/array-lines-field";
 
 interface ProfileEditorProps {
 	profile: BaseProfile;
@@ -28,11 +29,28 @@ interface ProfileEditorProps {
 	profileRevision?: number;
 }
 
-function splitLines(value: string) {
-	return value
-		.split(/\r?\n/)
-		.map((line) => line.trim())
-		.filter(Boolean);
+function ArrayField({
+	label,
+	values,
+	onChange,
+	placeholder,
+	rows = 4,
+}: {
+	label: string;
+	values: string[];
+	onChange: (values: string[]) => void;
+	placeholder?: string;
+	rows?: number;
+}) {
+	return (
+		<ArrayLinesField
+			label={label}
+			values={values}
+			onChange={onChange}
+			placeholder={placeholder}
+			rows={rows}
+		/>
+	);
 }
 
 function Field({
@@ -81,30 +99,6 @@ function TextField({
 				rows={rows}
 			/>
 		</div>
-	);
-}
-
-function ArrayField({
-	label,
-	values,
-	onChange,
-	placeholder,
-	rows = 4,
-}: {
-	label: string;
-	values: string[];
-	onChange: (values: string[]) => void;
-	placeholder?: string;
-	rows?: number;
-}) {
-	return (
-		<TextField
-			label={label}
-			value={values.join("\n")}
-			onChange={(value) => onChange(splitLines(value))}
-			placeholder={placeholder}
-			rows={rows}
-		/>
 	);
 }
 

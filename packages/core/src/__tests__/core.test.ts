@@ -6,7 +6,9 @@ import {
 	extractJobSignals,
 	hasMeaningfulProfileContent,
 	type JobOffer,
+	jobOfferNeedsReview,
 	profilesHaveSameContent,
+	resolveJobSignals,
 	scoreProfileAgainstJob,
 	summarizeProfileContent,
 } from "../index";
@@ -62,6 +64,70 @@ describe("extractJobSignals", () => {
 	});
 });
 
+describe("job posting review helpers", () => {
+	const baseJob: JobOffer = {
+		id: "job-1",
+		title: "Backend Engineer",
+		company: "Example Co",
+		position: "backend",
+		links: [],
+		rawText: "Wir suchen Node.js und PostgreSQL Erfahrung.",
+		createdAt: new Date(0).toISOString(),
+	};
+
+	it("prefers saved AI review signals when raw text matches", () => {
+		const reviewSignals = {
+			keywords: ["nodejs", "postgresql"],
+			requirements: ["Node.js experience"],
+			responsibilities: ["Build APIs"],
+			seniority: "mid" as const,
+			technologies: ["nodejs", "postgresql"],
+			softSkills: [],
+		};
+		const job: JobOffer = {
+			...baseJob,
+			review: {
+				signals: reviewSignals,
+				summary: "Backend role focused on Node.js.",
+				rawText: baseJob.rawText,
+				reviewedAt: new Date(0).toISOString(),
+				reviewTool: "claude",
+			},
+		};
+
+		expect(resolveJobSignals(job)).toEqual(reviewSignals);
+	});
+
+	it("detects when a posting still needs review", () => {
+		expect(jobOfferNeedsReview(baseJob)).toBe(true);
+		expect(
+			jobOfferNeedsReview({
+				...baseJob,
+				review: {
+					signals: extractJobSignals(baseJob.rawText),
+					summary: "Backend role.",
+					rawText: baseJob.rawText,
+					reviewedAt: new Date(0).toISOString(),
+					reviewTool: "claude",
+				},
+			}),
+		).toBe(false);
+		expect(
+			jobOfferNeedsReview({
+				...baseJob,
+				rawText: "Updated posting text",
+				review: {
+					signals: extractJobSignals(baseJob.rawText),
+					summary: "Backend role.",
+					rawText: baseJob.rawText,
+					reviewedAt: new Date(0).toISOString(),
+					reviewTool: "claude",
+				},
+			}),
+		).toBe(true);
+	});
+});
+
 describe("scoreProfileAgainstJob", () => {
 	it("matches keywords case-insensitively and ignores common stopwords", () => {
 		const profile = profileWith({
@@ -87,6 +153,8 @@ describe("scoreProfileAgainstJob", () => {
 			id: "job-1",
 			title: "Senior React Engineer",
 			company: "Hiring Co",
+			position: "frontend",
+			links: [],
 			rawText: "We need React, TypeScript, and accessibility experience.",
 			createdAt: new Date(0).toISOString(),
 			signals: extractJobSignals(

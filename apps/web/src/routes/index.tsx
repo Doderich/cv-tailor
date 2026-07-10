@@ -1,7 +1,14 @@
-import type { Application, CvLanguage, CvRun } from "@cv-tailor/core";
+import { buildJobOfferFromFetchedPage, type Application, type CvLanguage, type CvRun, type JobPosition, jobOfferNeedsReview, jobPositionLabel, jobPositions } from "@cv-tailor/core";
 import { Button } from "@cv-tailor/ui/components/button";
 import { Input } from "@cv-tailor/ui/components/input";
 import { Label } from "@cv-tailor/ui/components/label";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@cv-tailor/ui/components/select";
 import { Textarea } from "@cv-tailor/ui/components/textarea";
 import { cn } from "@cv-tailor/ui/lib/utils";
 import { createFileRoute } from "@tanstack/react-router";
@@ -10,14 +17,17 @@ import {
 	ArrowRight,
 	FileText,
 	Languages,
+	Link2,
 	Loader2,
 	Printer,
 	Sparkles,
 	WandSparkles,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 
 import { PageHeader } from "@/components/app-shell";
+import { ArrayLinesField } from "@/components/array-lines-field";
 import { CvPreview } from "@/components/cv/cv-preview";
 import { GeneratedCvEditor } from "@/components/cv/generated-cv-editor";
 import { HistoryRunCard } from "@/components/cv/insights";
@@ -30,7 +40,11 @@ import {
 	cvLanguages,
 	useCvApp,
 } from "@/lib/cv-app-context";
-import { isTauriRuntime } from "@/lib/tauri-ai";
+import { formatSourceError, parseSourceUrls } from "@/lib/profile-source-urls";
+import {
+	fetchUrlText,
+	isTauriRuntime,
+} from "@/lib/tauri-ai";
 
 export const Route = createFileRoute("/")({
 	component: WorkspaceRoute,
@@ -320,6 +334,8 @@ function ApplicationWorkspace({
 				<PasteStep
 					title={application.jobOffer.title}
 					company={application.jobOffer.company}
+					position={application.jobOffer.position ?? "unspecified"}
+					links={application.jobOffer.links ?? []}
 					rawText={application.jobOffer.rawText}
 					onChange={updateActiveJobOffer}
 					onContinue={() => setStep("review")}
@@ -329,6 +345,7 @@ function ApplicationWorkspace({
 
 			{step === "review" ? (
 				<ReviewStep
+					application={application}
 					run={previewRun}
 					onBack={() => setStep("paste")}
 					onContinue={() => setStep("tailor")}
@@ -359,6 +376,8 @@ function ApplicationWorkspace({
 function PasteStep({
 	title,
 	company,
+	position,
+	links,
 	rawText,
 	onChange,
 	onContinue,
@@ -366,18 +385,118 @@ function PasteStep({
 }: {
 	title: string;
 	company: string;
+	position: JobPosition;
+	links: string[];
 	rawText: string;
 	onChange: (patch: {
 		title?: string;
 		company?: string;
+		position?: JobPosition;
+		links?: string[];
 		rawText?: string;
 	}) => void;
 	onContinue: () => void;
 	canContinue: boolean;
 }) {
+	const [importMode, setImportMode] = useState<"paste" | "url">("paste");
+	const [sourceUrl, setSourceUrl] = useState(links[0] ?? "");
+	const [isFetching, setIsFetching] = useState(false);
+	const canImportUrl = isTauriRuntime();
+
+	async function handleImportFromUrl() {
+		const urls = parseSourceUrls(sourceUrl);
+		const url = urls[0];
+		if (!url) {
+			toast.error("Enter a valid job posting URL");
+			return;
+		}
+
+		if (!canImportUrl) {
+			toast.error("URL import is available only in the desktop app");
+			return;
+		}
+
+		setIsFetching(true);
+		try {
+			const response = await fetchUrlText(url);
+			const extracted = buildJobOfferFromFetchedPage({
+				text: response.text,
+				url: response.url,
+			});
+			onChange(extracted);
+			toast.success("Job posting imported from link");
+		} catch (error) {
+			toast.error("Could not import job posting", {
+				description: formatSourceError(error),
+			});
+		} finally {
+			setIsFetching(false);
+		}
+	}
+
 	return (
 		<div className="grid max-w-3xl gap-4">
 			<div className="grid gap-4 rounded-xl border bg-card p-5">
+				<div className="inline-flex w-fit rounded-md border bg-background p-0.5">
+					<button
+						type="button"
+						onClick={() => setImportMode("paste")}
+						className={cn(
+							"inline-flex items-center gap-1.5 rounded-sm px-3 py-1.5 text-sm transition-colors",
+							importMode === "paste"
+								? "bg-primary text-primary-foreground"
+								: "text-muted-foreground hover:bg-muted",
+						)}
+					>
+						<FileText className="size-3.5" />
+						Paste text
+					</button>
+					<button
+						type="button"
+						onClick={() => setImportMode("url")}
+						className={cn(
+							"inline-flex items-center gap-1.5 rounded-sm px-3 py-1.5 text-sm transition-colors",
+							importMode === "url"
+								? "bg-primary text-primary-foreground"
+								: "text-muted-foreground hover:bg-muted",
+						)}
+					>
+						<Link2 className="size-3.5" />
+						From link
+					</button>
+				</div>
+
+				{importMode === "url" ? (
+					<div className="grid gap-3">
+						<div className="grid gap-3">
+							<Label>Job posting URL</Label>
+							<Input
+								value={sourceUrl}
+								onChange={(event) => setSourceUrl(event.target.value)}
+								placeholder="https://www.stepstone.de/stellenangebote--..."
+							/>
+						</div>
+						<p className="text-muted-foreground text-sm">
+							{canImportUrl
+								? "Paste a public job posting link. CV Tailor will fetch the page and fill in title, company, and description."
+								: "Open the desktop app to import job postings from a URL."}
+						</p>
+						<div className="flex justify-end">
+							<Button
+								onClick={() => void handleImportFromUrl()}
+								disabled={isFetching || !canImportUrl}
+							>
+								{isFetching ? (
+									<Loader2 className="animate-spin" />
+								) : (
+									<Link2 />
+								)}
+								Import from link
+							</Button>
+						</div>
+					</div>
+				) : null}
+
 				<div className="grid gap-3 sm:grid-cols-2">
 					<div className="grid gap-3">
 						<Label>Job title</Label>
@@ -396,6 +515,35 @@ function PasteStep({
 						/>
 					</div>
 				</div>
+				<div className="grid gap-3">
+					<Label>Position type</Label>
+					<Select
+						value={position}
+						onValueChange={(value) => {
+							if (value) {
+								onChange({ position: value as JobPosition });
+							}
+						}}
+					>
+						<SelectTrigger aria-label="Position type">
+							<SelectValue placeholder="Select position type" />
+						</SelectTrigger>
+						<SelectContent>
+							{jobPositions.map((option) => (
+								<SelectItem key={option} value={option}>
+									{jobPositionLabel(option)}
+								</SelectItem>
+							))}
+						</SelectContent>
+					</Select>
+				</div>
+				<ArrayLinesField
+					label="Posting links"
+					values={links}
+					onChange={(nextLinks) => onChange({ links: nextLinks })}
+					placeholder="https://www.stepstone.de/..."
+					rows={3}
+				/>
 				<div className="grid gap-3">
 					<Label>Job description</Label>
 					<Textarea
@@ -416,14 +564,45 @@ function PasteStep({
 }
 
 function ReviewStep({
+	application,
 	run,
 	onBack,
 	onContinue,
 }: {
+	application: Application;
 	run: CvRun | undefined;
 	onBack: () => void;
 	onContinue: () => void;
 }) {
+	const {
+		reviewActiveJobOffer,
+		isReviewingJobOffer,
+		jobReviewError,
+		rawJobReviewOutput,
+		canUseSelectedAi,
+	} = useCvApp();
+	const needsReview = jobOfferNeedsReview(application.jobOffer);
+	const review = application.jobOffer.review;
+	const autoReviewKey = `${application.id}:${application.jobOffer.rawText.trim()}`;
+	const lastAutoReviewKeyRef = useRef<string | null>(null);
+
+	useEffect(() => {
+		if (!needsReview || !canUseSelectedAi || isReviewingJobOffer) {
+			return;
+		}
+		if (lastAutoReviewKeyRef.current === autoReviewKey) {
+			return;
+		}
+		lastAutoReviewKeyRef.current = autoReviewKey;
+		void reviewActiveJobOffer();
+	}, [
+		autoReviewKey,
+		needsReview,
+		canUseSelectedAi,
+		isReviewingJobOffer,
+		reviewActiveJobOffer,
+	]);
+
 	if (!run) {
 		return (
 			<div className="rounded-xl border bg-card p-6 text-muted-foreground text-sm">
@@ -433,19 +612,78 @@ function ReviewStep({
 	}
 
 	const { matchAnalysis, signals } = run;
+	const isAnalyzing = isReviewingJobOffer || (needsReview && canUseSelectedAi);
 
 	return (
 		<div className="grid max-w-4xl gap-4">
+			<div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-card p-4">
+				<div className="grid gap-1">
+					<h3 className="font-medium text-sm">Job analysis</h3>
+					<p className="text-muted-foreground text-xs">
+						{isAnalyzing
+							? "AI is reviewing the posting and extracting meaningful keywords."
+							: review
+								? `Reviewed with ${review.reviewTool}.`
+								: canUseSelectedAi
+									? "Waiting for AI review."
+									: "AI review unavailable. Install a desktop AI tool to analyze this posting."}
+					</p>
+				</div>
+				<Button
+					variant="outline"
+					size="sm"
+					onClick={() => void reviewActiveJobOffer({ force: true })}
+					disabled={isReviewingJobOffer || !canUseSelectedAi}
+				>
+					{isReviewingJobOffer ? (
+						<Loader2 className="animate-spin" />
+					) : (
+						<Sparkles />
+					)}
+					Re-analyze
+				</Button>
+			</div>
+
+			{review?.summary ? (
+				<div className="rounded-xl border bg-card p-4 text-sm">
+					<h3 className="mb-2 font-medium text-sm">Role summary</h3>
+					<p className="text-muted-foreground leading-relaxed">{review.summary}</p>
+				</div>
+			) : null}
+
+			{jobReviewError ? (
+				<div className="rounded-xl border border-destructive/40 bg-destructive/5 p-4 text-destructive text-sm">
+					{jobReviewError}
+				</div>
+			) : null}
+
+			{rawJobReviewOutput ? (
+				<pre className="max-h-48 overflow-auto rounded-xl border bg-muted/40 p-3 text-xs">
+					{rawJobReviewOutput}
+				</pre>
+			) : null}
+
 			<div className="grid gap-3 sm:grid-cols-3">
-				<Metric label="Profile match" value={`${matchAnalysis.score}%`} />
-				<Metric label="Seniority" value={signals.seniority} />
-				<Metric label="Keywords" value={signals.keywords.length.toString()} />
+				<Metric
+					label="Profile match"
+					value={isAnalyzing ? "…" : `${matchAnalysis.score}%`}
+				/>
+				<Metric
+					label="Seniority"
+					value={isAnalyzing ? "…" : signals.seniority}
+				/>
+				<Metric
+					label="Keywords"
+					value={isAnalyzing ? "…" : signals.keywords.length.toString()}
+				/>
 			</div>
 
 			<div className="grid gap-3 lg:grid-cols-2">
 				<div className="grid gap-2 rounded-xl border bg-card p-4">
 					<h3 className="font-medium text-sm">Detected keywords</h3>
-					{signals.keywords.length === 0 ? (
+					{isAnalyzing ? (
+						<p className="text-muted-foreground text-xs">Analyzing posting…</p>
+					) : signals.keywords.length === 0 ? (
 						<p className="text-muted-foreground text-xs">No keywords yet.</p>
 					) : (
 						<div className="flex flex-wrap gap-1.5">
@@ -471,7 +709,9 @@ function ReviewStep({
 
 				<div className="grid gap-2 rounded-xl border bg-card p-4">
 					<h3 className="font-medium text-sm">Gaps to address</h3>
-					{matchAnalysis.missingRequirements.length === 0 ? (
+					{isAnalyzing ? (
+						<p className="text-muted-foreground text-xs">Analyzing posting…</p>
+					) : matchAnalysis.missingRequirements.length === 0 ? (
 						<p className="text-muted-foreground text-xs">
 							No clear gaps detected.
 						</p>
@@ -494,7 +734,7 @@ function ReviewStep({
 				<Button variant="ghost" onClick={onBack}>
 					<ArrowLeft /> Back
 				</Button>
-				<Button onClick={onContinue}>
+				<Button onClick={onContinue} disabled={isAnalyzing}>
 					Tailor CV <ArrowRight />
 				</Button>
 			</div>

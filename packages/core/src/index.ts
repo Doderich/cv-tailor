@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { jobPositionSchema } from "./job-position";
+
 const seniorityValues = [
 	"unspecified",
 	"intern",
@@ -73,13 +75,24 @@ export const jobSignalsSchema = z.object({
 	softSkills: z.array(z.string()),
 });
 
+export const jobPostingReviewSchema = z.object({
+	signals: jobSignalsSchema,
+	summary: z.string().default(""),
+	rawText: z.string(),
+	reviewedAt: z.string(),
+	reviewTool: z.string(),
+});
+
 export const jobOfferSchema = z.object({
 	id: z.string(),
 	title: z.string(),
 	company: z.string(),
+	position: jobPositionSchema.default("unspecified"),
+	links: z.array(z.string()).default([]),
 	rawText: z.string(),
 	createdAt: z.string(),
 	signals: jobSignalsSchema.optional(),
+	review: jobPostingReviewSchema.optional(),
 });
 
 export const tailoredExperienceSchema = z.object({
@@ -177,6 +190,7 @@ export type EducationItem = z.infer<typeof educationItemSchema>;
 export type ProjectItem = z.infer<typeof projectItemSchema>;
 export type BaseProfile = z.infer<typeof baseProfileSchema>;
 export type JobSignals = z.infer<typeof jobSignalsSchema>;
+export type JobPostingReview = z.infer<typeof jobPostingReviewSchema>;
 export type JobOffer = z.infer<typeof jobOfferSchema>;
 export type TailoredCv = z.infer<typeof tailoredCvSchema>;
 export type MatchAnalysis = z.infer<typeof matchAnalysisSchema>;
@@ -221,6 +235,52 @@ const stopWords = new Set([
 	"with",
 	"you",
 	"your",
+	"als",
+	"auch",
+	"auf",
+	"aus",
+	"bei",
+	"bis",
+	"das",
+	"dem",
+	"den",
+	"der",
+	"des",
+	"die",
+	"ein",
+	"eine",
+	"einem",
+	"einen",
+	"einer",
+	"eines",
+	"er",
+	"es",
+	"für",
+	"hat",
+	"hier",
+	"ich",
+	"ihr",
+	"ihre",
+	"ist",
+	"kein",
+	"keine",
+	"mit",
+	"nach",
+	"nicht",
+	"noch",
+	"oder",
+	"sie",
+	"sind",
+	"über",
+	"um",
+	"und",
+	"vom",
+	"von",
+	"wir",
+	"wird",
+	"zu",
+	"zum",
+	"zur",
 ]);
 
 const knownTechnologies = [
@@ -409,6 +469,31 @@ export function extractJobSignals(rawText: string): JobSignals {
 	};
 }
 
+export function resolveJobSignals(jobOffer: JobOffer): JobSignals {
+	const review = jobOffer.review;
+	const rawText = jobOffer.rawText.trim();
+
+	if (review && review.rawText === rawText) {
+		return review.signals;
+	}
+
+	if (jobOffer.signals) {
+		return jobOffer.signals;
+	}
+
+	return extractJobSignals(rawText);
+}
+
+export function jobOfferNeedsReview(jobOffer: JobOffer) {
+	const rawText = jobOffer.rawText.trim();
+	if (!rawText) {
+		return false;
+	}
+
+	const review = jobOffer.review;
+	return !review || review.rawText !== rawText;
+}
+
 function profileSearchText(profile: BaseProfile) {
 	const sections = [
 		profile.contact.name,
@@ -473,7 +558,7 @@ export function scoreProfileAgainstJob(
 	profile: BaseProfile,
 	job: JobOffer,
 ): MatchAnalysis {
-	const signals = job.signals ?? extractJobSignals(job.rawText);
+	const signals = resolveJobSignals(job);
 	const profileText = profileSearchText(profile);
 	const profileTerms = new Set(extractTerms(profileText));
 	const jobKeywords = uniqueSorted([
@@ -654,8 +739,7 @@ export function createDraftCvRun(input: {
 	now?: string;
 }): CvRun {
 	const now = input.now ?? new Date().toISOString();
-	const signals =
-		input.jobOffer.signals ?? extractJobSignals(input.jobOffer.rawText);
+	const signals = resolveJobSignals(input.jobOffer);
 
 	return cvRunSchema.parse({
 		id: input.id,
@@ -689,6 +773,8 @@ export function createEmptyApplication(input: {
 		id: createId("job"),
 		title: "",
 		company: "",
+		position: "unspecified",
+		links: [],
 		rawText: "",
 		createdAt: now,
 		signals,
@@ -841,3 +927,17 @@ export function normalizeBaseProfile(profile: BaseProfile): BaseProfile {
 		})),
 	});
 }
+
+export {
+	buildJobOfferFromFetchedPage,
+	extractTitleCompanyFromJobText,
+	normalizeJobOffer,
+	parseJobPostingUrl,
+} from "./job-posting";
+export {
+	inferJobPositionFromText,
+	jobPositionLabel,
+	jobPositions,
+	jobPositionSchema,
+	type JobPosition,
+} from "./job-position";

@@ -10,27 +10,13 @@ import { Textarea } from "@cv-tailor/ui/components/textarea";
 import { RotateCcw } from "lucide-react";
 import type { ReactNode } from "react";
 
+import { ArrayLinesTextarea } from "@/components/array-lines-field";
+
 interface GeneratedCvEditorProps {
 	profile: BaseProfile;
 	application: Application | undefined;
 	run: CvRun | undefined;
 	onChange: (cv: TailoredCv) => void;
-}
-
-function splitLines(value: string) {
-	return value
-		.split(/\r?\n/)
-		.map((line) => line.trim())
-		.filter(Boolean);
-}
-
-function Field({ label, children }: { label: string; children: ReactNode }) {
-	return (
-		<div className="grid gap-3">
-			<Label className="text-muted-foreground text-xs">{label}</Label>
-			{children}
-		</div>
-	);
 }
 
 function ArrayField({
@@ -46,12 +32,17 @@ function ArrayField({
 }) {
 	return (
 		<Field label={label}>
-			<Textarea
-				value={values.join("\n")}
-				onChange={(event) => onChange(splitLines(event.target.value))}
-				rows={rows}
-			/>
+			<ArrayLinesTextarea values={values} onChange={onChange} rows={rows} />
 		</Field>
+	);
+}
+
+function Field({ label, children }: { label: string; children: ReactNode }) {
+	return (
+		<div className="grid gap-3">
+			<Label className="text-muted-foreground text-xs">{label}</Label>
+			{children}
+		</div>
 	);
 }
 
