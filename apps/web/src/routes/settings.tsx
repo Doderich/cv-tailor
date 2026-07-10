@@ -17,6 +17,7 @@ import { cn } from "@cv-tailor/ui/lib/utils";
 import { createFileRoute } from "@tanstack/react-router";
 import { Monitor, Moon, RefreshCw, Sun } from "lucide-react";
 
+import { DataBackupPanel } from "@/components/data-backup-panel";
 import { AiStatusPanel } from "@/components/cv/insights";
 import { ProfileEditor } from "@/components/cv/profile-editor";
 import { ProfileImporter } from "@/components/cv/profile-importer";
@@ -175,6 +176,7 @@ function SettingsRoute() {
 				<TabsList variant="line">
 					<TabsTrigger value="appearance">Appearance</TabsTrigger>
 					<TabsTrigger value="ai">AI</TabsTrigger>
+					<TabsTrigger value="data">Data</TabsTrigger>
 					<TabsTrigger value="profile">Profile</TabsTrigger>
 				</TabsList>
 
@@ -232,6 +234,10 @@ function SettingsRoute() {
 						</div>
 						<AiStatusPanel statuses={aiStatuses} />
 					</div>
+				</TabsContent>
+
+				<TabsContent value="data" className="grid gap-4 pt-6">
+					<DataBackupPanel />
 				</TabsContent>
 
 				<TabsContent value="profile" className="grid gap-4 pt-6">
