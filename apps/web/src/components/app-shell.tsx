@@ -20,7 +20,6 @@ import {
 	Plus,
 	Search,
 	Settings,
-	Sparkles,
 	Trash2,
 	X,
 } from "lucide-react";
@@ -43,6 +42,16 @@ const sidebarCollapsedKey = "cv-tailor-sidebar-collapsed";
 const minSidebarWidth = 240;
 const maxSidebarWidth = 520;
 const defaultSidebarWidth = 300;
+const shellHeaderClassName =
+	"flex h-14 shrink-0 items-center gap-1.5 border-b px-3";
+const sidebarHeaderClassName = cn(
+	shellHeaderClassName,
+	"border-sidebar-border bg-sidebar",
+);
+const mainHeaderClassName = cn(
+	shellHeaderClassName,
+	"bg-background/95 backdrop-blur",
+);
 
 function SidebarToggle({
 	onOpenRail,
@@ -226,36 +235,20 @@ function ApplicationRail({ onNavigate }: { onNavigate?: () => void }) {
 	}
 
 	return (
-		<div className="flex h-full flex-col gap-3 p-3">
-			<div
-				className="flex items-center gap-2 px-1 pt-1"
-				data-tauri-drag-region={isDesktop ? "" : undefined}
-			>
-				<div className="grid size-9 shrink-0 place-items-center rounded-lg bg-primary text-primary-foreground shadow-sm">
-					<Sparkles className="size-4.5" />
+		<div className="flex h-full flex-col">
+			<header className={sidebarHeaderClassName}>
+				<div className="relative min-w-0 flex-1">
+					<Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+					<Input
+						value={query}
+						onChange={(event) => setQuery(event.target.value)}
+						placeholder="Search applications"
+						className="h-10 w-full pl-9"
+					/>
 				</div>
-				<div className="min-w-0 leading-tight">
-					<p className="truncate font-semibold text-base font-heading">CV Tailor</p>
-					<p className="truncate text-muted-foreground text-sm">
-						{isDesktop ? "Desktop workspace" : "Web preview"}
-					</p>
-				</div>
-				<div
-					className="h-10 flex-1 self-stretch"
-					data-tauri-drag-region={isDesktop ? "" : undefined}
-				/>
-			</div>
+			</header>
 
-			<div className="relative">
-				<Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-				<Input
-					value={query}
-					onChange={(event) => setQuery(event.target.value)}
-					placeholder="Search applications"
-					className="h-10 pl-9"
-				/>
-			</div>
-
+			<div className="flex min-h-0 flex-1 flex-col gap-3 p-3">
 			<Button className="w-full justify-center" onClick={handleCreate}>
 				<Plus /> New application
 			</Button>
@@ -343,6 +336,7 @@ function ApplicationRail({ onNavigate }: { onNavigate?: () => void }) {
 					</span>
 				</div>
 			</div>
+			</div>
 		</div>
 	);
 }
@@ -367,9 +361,7 @@ function ViewTabBar({
 
 	return (
 		<header
-			className={cn(
-				"flex h-12 items-center gap-1.5 border-b bg-background/95 px-3 backdrop-blur",
-			)}
+			className={mainHeaderClassName}
 			data-tauri-drag-region={isDesktop ? "" : undefined}
 		>
 			<SidebarToggle
@@ -497,9 +489,7 @@ function RouteTopBar({
 }) {
 	return (
 		<header
-			className={cn(
-				"flex h-12 items-center gap-1.5 border-b bg-background/95 px-3 backdrop-blur",
-			)}
+			className={mainHeaderClassName}
 			data-tauri-drag-region={isDesktop ? "" : undefined}
 		>
 			<SidebarToggle

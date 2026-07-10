@@ -86,6 +86,34 @@ export async function detectAiTools(): Promise<AiToolStatus[]> {
 	return invoke<AiToolStatus[]>("detect_ai_tools");
 }
 
+export function formatAppError(error: unknown) {
+	if (error instanceof Error) {
+		return error.message;
+	}
+
+	if (error && typeof error === "object") {
+		const record = error as { message?: unknown; details?: unknown };
+		const message =
+			typeof record.message === "string" ? record.message : undefined;
+		const details =
+			typeof record.details === "string" ? record.details : undefined;
+
+		if (message && details) {
+			return `${message} ${details}`;
+		}
+
+		if (details) {
+			return details;
+		}
+
+		if (message) {
+			return message;
+		}
+	}
+
+	return String(error);
+}
+
 export async function runAiTool(
 	request: AiRunRequest,
 	options?: {
@@ -122,6 +150,64 @@ export async function runAiTool(
 	} finally {
 		unlisten?.();
 	}
+}
+
+const aiProviderOrder = ["claude", "codex", "cursor"] as const;
+
+function isReadyProvider(
+	provider: (typeof aiProviderOrder)[number],
+	statuses: AiToolStatus[],
+) {
+	return statuses.some((status) => status.id === provider && status.available);
+}
+
+export async function runAiToolResilient(
+	request: AiRunRequest,
+	options: {
+		statuses: AiToolStatus[];
+		model?: string;
+		models?: Partial<Record<(typeof aiProviderOrder)[number], string>>;
+		onProgress?: (event: AiRunProgressEvent) => void;
+	},
+): Promise<AiRunResponse> {
+	const providersToTry =
+		request.tool === "auto"
+			? aiProviderOrder.filter((provider) =>
+					isReadyProvider(provider, options.statuses),
+				)
+			: aiProviderOrder.filter(
+					(provider) =>
+						provider === request.tool &&
+						isReadyProvider(provider, options.statuses),
+				);
+
+	if (providersToTry.length === 0) {
+		throw new Error("No supported AI tool is available on PATH.");
+	}
+
+	let lastError: unknown;
+	for (const provider of providersToTry) {
+		try {
+			return await runAiTool(
+				{
+					...request,
+					tool: provider,
+					model:
+						options.models?.[provider] ??
+						(provider === request.tool ? options.model : undefined) ??
+						request.model,
+				},
+				{ onProgress: options.onProgress },
+			);
+		} catch (error) {
+			lastError = error;
+			if (request.tool !== "auto" || providersToTry.length === 1) {
+				throw error;
+			}
+		}
+	}
+
+	throw lastError ?? new Error("All configured AI tools failed.");
 }
 
 export async function fetchUrlText(url: string): Promise<FetchUrlTextResponse> {

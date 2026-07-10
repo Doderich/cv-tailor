@@ -54,6 +54,9 @@ export async function createPersistence() {
 		const database = wrapTauriDatabase(
 			await DatabaseClass.load("sqlite:cv-tailor.db"),
 		);
+		await database.execute("PRAGMA journal_mode = WAL");
+		await database.execute("PRAGMA synchronous = NORMAL");
+		await database.execute("PRAGMA busy_timeout = 5000");
 		return createTauriSQLitePersistence({ database });
 	}
 

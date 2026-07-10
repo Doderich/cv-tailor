@@ -2,9 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import {
 	buildGenerateProfilePrompt,
+	buildReviewJobPostingPrompt,
 	buildTailorCvPrompt,
 	generatedProfileOutputJsonSchema,
 	parseCliGeneratedProfileOutput,
+	parseCliJobPostingReviewOutput,
 	parseCliTailoredCvOutput,
 	type TailorCvInput,
 	tailoredCvOutputJsonSchema,
@@ -112,6 +114,8 @@ const promptInput: TailorCvInput = {
 		id: "job-1",
 		title: "Senior Frontend Engineer",
 		company: "Hiring Co",
+		position: "frontend",
+		links: [],
 		rawText: "React and accessibility.",
 		createdAt: new Date(0).toISOString(),
 	},
@@ -249,5 +253,44 @@ describe("parseCliGeneratedProfileOutput", () => {
 		].join("\n");
 
 		expect(parseCliGeneratedProfileOutput(stdout)).toEqual(validProfileOutput);
+	});
+});
+
+const validJobReviewOutput = {
+	summary: "Backend role focused on Node.js and PostgreSQL.",
+	signals: {
+		keywords: ["nodejs", "postgresql", "apis"],
+		requirements: ["Experience with Node.js and PostgreSQL"],
+		responsibilities: ["Build and maintain backend APIs"],
+		seniority: "mid",
+		technologies: ["nodejs", "postgresql"],
+		softSkills: ["ownership"],
+	},
+};
+
+describe("job posting review prompt and parser", () => {
+	it("builds a review prompt with posting text and metadata", () => {
+		const prompt = buildReviewJobPostingPrompt({
+			jobOffer: {
+				id: "job-1",
+				title: "Backend Engineer",
+				company: "Example Co",
+				position: "backend",
+				links: ["https://example.com/jobs/1"],
+				rawText: "We need Node.js and PostgreSQL experience.",
+				createdAt: new Date(0).toISOString(),
+			},
+			rawText: "We need Node.js and PostgreSQL experience.",
+		});
+
+		expect(prompt).toContain("Backend Engineer");
+		expect(prompt).toContain("We need Node.js and PostgreSQL experience.");
+		expect(prompt).toContain("Output schema:");
+		expect(prompt).toContain('"seniority"');
+	});
+
+	it("parses fenced job review JSON", () => {
+		const stdout = `\`\`\`json\n${JSON.stringify(validJobReviewOutput)}\n\`\`\``;
+		expect(parseCliJobPostingReviewOutput(stdout)).toEqual(validJobReviewOutput);
 	});
 });
