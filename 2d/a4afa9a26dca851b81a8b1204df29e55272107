@@ -1,0 +1,19 @@
+scripts/run-tauri-build.mjs
+  s_8be3ec8959c8da::t_87bcdddfd159f2 1-43
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "2da4afa9a26dca851b81a8b1204df29e55272107",
+  "prompts": {},
+  "sessions": {
+    "s_8be3ec8959c8da": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "ca52c269-3eb9-4927-b85a-ae74c9955dc2",
+        "model": "composer-2.5"
+      },
+      "human_author": "Malte Budig <malte.budig@gmx.net>"
+    }
+  }
+}
