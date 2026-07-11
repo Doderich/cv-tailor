@@ -2,6 +2,8 @@ mod ai;
 mod commands;
 mod errors;
 mod file_import;
+#[cfg(desktop)]
+mod menu;
 mod pdf_export;
 mod web_fetch;
 
@@ -114,6 +116,8 @@ pub fn run() {
         .manage(local_api_state)
         .plugin(tauri_plugin_sql::Builder::default().build())
         .setup(|app| {
+            #[cfg(desktop)]
+            menu::install(app)?;
             if cfg!(debug_assertions) {
                 app.handle().plugin(
                     tauri_plugin_log::Builder::default()

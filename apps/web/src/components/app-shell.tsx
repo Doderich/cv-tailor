@@ -27,6 +27,7 @@ import { type ReactNode, useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { CommandPalette } from "@/components/command-palette";
 import { ScoreBadge } from "@/components/cv/score-badge";
+import { useAppMenuShortcuts } from "@/hooks/use-app-menu-shortcuts";
 import { applicationViewRegistry, viewMeta } from "@/lib/application-views";
 import type { ApplicationListItem } from "@/lib/cv-app-context";
 import {
@@ -326,6 +327,11 @@ function ApplicationRail({ onNavigate }: { onNavigate?: () => void }) {
 					}}
 				>
 					<Settings /> Settings
+					{isDesktop ? (
+						<kbd className="ml-auto rounded border bg-muted px-1.5 py-0.5 font-medium text-[10px] text-muted-foreground">
+							⌘,
+						</kbd>
+					) : null}
 				</Button>
 				<div className="flex items-center justify-between gap-2 px-2 text-muted-foreground text-sm">
 					<span className={cn(saveStatus === "error" && "text-destructive")}>
@@ -512,6 +518,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 	const [railOpen, setRailOpen] = useState(false);
 	const [collapsed, setCollapsed] = useState(false);
 	const [width, setWidth] = useState(defaultSidebarWidth);
+	useAppMenuShortcuts();
 	const pathname = useRouterState({
 		select: (state) => state.location.pathname,
 	});

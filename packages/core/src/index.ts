@@ -81,6 +81,7 @@ export const jobPostingReviewSchema = z.object({
 	rawText: z.string(),
 	reviewedAt: z.string(),
 	reviewTool: z.string(),
+	stdout: z.string().optional(),
 });
 
 export const jobOfferSchema = z.object({
@@ -115,12 +116,27 @@ export const tailoredCvSchema = z.object({
 	warnings: z.array(z.string()),
 });
 
+export const matchAnalysisSourceSchema = z.enum(["draft", "ai"]);
+
 export const matchAnalysisSchema = z.object({
 	score: z.number().min(0).max(100),
 	matchedKeywords: z.array(z.string()),
 	missingKeywords: z.array(z.string()),
 	missingRequirements: z.array(z.string()),
+	goodFit: z.array(z.string()).default([]),
 	warnings: z.array(z.string()),
+	source: matchAnalysisSourceSchema.default("draft"),
+	evaluatorTool: z.string().optional(),
+});
+
+export const applicationProfileMatchSchema = z.object({
+	profileId: z.string(),
+	jobRawText: z.string(),
+	jobReviewedAt: z.string().optional(),
+	profileUpdatedAt: z.string(),
+	matchAnalysis: matchAnalysisSchema,
+	evaluatedAt: z.string(),
+	stdout: z.string().optional(),
 });
 
 export const cvLanguages = ["en", "de"] as const;
@@ -141,6 +157,7 @@ export const applicationSchema = z.object({
 	id: z.string(),
 	profileId: z.string(),
 	jobOffer: jobOfferSchema,
+	profileMatch: applicationProfileMatchSchema.optional(),
 	archived: z.boolean().optional(),
 	createdAt: z.string(),
 	updatedAt: z.string(),
@@ -182,6 +199,7 @@ export const appSettingsSchema = z.object({
 		})
 		.partial()
 		.optional(),
+	appliedProfilePatches: z.array(z.string()).optional(),
 });
 
 export type Contact = z.infer<typeof contactSchema>;
@@ -194,6 +212,7 @@ export type JobPostingReview = z.infer<typeof jobPostingReviewSchema>;
 export type JobOffer = z.infer<typeof jobOfferSchema>;
 export type TailoredCv = z.infer<typeof tailoredCvSchema>;
 export type MatchAnalysis = z.infer<typeof matchAnalysisSchema>;
+export type ApplicationProfileMatch = z.infer<typeof applicationProfileMatchSchema>;
 export type CvLanguage = z.infer<typeof cvLanguageSchema>;
 export type CvRunSource = z.infer<typeof cvRunSourceSchema>;
 export type ProfileRecord = z.infer<typeof profileRecordSchema>;
@@ -494,6 +513,71 @@ export function jobOfferNeedsReview(jobOffer: JobOffer) {
 	return !review || review.rawText !== rawText;
 }
 
+export function profileMatchNeedsEvaluation(input: {
+	application: Application;
+	profileId: string;
+	profileUpdatedAt: string;
+}) {
+	const rawText = input.application.jobOffer.rawText.trim();
+	if (!rawText) {
+		return false;
+	}
+
+	const cache = input.application.profileMatch;
+	if (!cache) {
+		return true;
+	}
+
+	if (cache.profileId !== input.profileId) {
+		return true;
+	}
+	if (cache.jobRawText !== rawText) {
+		return true;
+	}
+	if (cache.profileUpdatedAt !== input.profileUpdatedAt) {
+		return true;
+	}
+
+	const reviewAt = input.application.jobOffer.review?.reviewedAt;
+	if ((cache.jobReviewedAt ?? undefined) !== (reviewAt ?? undefined)) {
+		return true;
+	}
+
+	return cache.matchAnalysis.source !== "ai";
+}
+
+export function resolveCachedProfileMatch(
+	application: Application,
+	profileId: string,
+	profileUpdatedAt: string,
+): MatchAnalysis | undefined {
+	if (
+		profileMatchNeedsEvaluation({
+			application,
+			profileId,
+			profileUpdatedAt,
+		})
+	) {
+		return undefined;
+	}
+
+	return normalizeMatchAnalysis(application.profileMatch?.matchAnalysis);
+}
+
+export function normalizeApplication(application: Application): Application {
+	return {
+		...application,
+		profileMatch: application.profileMatch
+			? {
+					...application.profileMatch,
+					matchAnalysis: normalizeMatchAnalysis(
+						application.profileMatch.matchAnalysis,
+					),
+				}
+			: undefined,
+	};
+}
+
 function profileSearchText(profile: BaseProfile) {
 	const sections = [
 		profile.contact.name,
@@ -554,6 +638,46 @@ function requirementIsMatched(
 	return matchedTerms.length / termsToCheck.length >= 0.35;
 }
 
+function buildDraftGoodFit(
+	signals: JobSignals,
+	profileTerms: Set<string>,
+	profileText: string,
+	matchedKeywords: string[],
+) {
+	const goodFit: string[] = [];
+
+	for (const requirement of signals.requirements) {
+		if (requirementIsMatched(requirement, profileTerms, profileText)) {
+			goodFit.push(requirement);
+		}
+	}
+
+	for (const responsibility of signals.responsibilities) {
+		if (requirementIsMatched(responsibility, profileTerms, profileText)) {
+			goodFit.push(responsibility);
+		}
+	}
+
+	for (const keyword of matchedKeywords) {
+		if (signals.technologies.includes(keyword)) {
+			goodFit.push(`${keyword} is evidenced in the profile.`);
+		}
+	}
+
+	if (profileText.trim()) {
+		for (const softSkill of signals.softSkills) {
+			if (
+				requirementIsMatched(softSkill, profileTerms, profileText) &&
+				!goodFit.some((item) => normalizeText(item).includes(normalizeText(softSkill)))
+			) {
+				goodFit.push(`Profile reflects ${softSkill}.`);
+			}
+		}
+	}
+
+	return uniqueSorted(goodFit).slice(0, 8);
+}
+
 export function scoreProfileAgainstJob(
 	profile: BaseProfile,
 	job: JobOffer,
@@ -579,6 +703,12 @@ export function scoreProfileAgainstJob(
 	const missingRequirements = signals.requirements.filter(
 		(requirement) =>
 			!requirementIsMatched(requirement, profileTerms, profileText),
+	);
+	const goodFit = buildDraftGoodFit(
+		signals,
+		profileTerms,
+		profileText,
+		matchedKeywords,
 	);
 	const keywordScore =
 		jobKeywords.length === 0
@@ -611,7 +741,9 @@ export function scoreProfileAgainstJob(
 		matchedKeywords,
 		missingKeywords,
 		missingRequirements,
+		goodFit,
 		warnings,
+		source: "draft",
 	};
 }
 
@@ -710,6 +842,28 @@ export function normalizeProfileRecord(record: ProfileRecord): ProfileRecord {
 		education: record.education ?? [],
 		projects: record.projects ?? [],
 		languages: record.languages ?? [],
+	};
+}
+
+export function normalizeMatchAnalysis(
+	analysis: MatchAnalysis | Partial<MatchAnalysis>,
+): MatchAnalysis {
+	return matchAnalysisSchema.parse({
+		score: analysis.score ?? 0,
+		matchedKeywords: analysis.matchedKeywords ?? [],
+		missingKeywords: analysis.missingKeywords ?? [],
+		missingRequirements: analysis.missingRequirements ?? [],
+		goodFit: analysis.goodFit ?? [],
+		warnings: analysis.warnings ?? [],
+		source: analysis.source ?? "draft",
+		evaluatorTool: analysis.evaluatorTool,
+	});
+}
+
+export function normalizeCvRun(run: CvRun): CvRun {
+	return {
+		...run,
+		matchAnalysis: normalizeMatchAnalysis(run.matchAnalysis),
 	};
 }
 

@@ -2,12 +2,56 @@ import {
 	createDefaultAppSettings,
 	createDefaultProfileRecord,
 	defaultProfileId,
+	normalizeCvRun,
 	normalizeProfileRecord,
 } from "@cv-tailor/core";
 
 import type { DbCollections } from "./collections";
+import {
+	applyKnownProfilePatches,
+	MALTE_GERMAN_PROFILE_PATCH_ID,
+} from "./profile-patches";
 
 export async function seedDefaults(collections: DbCollections) {
+	const settings = collections.settings.get("settings");
+	const patchResult = applyKnownProfilePatches(
+		settings?.appliedProfilePatches,
+		collections.profiles.values(),
+	);
+
+	for (const profile of patchResult.profiles) {
+		const existing = collections.profiles.get(profile.id);
+		if (!existing) {
+			continue;
+		}
+
+		const normalized = normalizeProfileRecord(profile);
+		const needsUpdate =
+			existing.language !== normalized.language ||
+			existing.experience !== normalized.experience ||
+			existing.projects !== normalized.projects ||
+			existing.education !== normalized.education ||
+			existing.summary !== normalized.summary ||
+			existing.skills !== normalized.skills ||
+			existing.targetRoles !== normalized.targetRoles;
+
+		if (needsUpdate) {
+			collections.profiles.update(profile.id, (draft) => {
+				Object.assign(draft, normalized);
+			});
+		}
+	}
+
+	if (
+		settings &&
+		patchResult.appliedPatchIds.includes(MALTE_GERMAN_PROFILE_PATCH_ID) &&
+		!settings.appliedProfilePatches?.includes(MALTE_GERMAN_PROFILE_PATCH_ID)
+	) {
+		collections.settings.update("settings", (draft) => {
+			draft.appliedProfilePatches = patchResult.appliedPatchIds;
+		});
+	}
+
 	for (const profile of collections.profiles.values()) {
 		const normalized = normalizeProfileRecord(profile);
 		const needsUpdate =
@@ -31,6 +75,47 @@ export async function seedDefaults(collections: DbCollections) {
 				draft.jobOffer.position = draft.jobOffer.position ?? "unspecified";
 			});
 		}
+	}
+
+	for (const application of collections.applications.values()) {
+		if (application.profileMatch) {
+			continue;
+		}
+
+		const runs = [...collections.cvRuns.values()].filter(
+			(run) => run.applicationId === application.id,
+		);
+		const aiRun = runs.find((run) => run.matchAnalysis.source === "ai");
+		if (!aiRun) {
+			continue;
+		}
+
+		const profile = collections.profiles.get(application.profileId);
+		if (!profile) {
+			continue;
+		}
+
+		collections.applications.update(application.id, (draft) => {
+			draft.profileMatch = {
+				profileId: application.profileId,
+				jobRawText: application.jobOffer.rawText.trim(),
+				jobReviewedAt: application.jobOffer.review?.reviewedAt,
+				profileUpdatedAt: profile.updatedAt,
+				matchAnalysis: normalizeCvRun(aiRun).matchAnalysis,
+				evaluatedAt: aiRun.updatedAt,
+			};
+		});
+	}
+
+	for (const run of collections.cvRuns.values()) {
+		if (Array.isArray(run.matchAnalysis.goodFit)) {
+			continue;
+		}
+
+		const normalized = normalizeCvRun(run);
+		collections.cvRuns.update(run.id, (draft) => {
+			draft.matchAnalysis = normalized.matchAnalysis;
+		});
 	}
 
 	const hasSettings = collections.settings.has("settings");
