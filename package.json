@@ -18,6 +18,8 @@
 		"deploy": "vercel deploy",
 		"deploy:prod": "vercel deploy --prod",
 		"deploy:check": "vercel deploy --dry",
+		"desktop:setup-signing": "tsx scripts/setup-desktop-signing.ts",
+		"desktop:release": "tsx scripts/release-desktop-macos.ts",
 		"check": "biome check --write .",
 		"test": "vitest run"
 	},

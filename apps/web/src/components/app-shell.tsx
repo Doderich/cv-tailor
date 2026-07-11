@@ -24,11 +24,12 @@ import {
 } from "lucide-react";
 import { type ReactNode, useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { CommandPalette } from "@/components/command-palette";
 import { ApplicationStepTabBar } from "@/components/application-step-tab-bar";
-import { SettingsTabBar } from "@/components/settings-tab-bar";
+import { CommandPalette } from "@/components/command-palette";
 import { ScoreBadge } from "@/components/cv/score-badge";
+import { SettingsTabBar } from "@/components/settings-tab-bar";
 import { useAppMenuShortcuts } from "@/hooks/use-app-menu-shortcuts";
+import { useDesktopUpdater } from "@/hooks/use-desktop-updater";
 import { applicationStepPath } from "@/lib/application-route";
 import type { ApplicationListItem } from "@/lib/cv-app-context";
 import {
@@ -118,7 +119,7 @@ function ApplicationRailItem({
 				</span>
 				<span className="flex items-center gap-1.5">
 					{application.isDraft ? (
-						<span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+						<span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-muted-foreground text-xs">
 							Draft
 						</span>
 					) : application.previewScore !== undefined ? (
@@ -229,11 +230,7 @@ function ApplicationRail({ onNavigate }: { onNavigate?: () => void }) {
 
 	return (
 		<div className="flex min-h-0 flex-1 flex-col">
-			<div
-				className={cn(
-					"flex min-h-0 flex-1 flex-col gap-3 px-3 pt-3 pb-3",
-				)}
-			>
+			<div className={cn("flex min-h-0 flex-1 flex-col gap-3 px-3 pt-3 pb-3")}>
 				<div className="relative min-w-0">
 					<Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
 					<Input
@@ -244,90 +241,90 @@ function ApplicationRail({ onNavigate }: { onNavigate?: () => void }) {
 					/>
 				</div>
 
-			<Button className="w-full justify-center" onClick={handleCreate}>
-				<Plus /> New application
-			</Button>
-
-			<ScrollArea className="-mx-1 min-h-0 flex-1">
-				<div className="px-1">
-					{visibleActive.length === 0 ? (
-						<p className="px-2 py-6 text-center text-muted-foreground text-sm">
-							{activeApplications.length === 0
-								? "No applications yet. Create your first to get started."
-								: "No matches."}
-						</p>
-					) : (
-						<ul className="grid gap-1">
-							{visibleActive.map((application) => (
-								<li key={application.id}>
-									<ApplicationRailItem
-										application={application}
-										active={application.id === activeApplicationId}
-										onOpen={() => handleOpen(application.id)}
-										onArchiveToggle={() =>
-											archiveApplication(application.id, true)
-										}
-										onDelete={() => handleDelete(application)}
-									/>
-								</li>
-							))}
-						</ul>
-					)}
-
-					{visibleArchived.length > 0 ? (
-						<div className="mt-3">
-							<button
-								type="button"
-								onClick={() => setShowArchived((value) => !value)}
-								className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-muted-foreground text-sm hover:bg-sidebar-accent/60"
-							>
-								<ChevronRight
-									className={cn(
-										"size-3.5 transition-transform",
-										showArchived && "rotate-90",
-									)}
-								/>
-								Archived ({visibleArchived.length})
-							</button>
-							{showArchived ? (
-								<ul className="mt-1 grid gap-1">
-									{visibleArchived.map((application) => (
-										<li key={application.id}>
-											<ApplicationRailItem
-												application={application}
-												active={application.id === activeApplicationId}
-												onOpen={() => handleOpen(application.id)}
-												onArchiveToggle={() =>
-													archiveApplication(application.id, false)
-												}
-												onDelete={() => handleDelete(application)}
-											/>
-										</li>
-									))}
-								</ul>
-							) : null}
-						</div>
-					) : null}
-				</div>
-			</ScrollArea>
-
-			<div className="border-sidebar-border border-t p-3">
-				<Button
-					variant={pathname.startsWith("/settings") ? "secondary" : "ghost"}
-					className="w-full justify-start"
-					onClick={() => {
-						void navigate({ to: "/settings" });
-						onNavigate?.();
-					}}
-				>
-					<Settings /> Settings
-					{isDesktop ? (
-						<kbd className="ml-auto rounded border bg-muted px-1.5 py-0.5 font-medium text-[10px] text-muted-foreground">
-							⌘,
-						</kbd>
-					) : null}
+				<Button className="w-full justify-center" onClick={handleCreate}>
+					<Plus /> New application
 				</Button>
-			</div>
+
+				<ScrollArea className="-mx-1 min-h-0 flex-1">
+					<div className="px-1">
+						{visibleActive.length === 0 ? (
+							<p className="px-2 py-6 text-center text-muted-foreground text-sm">
+								{activeApplications.length === 0
+									? "No applications yet. Create your first to get started."
+									: "No matches."}
+							</p>
+						) : (
+							<ul className="grid gap-1">
+								{visibleActive.map((application) => (
+									<li key={application.id}>
+										<ApplicationRailItem
+											application={application}
+											active={application.id === activeApplicationId}
+											onOpen={() => handleOpen(application.id)}
+											onArchiveToggle={() =>
+												archiveApplication(application.id, true)
+											}
+											onDelete={() => handleDelete(application)}
+										/>
+									</li>
+								))}
+							</ul>
+						)}
+
+						{visibleArchived.length > 0 ? (
+							<div className="mt-3">
+								<button
+									type="button"
+									onClick={() => setShowArchived((value) => !value)}
+									className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-muted-foreground text-sm hover:bg-sidebar-accent/60"
+								>
+									<ChevronRight
+										className={cn(
+											"size-3.5 transition-transform",
+											showArchived && "rotate-90",
+										)}
+									/>
+									Archived ({visibleArchived.length})
+								</button>
+								{showArchived ? (
+									<ul className="mt-1 grid gap-1">
+										{visibleArchived.map((application) => (
+											<li key={application.id}>
+												<ApplicationRailItem
+													application={application}
+													active={application.id === activeApplicationId}
+													onOpen={() => handleOpen(application.id)}
+													onArchiveToggle={() =>
+														archiveApplication(application.id, false)
+													}
+													onDelete={() => handleDelete(application)}
+												/>
+											</li>
+										))}
+									</ul>
+								) : null}
+							</div>
+						) : null}
+					</div>
+				</ScrollArea>
+
+				<div className="border-sidebar-border border-t p-3">
+					<Button
+						variant={pathname.startsWith("/settings") ? "secondary" : "ghost"}
+						className="w-full justify-start"
+						onClick={() => {
+							void navigate({ to: "/settings" });
+							onNavigate?.();
+						}}
+					>
+						<Settings /> Settings
+						{isDesktop ? (
+							<kbd className="ml-auto rounded border bg-muted px-1.5 py-0.5 font-medium text-[10px] text-muted-foreground">
+								⌘,
+							</kbd>
+						) : null}
+					</Button>
+				</div>
 			</div>
 		</div>
 	);
@@ -437,6 +434,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 	const [collapsed, setCollapsed] = useState(false);
 	const [width, setWidth] = useState(defaultSidebarWidth);
 	useAppMenuShortcuts();
+	useDesktopUpdater();
 	const pathname = useRouterState({
 		select: (state) => state.location.pathname,
 	});
@@ -580,7 +578,7 @@ export function PageHeader({
 						{eyebrow}
 					</p>
 				) : null}
-				<h1 className="text-balance font-semibold text-3xl tracking-tight font-heading">
+				<h1 className="text-balance font-heading font-semibold text-3xl tracking-tight">
 					{title}
 				</h1>
 				{meta ? (

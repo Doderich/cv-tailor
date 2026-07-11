@@ -9,15 +9,14 @@ import {
 } from "@cv-tailor/ui/components/select";
 import { cn } from "@cv-tailor/ui/lib/utils";
 import { Monitor, Moon, RefreshCw, Sun } from "lucide-react";
-
-import { DataBackupPanel } from "@/components/data-backup-panel";
 import { AiStatusPanel } from "@/components/cv/insights";
 import { ProfileEditor } from "@/components/cv/profile-editor";
 import { ProfileImporter } from "@/components/cv/profile-importer";
 import { ProfileManager } from "@/components/cv/profile-manager";
+import { DataBackupPanel } from "@/components/data-backup-panel";
 import { FontPicker } from "@/components/font-picker";
 import { PalettePicker } from "@/components/palette-picker";
-import { useTextSize, type TextSizeId } from "@/components/text-size-provider";
+import { type TextSizeId, useTextSize } from "@/components/text-size-provider";
 import { useTheme } from "@/components/theme-provider";
 import {
 	claudeModelOptions,
@@ -26,6 +25,8 @@ import {
 	toolIsReady,
 	useCvApp,
 } from "@/lib/cv-app-context";
+import { checkForDesktopUpdate } from "@/lib/desktop-updater";
+import { isTauriRuntime } from "@/lib/tauri-ai";
 
 const themeOptions = [
 	{ id: "light", label: "Light", icon: Sun },
@@ -227,9 +228,34 @@ export function SettingsAiSection() {
 }
 
 export function SettingsDataSection() {
+	const isDesktop = isTauriRuntime();
+
 	return (
 		<SettingsSection>
-			<DataBackupPanel />
+			<div className="grid gap-6">
+				{isDesktop ? (
+					<div className="grid gap-3">
+						<div>
+							<h3 className="font-medium text-base">Desktop updates</h3>
+							<p className="text-muted-foreground text-sm">
+								Check GitHub Releases for a newer macOS build.
+							</p>
+						</div>
+						<div>
+							<Button
+								variant="outline"
+								size="sm"
+								onClick={() =>
+									void checkForDesktopUpdate({ promptBeforeInstall: true })
+								}
+							>
+								<RefreshCw /> Check for updates
+							</Button>
+						</div>
+					</div>
+				) : null}
+				<DataBackupPanel />
+			</div>
 		</SettingsSection>
 	);
 }

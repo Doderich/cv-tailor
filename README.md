@@ -38,6 +38,34 @@ cd apps/web && pnpm run desktop:dev
 
 This starts the Vite web app at [http://localhost:1420](http://localhost:1420) and the Tauri-owned local API bridge at `http://127.0.0.1:3911`. The desktop app talks to Tauri through native commands, while a regular browser tab uses the local HTTP bridge when the Tauri process is running.
 
+### Desktop release (macOS)
+
+One-time setup:
+
+```bash
+pnpm run desktop:setup-signing
+gh auth login
+```
+
+This generates a signing key pair in `~/.tauri/cv-tailor.key` and writes the public key into `apps/web/src-tauri/tauri.conf.json`. Keep the private key secret and backed up — you cannot publish updates without it.
+
+Publish a signed macOS release to GitHub Releases:
+
+```bash
+# bump version in apps/web/src-tauri/tauri.conf.json first
+pnpm run desktop:release -- --notes "Bug fixes and improvements"
+```
+
+The release script builds the app, generates `latest.json`, and uploads the `.dmg`, updater archive, signatures, and manifest. Installed apps check `https://github.com/Doderich/cv-tailor/releases/latest/download/latest.json` for updates.
+
+Dry run without publishing:
+
+```bash
+pnpm run desktop:release -- --dry-run
+```
+
+For Windows builds later, run the same build flow on your Windows machine and upload the Windows artifacts to the same GitHub release. Merge the Windows platform entry into `latest.json` before uploading.
+
 If you want to run the local web tab and Tauri process separately, use two terminals:
 
 ```bash
@@ -116,6 +144,8 @@ cv-tailor/
 - `cd apps/web && pnpm run desktop:dev`: Start Tauri desktop app in development
 - `cd apps/web && pnpm run desktop:run`: Run the Tauri binary against an already-running local web server
 - `cd apps/web && pnpm run desktop:build`: Build Tauri desktop app
+- `pnpm run desktop:setup-signing`: Generate updater signing keys (one-time)
+- `pnpm run desktop:release`: Build and publish a signed macOS release
 - `pnpm run deploy:setup`: Link this repo to a Vercel project (first-time setup)
 - `pnpm run dev:vercel`: Run the Vercel Services dev environment locally
 - `pnpm run env:preview`: Sync local env files to the Vercel preview environment
