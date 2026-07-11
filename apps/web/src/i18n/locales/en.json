@@ -127,8 +127,41 @@
 		"data": {
 			"updates": {
 				"title": "Desktop updates",
-				"description": "Check GitHub Releases for a newer macOS build.",
-				"check": "Check for updates"
+				"description": "Check GitHub Releases for a newer desktop build. Updates install automatically on startup when a release is available.",
+				"check": "Check for updates",
+				"checkDev": "Check anyway (dev)",
+				"currentVersion": "Installed version",
+				"lastChecked": "Last checked {{date}}",
+				"status": {
+					"idle": "No update check run yet.",
+					"checking": "Checking for updates…",
+					"current": "You're on the latest version (v{{version}}).",
+					"available": "Version {{version}} is available.",
+					"declined": "Update to v{{version}} was declined.",
+					"installing": "Installing v{{version}}…",
+					"installed": "Installed v{{version}}. Restarting…",
+					"devSkipped": "Update checks are disabled in development builds.",
+					"error": "Update check failed."
+				},
+				"debug": {
+					"title": "Update debug",
+					"platform": "Platform",
+					"osVersion": "OS version",
+					"build": "Build type",
+					"devBuild": "Development",
+					"releaseBuild": "Release",
+					"autoUpdate": "Startup auto-check",
+					"enabled": "Enabled",
+					"disabled": "Disabled",
+					"endpoint": "Update endpoint",
+					"manifestVersion": "Remote version",
+					"manifestPlatforms": "Remote platforms",
+					"unavailable": "Unavailable",
+					"fetchManifest": "Fetch release manifest",
+					"copy": "Copy debug report",
+					"copied": "Copied",
+					"copyFailed": "Copy failed"
+				}
 			}
 		}
 	},

@@ -10,7 +10,10 @@ export function useDesktopUpdater() {
 		}
 
 		const timeout = window.setTimeout(() => {
-			void checkForDesktopUpdate({ promptBeforeInstall: true });
+			void checkForDesktopUpdate({
+				promptBeforeInstall: true,
+				notify: "errors-only",
+			});
 		}, 4_000);
 
 		return () => {

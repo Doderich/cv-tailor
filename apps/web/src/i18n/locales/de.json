@@ -127,8 +127,41 @@
 		"data": {
 			"updates": {
 				"title": "Desktop-Updates",
-				"description": "Prüfe GitHub Releases auf eine neuere macOS-Version.",
-				"check": "Nach Updates suchen"
+				"description": "Prüfe GitHub Releases auf eine neuere Desktop-Version. Beim Start wird automatisch nach Updates gesucht.",
+				"check": "Nach Updates suchen",
+				"checkDev": "Trotzdem prüfen (Dev)",
+				"currentVersion": "Installierte Version",
+				"lastChecked": "Zuletzt geprüft {{date}}",
+				"status": {
+					"idle": "Noch keine Update-Prüfung ausgeführt.",
+					"checking": "Suche nach Updates…",
+					"current": "Du nutzt die neueste Version (v{{version}}).",
+					"available": "Version {{version}} ist verfügbar.",
+					"declined": "Update auf v{{version}} abgelehnt.",
+					"installing": "Installiere v{{version}}…",
+					"installed": "v{{version}} installiert. Starte neu…",
+					"devSkipped": "Update-Prüfungen sind in Entwicklungs-Builds deaktiviert.",
+					"error": "Update-Prüfung fehlgeschlagen."
+				},
+				"debug": {
+					"title": "Update-Debug",
+					"platform": "Plattform",
+					"osVersion": "OS-Version",
+					"build": "Build-Typ",
+					"devBuild": "Entwicklung",
+					"releaseBuild": "Release",
+					"autoUpdate": "Auto-Prüfung beim Start",
+					"enabled": "Aktiv",
+					"disabled": "Deaktiviert",
+					"endpoint": "Update-Endpunkt",
+					"manifestVersion": "Remote-Version",
+					"manifestPlatforms": "Remote-Plattformen",
+					"unavailable": "Nicht verfügbar",
+					"fetchManifest": "Release-Manifest laden",
+					"copy": "Debug-Bericht kopieren",
+					"copied": "Kopiert",
+					"copyFailed": "Kopieren fehlgeschlagen"
+				}
 			}
 		}
 	},

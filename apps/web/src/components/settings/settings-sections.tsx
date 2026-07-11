@@ -19,6 +19,7 @@ import { ProfileEditor } from "@/components/cv/profile-editor";
 import { ProfileImporter } from "@/components/cv/profile-importer";
 import { ProfileManager } from "@/components/cv/profile-manager";
 import { DataBackupPanel } from "@/components/data-backup-panel";
+import { DesktopUpdatesPanel } from "@/components/desktop-updates-panel";
 import { FontPicker } from "@/components/font-picker";
 import { LanguagePicker } from "@/components/language-picker";
 import { PalettePicker } from "@/components/palette-picker";
@@ -31,7 +32,6 @@ import {
 	toolIsReady,
 	useCvApp,
 } from "@/lib/cv-app-context";
-import { checkForDesktopUpdate } from "@/lib/desktop-updater";
 import { isTauriRuntime } from "@/lib/tauri-ai";
 
 const themeOptionIds = ["light", "dark", "system"] as const;
@@ -311,35 +311,12 @@ export function SettingsAiSection() {
 }
 
 export function SettingsDataSection() {
-	const { t } = useTranslation();
 	const isDesktop = isTauriRuntime();
 
 	return (
 		<SettingsSection>
 			<div className="grid gap-6">
-				{isDesktop ? (
-					<div className="grid gap-3">
-						<div>
-							<h3 className="font-medium text-base">
-								{t("settings.data.updates.title")}
-							</h3>
-							<p className="text-muted-foreground text-sm">
-								{t("settings.data.updates.description")}
-							</p>
-						</div>
-						<div>
-							<Button
-								variant="outline"
-								size="sm"
-								onClick={() =>
-									void checkForDesktopUpdate({ promptBeforeInstall: true })
-								}
-							>
-								<RefreshCw /> {t("settings.data.updates.check")}
-							</Button>
-						</div>
-					</div>
-				) : null}
+				{isDesktop ? <DesktopUpdatesPanel /> : null}
 				<DataBackupPanel />
 			</div>
 		</SettingsSection>
