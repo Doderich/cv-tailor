@@ -28,7 +28,7 @@
 		"desktop:windows:remote:release": "tsx scripts/release-desktop-windows.ts",
 		"desktop:icon": "node scripts/generate-app-icon.mjs && node scripts/generate-dmg-background.mjs && pnpm -F web tauri icon src-tauri/app-icon.png -o src-tauri/icons",
 		"check": "biome check --write .",
-		"clean:install": "node scripts/desktop-windows.mjs clean-install",
+		"clean:install": "node scripts/clean-install-dispatch.mjs",
 		"test": "vitest run"
 	},
 	"dependencies": {
