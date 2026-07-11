@@ -14,6 +14,7 @@ import { Monitor, Moon, RefreshCw, Sun } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { AiStatusPanel } from "@/components/cv/insights";
+import { CvTemplatePicker } from "@/components/cv/cv-template-picker";
 import { ProfileEditor } from "@/components/cv/profile-editor";
 import { ProfileImporter } from "@/components/cv/profile-importer";
 import { ProfileManager } from "@/components/cv/profile-manager";
@@ -190,6 +191,7 @@ function SettingsSection({ children }: { children: React.ReactNode }) {
 
 export function SettingsAppearanceSection() {
 	const { t } = useTranslation();
+	const { cvTemplate, setCvTemplate } = useCvApp();
 
 	return (
 		<SettingsSection>
@@ -223,6 +225,15 @@ export function SettingsAppearanceSection() {
 						{t("settings.appearance.palette")}
 					</span>
 					<PalettePicker />
+				</div>
+				<div className="grid gap-3">
+					<span className="font-medium text-base">
+						{t("settings.appearance.cvTemplate")}
+					</span>
+					<p className="text-muted-foreground text-sm">
+						{t("settings.appearance.cvTemplateHelp")}
+					</p>
+					<CvTemplatePicker value={cvTemplate} onChange={setCvTemplate} />
 				</div>
 			</div>
 		</SettingsSection>

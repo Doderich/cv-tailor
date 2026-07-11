@@ -77,13 +77,14 @@ function RootComponent() {
 }
 
 function PrintSurface() {
-	const { activeApplication, activeRun, profile } = useCvApp();
+	const { activeApplication, activeRun, profile, cvTemplate } = useCvApp();
 
 	return (
 		<PrintableCv
 			profile={profile}
 			application={activeApplication}
 			run={activeRun}
+			template={cvTemplate}
 		/>
 	);
 }

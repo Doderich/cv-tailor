@@ -98,6 +98,30 @@ export function GeneratedCvEditor({
 				item.projectId === projectId ? { ...item, bullets } : item,
 			),
 		});
+	const resetExperienceToSource = () =>
+		updateCv({
+			experience: cv.experience.map((item) => {
+				const source = profile.experience.find(
+					(entry) => entry.id === item.experienceId,
+				);
+				return {
+					experienceId: item.experienceId,
+					bullets: source ? [...source.bullets] : [...item.bullets],
+				};
+			}),
+		});
+	const resetProjectsToSource = () =>
+		updateCv({
+			projects: cv.projects.map((item) => {
+				const source = profile.projects.find(
+					(entry) => entry.id === item.projectId,
+				);
+				return {
+					projectId: item.projectId,
+					bullets: source ? [...source.bullets] : [...item.bullets],
+				};
+			}),
+		});
 
 	return (
 		<div className="grid gap-4">
@@ -119,18 +143,7 @@ export function GeneratedCvEditor({
 			<EditorSection
 				title={t("cv.editor.experience")}
 				action={
-					<Button
-						size="sm"
-						variant="outline"
-						onClick={() =>
-							updateCv({
-								experience: profile.experience.map((item) => ({
-									experienceId: item.id,
-									bullets: item.bullets,
-								})),
-							})
-						}
-					>
+					<Button size="sm" variant="outline" onClick={resetExperienceToSource}>
 						<RotateCcw /> {t("cv.editor.resetSource")}
 					</Button>
 				}
@@ -166,18 +179,7 @@ export function GeneratedCvEditor({
 				<EditorSection
 					title={t("cv.editor.projects")}
 					action={
-						<Button
-							size="sm"
-							variant="outline"
-							onClick={() =>
-								updateCv({
-									projects: profile.projects.map((item) => ({
-										projectId: item.id,
-										bullets: item.bullets,
-									})),
-								})
-							}
-						>
+						<Button size="sm" variant="outline" onClick={resetProjectsToSource}>
 							<RotateCcw /> {t("cv.editor.resetSource")}
 						</Button>
 					}

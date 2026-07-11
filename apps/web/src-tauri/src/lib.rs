@@ -141,6 +141,7 @@ pub fn run() {
             commands::fetch_url_text,
             commands::extract_profile_file_text,
             commands::export_generated_cv_pdf,
+            commands::print_generated_cv,
             commands::list_data_snapshots,
             commands::save_data_snapshot,
             commands::read_data_snapshot,

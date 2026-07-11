@@ -1,6 +1,18 @@
 import { z } from "zod";
 
+import {
+	cvTemplateSchema,
+	defaultCvTemplate,
+} from "./cv-template";
 import { jobPositionSchema } from "./job-position";
+
+export {
+	cvTemplateIds,
+	cvTemplateSchema,
+	defaultCvTemplate,
+	normalizeCvTemplate,
+	type CvTemplateId,
+} from "./cv-template";
 
 const seniorityValues = [
 	"unspecified",
@@ -208,6 +220,7 @@ export const appSettingsSchema = z.object({
 		.partial()
 		.optional(),
 	appliedProfilePatches: z.array(z.string()).optional(),
+	cvTemplate: cvTemplateSchema.default(defaultCvTemplate),
 });
 
 export type Contact = z.infer<typeof contactSchema>;
@@ -897,6 +910,7 @@ export function createDefaultAppSettings(
 			codex: "gpt-5.4",
 			cursor: "composer-2.5",
 		},
+		cvTemplate: defaultCvTemplate,
 	};
 }
 

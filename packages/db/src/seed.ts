@@ -1,6 +1,7 @@
 import {
 	createDefaultAppSettings,
 	createDefaultProfileRecord,
+	defaultCvTemplate,
 	defaultProfileId,
 	normalizeCvRun,
 	normalizeProfileRecord,
@@ -84,7 +85,8 @@ export async function seedDefaults(collections: DbCollections) {
 				!settings.aiModels?.claude ||
 				!settings.aiModels?.codex ||
 				!settings.aiModels?.cursor;
-			if (needsAiSettings) {
+			const needsCvTemplate = !settings.cvTemplate;
+			if (needsAiSettings || needsCvTemplate) {
 				const defaults = createDefaultAppSettings(settings.activeProfileId);
 				collections.settings.update("settings", (draft) => {
 					draft.selectedAiTool =
@@ -93,6 +95,7 @@ export async function seedDefaults(collections: DbCollections) {
 						...defaults.aiModels,
 						...draft.aiModels,
 					};
+					draft.cvTemplate = draft.cvTemplate ?? defaultCvTemplate;
 				});
 			}
 		}

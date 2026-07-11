@@ -22,6 +22,7 @@ import {
 	type BaseProfile,
 	type CvLanguage,
 	type CvRun,
+	type CvTemplateId,
 	createDefaultAppSettings,
 	createDefaultBaseProfile,
 	createDefaultProfileRecord,
@@ -29,6 +30,7 @@ import {
 	createId,
 	createProfileRecord,
 	cvLanguages,
+	defaultCvTemplate,
 	type JobOffer,
 	type JobPostingReview,
 	type JobSignals,
@@ -36,6 +38,7 @@ import {
 	type MatchAnalysis,
 	normalizeBaseProfile,
 	normalizeCvRun,
+	normalizeCvTemplate,
 	normalizeMatchAnalysis,
 	normalizeProfileRecord,
 	type ProfileRecord,
@@ -79,6 +82,7 @@ import {
 	exportGeneratedCvPdf,
 	formatAppError,
 	isTauriRuntime,
+	printGeneratedCv,
 	runAiToolResilient,
 	suggestAiToolPaths,
 } from "@/lib/tauri-ai";
@@ -115,6 +119,7 @@ interface CvAppContextValue {
 	activeRuns: CvRun[];
 	activeId: string | undefined;
 	selectedLanguage: CvLanguage;
+	cvTemplate: CvTemplateId;
 	aiStatuses: AiToolStatus[];
 	selectedTool: AiToolId;
 	aiModels: AiModels;
@@ -139,6 +144,7 @@ interface CvAppContextValue {
 	setAiToolPath: (provider: AiProviderId, path: string) => void;
 	suggestAndApplyAiToolPaths: () => Promise<void>;
 	setSelectedLanguage: (language: CvLanguage) => void;
+	setCvTemplate: (template: CvTemplateId) => void;
 	refreshAiStatuses: () => Promise<void>;
 	createApplication: () => string;
 	deleteApplication: (id: string) => DeletedApplicationSnapshot | undefined;
@@ -154,6 +160,7 @@ interface CvAppContextValue {
 	generateActive: (language?: CvLanguage) => Promise<void>;
 	switchActiveRun: (runId: string) => void;
 	exportPdf: () => Promise<void>;
+	printCv: () => void;
 	exportAllData: () => Promise<void>;
 	importAllData: (file: File, mode: "replace" | "merge") => Promise<void>;
 	dataSnapshots: DataSnapshotMeta[];
@@ -369,6 +376,9 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 	const [rawJobReviewOutput, setRawJobReviewOutput] = useState<string>();
 	const [rawProfileMatchOutput, setRawProfileMatchOutput] = useState<string>();
 	const [profileRevision, setProfileRevision] = useState(0);
+	const [cvTemplate, setCvTemplateState] =
+		useState<CvTemplateId>(defaultCvTemplate);
+	const cvTemplateHydratedRef = useRef(false);
 	const [profileSnapshot, setProfileSnapshot] = useState<
 		BaseProfile | undefined
 	>();
@@ -487,6 +497,26 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 	}, []);
 
 	useEffect(() => {
+		if (!settings?.cvTemplate) {
+			return;
+		}
+
+		const fromDb = normalizeCvTemplate(settings.cvTemplate);
+		if (!cvTemplateHydratedRef.current) {
+			setCvTemplateState(fromDb);
+			cvTemplateHydratedRef.current = true;
+		}
+	}, [settings?.cvTemplate]);
+
+	useEffect(() => {
+		if (!settings?.cvTemplate || profileRevision === 0) {
+			return;
+		}
+
+		setCvTemplateState(normalizeCvTemplate(settings.cvTemplate));
+	}, [profileRevision, settings?.cvTemplate]);
+
+	useEffect(() => {
 		if (!profileSnapshot) {
 			return;
 		}
@@ -574,6 +604,12 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 		db.settings.update("settings", (draft) => {
 			Object.assign(draft, patch);
 		});
+	}
+
+	function setCvTemplate(template: CvTemplateId) {
+		const normalized = normalizeCvTemplate(template);
+		setCvTemplateState(normalized);
+		void persistSettings({ cvTemplate: normalized });
 	}
 
 	async function persistSettings(patch: Partial<typeof settings>) {
@@ -1400,7 +1436,7 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 		}
 
 		if (!isTauriRuntime()) {
-			window.print();
+			printCv();
 			return;
 		}
 
@@ -1411,6 +1447,17 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 				profile,
 				activeApplication,
 				activeRun,
+				cvTemplate,
+				{
+					summary: i18n.t("cv.section.summary"),
+					skills: i18n.t("cv.section.skills"),
+					experience: i18n.t("cv.section.experience"),
+					projects: i18n.t("cv.section.projects"),
+					education: i18n.t("cv.section.education"),
+					languages: i18n.t("cv.section.languages"),
+					present: i18n.t("cv.present"),
+					nameFallback: i18n.t("cv.print.nameFallback"),
+				},
 			);
 			toast.success(i18n.t("app.toast.pdfExported"), {
 				description: response.revealed
@@ -1424,6 +1471,25 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 		} finally {
 			setIsExportingPdf(false);
 		}
+	}
+
+	async function printCv() {
+		if (!activeApplication || !activeRun || !profileRecord) {
+			return;
+		}
+
+		if (isTauriRuntime()) {
+			try {
+				await printGeneratedCv();
+			} catch (error) {
+				toast.error(i18n.t("app.toast.printFailed"), {
+					description: getErrorMessage(error),
+				});
+			}
+			return;
+		}
+
+		window.print();
 	}
 
 	async function exportAllData() {
@@ -1902,6 +1968,7 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 			activeRuns,
 			activeId,
 			selectedLanguage,
+			cvTemplate,
 			aiStatuses,
 			selectedTool,
 			aiModels,
@@ -1927,6 +1994,7 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 			setAiToolPath,
 			suggestAndApplyAiToolPaths,
 			setSelectedLanguage,
+			setCvTemplate,
 			refreshAiStatuses,
 			createApplication,
 			deleteApplication,
@@ -1942,6 +2010,7 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 			generateActive,
 			switchActiveRun,
 			exportPdf,
+			printCv,
 			exportAllData,
 			importAllData,
 			dataSnapshots,
@@ -1975,6 +2044,7 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 			activeRuns,
 			activeId,
 			selectedLanguage,
+			cvTemplate,
 			aiStatuses,
 			selectedTool,
 			aiModels,
