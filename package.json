@@ -20,6 +20,7 @@
 		"deploy:check": "vercel deploy --dry",
 		"desktop:setup-signing": "tsx scripts/setup-desktop-signing.ts",
 		"desktop:release": "tsx scripts/release-desktop-macos.ts",
+		"desktop:icon": "node scripts/generate-app-icon.mjs && node scripts/generate-dmg-background.mjs && pnpm -F web tauri icon src-tauri/app-icon.png -o src-tauri/icons",
 		"check": "biome check --write .",
 		"test": "vitest run"
 	},
@@ -32,6 +33,7 @@
 		"@biomejs/biome": "^2.5.2",
 		"@cv-tailor/config": "workspace:*",
 		"@types/node": "catalog:",
+		"sharp": "^0.34.5",
 		"tsx": "^4.22.5",
 		"turbo": "^2.10.2",
 		"typescript": "catalog:",

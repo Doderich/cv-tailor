@@ -10,7 +10,7 @@
 		"start": "vite",
 		"check-types": "vite build && tsc --noEmit",
 		"tauri": "tauri",
-		"desktop:dev": "tauri dev",
+		"desktop:dev": "node scripts/tauri-dev.mjs",
 		"desktop:run": "cargo run --manifest-path src-tauri/Cargo.toml --no-default-features",
 		"desktop:build": "tauri build",
 		"desktop:setup-signing": "tsx ../../scripts/setup-desktop-signing.ts",

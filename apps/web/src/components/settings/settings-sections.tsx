@@ -1,5 +1,6 @@
 import type { AiProviderId, AiToolId } from "@cv-tailor/ai";
 import { Button } from "@cv-tailor/ui/components/button";
+import { Input } from "@cv-tailor/ui/components/input";
 import {
 	Select,
 	SelectContent,
@@ -7,7 +8,6 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@cv-tailor/ui/components/select";
-import { Input } from "@cv-tailor/ui/components/input";
 import { cn } from "@cv-tailor/ui/lib/utils";
 import { Monitor, Moon, RefreshCw, Sun } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -193,23 +193,33 @@ export function SettingsAppearanceSection() {
 		<SettingsSection>
 			<div className="grid gap-4">
 				<div className="grid gap-3">
-					<span className="font-medium text-base">{t("settings.appearance.mode")}</span>
+					<span className="font-medium text-base">
+						{t("settings.appearance.mode")}
+					</span>
 					<ThemeToggleGroup />
 				</div>
 				<div className="grid gap-3">
-					<span className="font-medium text-base">{t("settings.appearance.language")}</span>
+					<span className="font-medium text-base">
+						{t("settings.appearance.language")}
+					</span>
 					<LanguagePicker />
 				</div>
 				<div className="grid gap-3">
-					<span className="font-medium text-base">{t("settings.appearance.textSize")}</span>
+					<span className="font-medium text-base">
+						{t("settings.appearance.textSize")}
+					</span>
 					<TextSizeSelect />
 				</div>
 				<div className="grid gap-3">
-					<span className="font-medium text-base">{t("settings.appearance.typeface")}</span>
+					<span className="font-medium text-base">
+						{t("settings.appearance.typeface")}
+					</span>
 					<FontPicker />
 				</div>
 				<div className="grid gap-3">
-					<span className="font-medium text-base">{t("settings.appearance.palette")}</span>
+					<span className="font-medium text-base">
+						{t("settings.appearance.palette")}
+					</span>
 					<PalettePicker />
 				</div>
 			</div>
@@ -248,7 +258,9 @@ export function SettingsAiSection() {
 		<SettingsSection>
 			<div className="grid gap-4">
 				<div className="grid gap-3">
-					<span className="font-medium text-base">{t("settings.ai.preferredTool")}</span>
+					<span className="font-medium text-base">
+						{t("settings.ai.preferredTool")}
+					</span>
 					<SegmentedControl
 						options={toolOptions}
 						value={selectedTool}
@@ -257,7 +269,9 @@ export function SettingsAiSection() {
 				</div>
 				{effectiveAiProvider ? (
 					<div className="grid gap-3">
-						<span className="font-medium text-base">{t("settings.ai.model")}</span>
+						<span className="font-medium text-base">
+							{t("settings.ai.model")}
+						</span>
 						<SegmentedControl
 							options={modelOptions}
 							value={activeModel ?? modelOptions[0]?.id ?? ""}

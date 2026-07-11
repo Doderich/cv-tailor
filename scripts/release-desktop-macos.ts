@@ -357,7 +357,7 @@ function main() {
 		`Published ${tag} to https://github.com/${githubRepo}/releases/tag/${tag}`,
 	);
 	console.log(
-		`Remember to commit the version bump in apps/web/src-tauri/tauri.conf.json and Cargo.toml.`,
+		"Remember to commit the version bump in apps/web/src-tauri/tauri.conf.json and Cargo.toml.",
 	);
 }
 

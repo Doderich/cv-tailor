@@ -23,13 +23,7 @@ import {
 	Trash2,
 } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import {
-	memo,
-	type ReactNode,
-	useCallback,
-	useEffect,
-	useState,
-} from "react";
+import { memo, type ReactNode, useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { AnimatedPage } from "@/components/animated-page";
@@ -101,9 +95,7 @@ function SidebarToggle({
 				size="icon-sm"
 				className="lg:hidden"
 				onClick={railOpen ? onCloseRail : onOpenRail}
-				title={
-					railOpen ? t("shell.hideSidebar") : t("shell.openApplications")
-				}
+				title={railOpen ? t("shell.hideSidebar") : t("shell.openApplications")}
 			>
 				{railOpen ? <PanelLeftClose /> : <PanelLeft />}
 			</Button>
@@ -159,7 +151,7 @@ function ApplicationRailItem({
 				</span>
 				<span className="flex items-center gap-1.5">
 					{application.isDraft ? (
-						<span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+						<span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-muted-foreground text-xs">
 							{t("common.draft")}
 						</span>
 					) : application.previewScore !== undefined ? (
