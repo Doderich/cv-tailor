@@ -13,6 +13,7 @@ import {
 	Sun,
 	WandSparkles,
 } from "lucide-react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -20,6 +21,7 @@ import { usePalette } from "@/components/palette-provider";
 import { useTheme } from "@/components/theme-provider";
 import { applicationStepPath } from "@/lib/application-route";
 import { applicationTitle, useCvApp } from "@/lib/cv-app-context";
+import { transitionForReduced, transitions } from "@/lib/motion";
 
 export const openCommandPaletteEvent = "cmdk:open";
 
@@ -51,6 +53,7 @@ export function CommandPalette() {
 	const { setTheme } = useTheme();
 	const { palettes, setPalette } = usePalette();
 	const navigate = useNavigate();
+	const reduced = useReducedMotion();
 
 	const [open, setOpen] = useState(false);
 	const [query, setQuery] = useState("");
@@ -245,10 +248,6 @@ export function CommandPalette() {
 		);
 	}, [filtered.length]);
 
-	if (!open) {
-		return null;
-	}
-
 	function handleKeyDown(event: React.KeyboardEvent) {
 		if (event.key === "ArrowDown") {
 			event.preventDefault();
@@ -276,91 +275,106 @@ export function CommandPalette() {
 	};
 
 	return (
-		<div className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-[15vh]">
-			<button
-				type="button"
-				aria-label={t("commandPalette.close")}
-				className="absolute inset-0 bg-foreground/40 backdrop-blur-sm"
-				onClick={() => setOpen(false)}
-			/>
-			<div
-				role="dialog"
-				aria-modal="true"
-				aria-label={t("commandPalette.dialog")}
-				className="relative w-full max-w-lg overflow-hidden rounded-xl border bg-popover text-popover-foreground shadow-2xl"
-				onKeyDown={handleKeyDown}
-			>
-				<div className="flex items-center gap-2 border-b px-3">
-					<Search className="size-4 text-muted-foreground" />
-					<input
-						ref={inputRef}
-						value={query}
-						onChange={(event) => setQuery(event.target.value)}
-						placeholder={t("commandPalette.placeholder")}
-						className="h-11 w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+		<AnimatePresence>
+			{open ? (
+				<motion.div
+					key="command-palette"
+					initial={{ opacity: 0 }}
+					animate={{ opacity: 1 }}
+					exit={{ opacity: 0 }}
+					transition={transitionForReduced(reduced, transitions.fast)}
+					className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-[15vh]"
+				>
+					<button
+						type="button"
+						aria-label={t("commandPalette.close")}
+						className="absolute inset-0 bg-foreground/40 backdrop-blur-sm"
+						onClick={() => setOpen(false)}
 					/>
-					<kbd className="rounded border bg-muted px-1.5 py-0.5 font-medium text-[10px] text-muted-foreground">
-						{t("commandPalette.escapeHint")}
-					</kbd>
-				</div>
+					<motion.div
+						role="dialog"
+						aria-modal="true"
+						aria-label={t("commandPalette.dialog")}
+						initial={reduced ? false : { opacity: 0, scale: 0.96, y: -8 }}
+						animate={{ opacity: 1, scale: 1, y: 0 }}
+						exit={reduced ? undefined : { opacity: 0, scale: 0.98, y: -4 }}
+						transition={transitionForReduced(reduced, transitions.spring)}
+						className="relative w-full max-w-lg overflow-hidden rounded-xl border bg-popover text-popover-foreground shadow-2xl"
+						onKeyDown={handleKeyDown}
+					>
+						<div className="flex items-center gap-2 border-b px-3">
+							<Search className="size-4 text-muted-foreground" />
+							<input
+								ref={inputRef}
+								value={query}
+								onChange={(event) => setQuery(event.target.value)}
+								placeholder={t("commandPalette.placeholder")}
+								className="h-11 w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+							/>
+							<kbd className="rounded border bg-muted px-1.5 py-0.5 font-medium text-[10px] text-muted-foreground">
+								{t("commandPalette.escapeHint")}
+							</kbd>
+						</div>
 
-				<div className="max-h-80 overflow-y-auto p-2">
-					{filtered.length === 0 ? (
-						<p className="px-2 py-6 text-center text-muted-foreground text-sm">
-							{t("commandPalette.noResults", { query })}
-						</p>
-					) : (
-						groupOrder.map((group) => {
-							const groupItems = filtered.filter(
-								(item) => item.group === group,
-							);
-							if (groupItems.length === 0) {
-								return null;
-							}
+						<div className="max-h-80 overflow-y-auto p-2">
+							{filtered.length === 0 ? (
+								<p className="px-2 py-6 text-center text-muted-foreground text-sm">
+									{t("commandPalette.noResults", { query })}
+								</p>
+							) : (
+								groupOrder.map((group) => {
+									const groupItems = filtered.filter(
+										(item) => item.group === group,
+									);
+									if (groupItems.length === 0) {
+										return null;
+									}
 
-							return (
-								<div key={group} className="mb-1 last:mb-0">
-									<p className="px-2 py-1.5 font-medium text-[11px] text-muted-foreground uppercase tracking-wide">
-										{groupLabels[group]}
-									</p>
-									<ul>
-										{groupItems.map((item) => {
-											const index = filtered.indexOf(item);
-											const active = index === activeIndex;
-											const Icon = item.icon;
-											return (
-												<li key={item.id}>
-													<button
-														type="button"
-														onMouseMove={() => setActiveIndex(index)}
-														onClick={() => item.run()}
-														className={cn(
-															"flex w-full items-center gap-2.5 rounded-md px-2 py-2 text-left text-sm transition-colors",
-															active
-																? "bg-accent text-accent-foreground"
-																: "text-foreground",
-														)}
-													>
-														<Icon className="size-4 shrink-0 text-muted-foreground" />
-														<span className="min-w-0 flex-1 truncate">
-															{item.label}
-														</span>
-														{item.hint ? (
-															<span className="shrink-0 text-muted-foreground text-xs">
-																{item.hint}
-															</span>
-														) : null}
-													</button>
-												</li>
-											);
-										})}
-									</ul>
-								</div>
-							);
-						})
-					)}
-				</div>
-			</div>
-		</div>
+									return (
+										<div key={group} className="mb-1 last:mb-0">
+											<p className="px-2 py-1.5 font-medium text-[11px] text-muted-foreground uppercase tracking-wide">
+												{groupLabels[group]}
+											</p>
+											<ul>
+												{groupItems.map((item) => {
+													const index = filtered.indexOf(item);
+													const active = index === activeIndex;
+													const Icon = item.icon;
+													return (
+														<li key={item.id}>
+															<button
+																type="button"
+																onMouseMove={() => setActiveIndex(index)}
+																onClick={() => item.run()}
+																className={cn(
+																	"flex w-full items-center gap-2.5 rounded-md px-2 py-2 text-left text-sm transition-colors",
+																	active
+																		? "bg-accent text-accent-foreground"
+																		: "text-foreground",
+																)}
+															>
+																<Icon className="size-4 shrink-0 text-muted-foreground" />
+																<span className="min-w-0 flex-1 truncate">
+																	{item.label}
+																</span>
+																{item.hint ? (
+																	<span className="shrink-0 text-muted-foreground text-xs">
+																		{item.hint}
+																	</span>
+																) : null}
+															</button>
+														</li>
+													);
+												})}
+											</ul>
+										</div>
+									);
+								})
+							)}
+						</div>
+					</motion.div>
+				</motion.div>
+			) : null}
+		</AnimatePresence>
 	);
 }

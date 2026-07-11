@@ -119,5 +119,7 @@ export function parseApplicationStep(
 }
 
 export function applicationStepMeta(step: ApplicationStepId) {
-	return applicationSteps.find((entry) => entry.id === step) ?? applicationSteps[0];
+	return (
+		applicationSteps.find((entry) => entry.id === step) ?? applicationSteps[0]
+	);
 }

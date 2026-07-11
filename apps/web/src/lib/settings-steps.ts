@@ -14,9 +14,14 @@ export const settingsSteps: SettingsStepMeta[] = [
 
 export const defaultSettingsStep: SettingsStepId = "appearance";
 
-export function parseSettingsStep(pathname: string): SettingsStepId | undefined {
+export function parseSettingsStep(
+	pathname: string,
+): SettingsStepId | undefined {
 	for (const step of settingsSteps) {
-		if (pathname === `/settings/${step.id}` || pathname.endsWith(`/${step.id}`)) {
+		if (
+			pathname === `/settings/${step.id}` ||
+			pathname.endsWith(`/${step.id}`)
+		) {
 			return step.id;
 		}
 	}

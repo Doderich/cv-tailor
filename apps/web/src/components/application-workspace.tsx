@@ -32,19 +32,13 @@ import { toast } from "sonner";
 import { ArrayLinesField } from "@/components/array-lines-field";
 import { CvPreview } from "@/components/cv/cv-preview";
 import { GeneratedCvEditor } from "@/components/cv/generated-cv-editor";
-import {
-	KeywordMatchGrid,
-	MatchBulletList,
-} from "@/components/cv/insights";
+import { KeywordMatchGrid, MatchBulletList } from "@/components/cv/insights";
 import { applicationStepPath } from "@/lib/application-route";
 import { isAnalysisInProgress } from "@/lib/application-steps";
 import { cvLanguages, useCvApp } from "@/lib/cv-app-context";
 import { useCvLanguageLabel, useJobPositionLabel } from "@/lib/i18n-labels";
 import { formatSourceError, parseSourceUrls } from "@/lib/profile-source-urls";
-import {
-	fetchUrlText,
-	isTauriRuntime,
-} from "@/lib/tauri-ai";
+import { fetchUrlText, isTauriRuntime } from "@/lib/tauri-ai";
 
 function ApplicationStepShell({
 	children,
@@ -588,7 +582,9 @@ function ReviewStepContent({
 						size="sm"
 						onClick={() => void analyzeActiveProfileMatch({ force: true })}
 						disabled={
-							isAnalyzingProfileMatch || isReviewingJobOffer || !canUseSelectedAi
+							isAnalyzingProfileMatch ||
+							isReviewingJobOffer ||
+							!canUseSelectedAi
 						}
 					>
 						{isAnalyzingProfileMatch ? (

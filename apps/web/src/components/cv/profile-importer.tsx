@@ -6,7 +6,6 @@ import {
 } from "@cv-tailor/ai";
 import {
 	cvLanguages,
-	type CvLanguage,
 	hasMeaningfulProfileContent,
 	normalizeBaseProfile,
 	summarizeProfileContent,
@@ -33,25 +32,21 @@ import { FileSearch, Loader2, Paperclip, X } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-
+import { resolveEffectiveAiModel, useCvApp } from "@/lib/cv-app-context";
+import { formatLocalizedDate, useCvLanguageLabel } from "@/lib/i18n-labels";
 import {
 	mergeProfileFileSources,
 	PROFILE_SOURCE_FILE_ACCEPT,
 	type ProfileFileSource,
 	readProfileSourceFiles,
 } from "@/lib/profile-source-files";
+import { formatSourceError, parseSourceUrls } from "@/lib/profile-source-urls";
 import {
-	formatSourceError,
-	parseSourceUrls,
-} from "@/lib/profile-source-urls";
-import {
+	type AiRunProgressEvent,
 	fetchUrlText,
 	isTauriRuntime,
 	runAiToolResilient,
-	type AiRunProgressEvent,
 } from "@/lib/tauri-ai";
-import { resolveEffectiveAiModel, useCvApp } from "@/lib/cv-app-context";
-import { formatLocalizedDate, useCvLanguageLabel } from "@/lib/i18n-labels";
 
 interface ProfileImporterProps {
 	selectedTool: AiToolId;
@@ -477,9 +472,7 @@ export function ProfileImporter({
 						accept={PROFILE_SOURCE_FILE_ACCEPT}
 						multiple
 						className="sr-only"
-						onChange={(event) =>
-							void handleFilesSelected(event.target.files)
-						}
+						onChange={(event) => void handleFilesSelected(event.target.files)}
 					/>
 					<p className="text-muted-foreground text-xs">
 						{t("profile.importer.filesHelp")}

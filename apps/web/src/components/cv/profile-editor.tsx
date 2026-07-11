@@ -20,9 +20,8 @@ import { Plus, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-
-import { getErrorMessage } from "@/lib/cv-app-context";
 import { ArrayLinesField } from "@/components/array-lines-field";
+import { getErrorMessage } from "@/lib/cv-app-context";
 
 interface ProfileEditorProps {
 	profile: BaseProfile;
@@ -289,9 +288,7 @@ export function ProfileEditor({
 		setIsDirty(true);
 		setDraft((current) => {
 			const base = isDirty ? current : normalizeDraft(profileRef.current);
-			const projects = (base.projects ?? []).filter(
-				(entry) => entry.id !== id,
-			);
+			const projects = (base.projects ?? []).filter((entry) => entry.id !== id);
 			persistPatch({ projects });
 			return { ...base, projects };
 		});

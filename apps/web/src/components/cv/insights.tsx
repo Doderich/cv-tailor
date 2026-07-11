@@ -199,7 +199,7 @@ export function MatchBulletList({
 						<li
 							key={item}
 							className={cn(
-								"border-l-2 pl-3 text-sm leading-relaxed break-words",
+								"break-words border-l-2 pl-3 text-sm leading-relaxed",
 								tone === "positive"
 									? "border-primary/60 text-foreground"
 									: "border-destructive/60 text-muted-foreground",

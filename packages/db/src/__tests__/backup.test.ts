@@ -5,11 +5,7 @@ import {
 } from "@cv-tailor/core";
 import { describe, expect, it } from "vitest";
 
-import {
-	createBackupSnapshot,
-	importBackup,
-	parseBackupFile,
-} from "../backup";
+import { createBackupSnapshot, importBackup, parseBackupFile } from "../backup";
 import type { DbCollections } from "../collections";
 
 function createMockCollections(seed?: {
@@ -25,17 +21,18 @@ function createMockCollections(seed?: {
 			string,
 			ReturnType<typeof createEmptyApplication>["draftRun"]
 		>(),
-		aiOutputs: new Map<string, { id: string; cvRunId: string; stdout: string }>(),
+		aiOutputs: new Map<
+			string,
+			{ id: string; cvRunId: string; stdout: string }
+		>(),
 		settings: new Map<string, ReturnType<typeof createDefaultAppSettings>>(),
 	};
 
 	const profile =
-		seed?.profiles?.[0] ?? createDefaultProfileRecord(undefined, { name: "Ada" });
+		seed?.profiles?.[0] ??
+		createDefaultProfileRecord(undefined, { name: "Ada" });
 	store.profiles.set(profile.id, profile);
-	store.settings.set(
-		"settings",
-		createDefaultAppSettings(profile.id),
-	);
+	store.settings.set("settings", createDefaultAppSettings(profile.id));
 
 	const { application, draftRun } = createEmptyApplication({
 		id: "app-1",
@@ -78,12 +75,16 @@ function createMockCollections(seed?: {
 	} as DbCollections["settings"];
 
 	return {
-		profiles: makeCollection(store.profiles) as unknown as DbCollections["profiles"],
-		applications:
-			makeCollection(store.applications) as unknown as DbCollections["applications"],
+		profiles: makeCollection(
+			store.profiles,
+		) as unknown as DbCollections["profiles"],
+		applications: makeCollection(
+			store.applications,
+		) as unknown as DbCollections["applications"],
 		cvRuns: makeCollection(store.cvRuns) as unknown as DbCollections["cvRuns"],
-		aiOutputs:
-			makeCollection(store.aiOutputs) as unknown as DbCollections["aiOutputs"],
+		aiOutputs: makeCollection(
+			store.aiOutputs,
+		) as unknown as DbCollections["aiOutputs"],
 		settings: settingsCollection as unknown as DbCollections["settings"],
 	};
 }
