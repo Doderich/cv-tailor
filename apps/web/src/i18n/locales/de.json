@@ -256,6 +256,7 @@
 			"printCv": "Drucken / Als PDF speichern",
 			"generate": "Generieren",
 			"regenerate": "Neu generieren",
+			"moreActions": "Weitere Aktionen",
 			"aiSetupDesktop": "Installiere oder authentifiziere ein KI-Tool (Claude, Codex oder Cursor) und aktualisiere es in den Einstellungen.",
 			"aiSetupWeb": "Öffne die Tauri-Desktop-App für lokale KI-Generierung. Du kannst weiterhin manuell bearbeiten.",
 			"noVersionYet": "Noch keine {{language}}-Version. Generiere eine, um mit Bearbeitung und Export zu beginnen."

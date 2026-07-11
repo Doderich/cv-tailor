@@ -256,6 +256,7 @@
 			"printCv": "Print / Save PDF",
 			"generate": "Generate",
 			"regenerate": "Regenerate",
+			"moreActions": "More actions",
 			"aiSetupDesktop": "Install or authenticate an AI tool (Claude, Codex, or Cursor), then refresh in settings.",
 			"aiSetupWeb": "Open the Tauri desktop app to run local AI generation. You can still edit manually.",
 			"noVersionYet": "No {{language}} version yet. Generate one to start editing and exporting."

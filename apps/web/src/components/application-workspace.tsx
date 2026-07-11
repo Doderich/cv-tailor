@@ -9,6 +9,12 @@ import {
 	jobPositions,
 } from "@cv-tailor/core";
 import { Button } from "@cv-tailor/ui/components/button";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from "@cv-tailor/ui/components/dropdown-menu";
 import { Input } from "@cv-tailor/ui/components/input";
 import { Label } from "@cv-tailor/ui/components/label";
 import {
@@ -31,12 +37,13 @@ import {
 	Languages,
 	Link2,
 	Loader2,
+	MoreHorizontal,
 	Printer,
 	Sparkles,
 	TriangleAlert,
 	WandSparkles,
 } from "lucide-react";
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { type ComponentProps, type ReactNode, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
@@ -180,14 +187,21 @@ function Metric({ label, value }: { label: string; value: string }) {
 function LanguagePicker({
 	value,
 	onChange,
+	className,
 }: {
 	value: CvLanguage;
 	onChange: (language: CvLanguage) => void;
+	className?: string;
 }) {
 	const cvLanguageLabel = useCvLanguageLabel();
 
 	return (
-		<div className="inline-flex w-fit shrink-0 rounded-lg border bg-card p-1">
+		<div
+			className={cn(
+				"inline-flex w-fit shrink-0 rounded-lg border bg-card p-1 max-sm:flex max-sm:w-full",
+				className,
+			)}
+		>
 			{cvLanguages.map((language) => {
 				const active = value === language;
 				return (
@@ -196,19 +210,40 @@ function LanguagePicker({
 						type="button"
 						onClick={() => onChange(language)}
 						className={cn(
-							"inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 font-medium text-sm",
+							"inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 font-medium text-sm max-sm:flex-1 max-sm:justify-center",
 							interactiveSegment,
 							active
 								? "bg-primary text-primary-foreground"
 								: "text-muted-foreground hover:bg-muted",
 						)}
 					>
-						<Languages className="size-3.5" />
-						{cvLanguageLabel(language)}
+						<Languages className="size-3.5 shrink-0" />
+						<span className="truncate">{cvLanguageLabel(language)}</span>
 					</button>
 				);
 			})}
 		</div>
+	);
+}
+
+function TailorToolbarButton({
+	label,
+	icon,
+	className,
+	...props
+}: ComponentProps<typeof Button> & {
+	label: string;
+	icon: ReactNode;
+}) {
+	return (
+		<Button
+			className={cn("max-sm:px-2.5", className)}
+			aria-label={label}
+			{...props}
+		>
+			{icon}
+			<span className="hidden sm:inline">{label}</span>
+		</Button>
 	);
 }
 
@@ -763,53 +798,111 @@ function TailorStep({
 	const { t } = useTranslation();
 	const cvLanguageLabel = useCvLanguageLabel();
 	const hasRunForLanguage = run?.language === selectedLanguage;
+	const generateLabel =
+		hasRunForLanguage && run?.source !== "draft"
+			? t("application.generate.regenerate")
+			: t("application.generate.generate");
+	const showExportPdf = isTauriRuntime();
 
 	return (
 		<div className="grid gap-4">
-			<div className="flex flex-col gap-3 rounded-xl border bg-card p-4 sm:flex-row sm:items-center sm:justify-between">
+			<div className="grid gap-3 rounded-xl border bg-card p-4">
 				<LanguagePicker
 					value={selectedLanguage}
 					onChange={onLanguageChange}
 				/>
-				<div className="flex flex-wrap items-center gap-2">
-					<Button variant="ghost" onClick={onBack}>
-						<ArrowLeft /> {t("common.back")}
-					</Button>
-					<Button
-						variant="outline"
-						onClick={onPrintCv}
-						disabled={!run}
-					>
-						<Printer />
-						{t("application.generate.printCv")}
-					</Button>
-					{isTauriRuntime() ? (
-						<Button
+
+				<Button
+					className="w-full sm:hidden"
+					onClick={() => onGenerate(selectedLanguage)}
+					disabled={!canGenerate}
+				>
+					{isGenerating ? (
+						<Loader2 className="animate-spin" />
+					) : (
+						<WandSparkles />
+					)}
+					{generateLabel}
+				</Button>
+
+				<div className="grid grid-cols-[auto_1fr_auto] items-center gap-2 sm:flex sm:flex-wrap sm:items-center sm:justify-end">
+					<TailorToolbarButton
+						variant="ghost"
+						label={t("common.back")}
+						icon={<ArrowLeft />}
+						onClick={onBack}
+						className="justify-self-start sm:mr-auto"
+					/>
+
+					<div className="hidden items-center gap-2 sm:flex">
+						<TailorToolbarButton
 							variant="outline"
-							onClick={onExportPdf}
-							disabled={isExportingPdf || !run}
+							label={t("application.generate.printCv")}
+							icon={<Printer />}
+							onClick={onPrintCv}
+							disabled={!run}
+						/>
+						{showExportPdf ? (
+							<TailorToolbarButton
+								variant="outline"
+								label={t("application.generate.exportPdf")}
+								icon={
+									isExportingPdf ? (
+										<Loader2 className="animate-spin" />
+									) : (
+										<FileDown />
+									)
+								}
+								onClick={onExportPdf}
+								disabled={isExportingPdf || !run}
+							/>
+						) : null}
+						<Button
+							onClick={() => onGenerate(selectedLanguage)}
+							disabled={!canGenerate}
 						>
-							{isExportingPdf ? (
+							{isGenerating ? (
 								<Loader2 className="animate-spin" />
 							) : (
-								<FileDown />
+								<WandSparkles />
 							)}
-							{t("application.generate.exportPdf")}
+							{generateLabel}
 						</Button>
-					) : null}
-					<Button
-						onClick={() => onGenerate(selectedLanguage)}
-						disabled={!canGenerate}
-					>
-						{isGenerating ? (
-							<Loader2 className="animate-spin" />
-						) : (
-							<WandSparkles />
-						)}
-						{hasRunForLanguage && run?.source !== "draft"
-							? t("application.generate.regenerate")
-							: t("application.generate.generate")}
-					</Button>
+					</div>
+
+					<DropdownMenu>
+						<DropdownMenuTrigger
+							render={
+								<Button
+									variant="outline"
+									size="icon"
+									className="justify-self-end sm:hidden"
+									aria-label={t("application.generate.moreActions")}
+								/>
+							}
+						>
+							<MoreHorizontal />
+						</DropdownMenuTrigger>
+						<DropdownMenuContent align="end" className="w-56">
+							<DropdownMenuItem onClick={onPrintCv} disabled={!run}>
+								<Printer />
+								{t("application.generate.printCv")}
+							</DropdownMenuItem>
+							{showExportPdf ? (
+								<DropdownMenuItem
+									onClick={onExportPdf}
+									disabled={isExportingPdf || !run}
+								>
+									{isExportingPdf ? (
+										<Loader2 className="animate-spin" />
+									) : (
+										<FileDown />
+									)}
+									{t("application.generate.exportPdf")}
+								</DropdownMenuItem>
+							) : null}
+						</DropdownMenuContent>
+					</DropdownMenu>
 				</div>
 			</div>
 
