@@ -1,0 +1,509 @@
+{
+	"app": {
+		"title": "cv-tailor",
+		"description": "cv-tailor ist eine Webanwendung",
+		"application": {
+			"untitledRole": "Unbenannte Stelle",
+			"noCompany": "Kein Unternehmen"
+		},
+		"run": {
+			"label": "{{language}}",
+			"labelVersioned": "{{language}} v{{version}}"
+		},
+		"error": {
+			"noAiForReview": "Kein KI-Tool für die Stellenanalyse verfügbar.",
+			"jobReviewLoginHint": "{{message}} Öffne Einstellungen → KI-Tool und wähle Cursor, oder führe `claude /login` aus.",
+			"dbWriteProfile": "Profil konnte nicht in der Datenbank gespeichert werden: {{message}}"
+		},
+		"toast": {
+			"aiDetectFailed": "KI-Tools konnten nicht erkannt werden",
+			"aiSettingsSaveFailed": "KI-Einstellungen konnten nicht gespeichert werden",
+			"jobReviewFailed": "Stellenanalyse fehlgeschlagen",
+			"generationFailed": "Generierung fehlgeschlagen",
+			"cvGenerated": "{{language}}-Lebenslauf generiert",
+			"pdfExported": "PDF exportiert",
+			"pdfRevealed": "Das PDF wurde im Finder angezeigt.",
+			"pdfExportFailed": "PDF-Export fehlgeschlagen",
+			"backupExported": "Sicherung exportiert",
+			"backupSummary": "{{profiles}} Profile, {{applications}} Bewerbungen, {{cvRuns}} Lebenslauf-Versionen.",
+			"exportFailed": "Export fehlgeschlagen",
+			"backupRestored": "Sicherung wiederhergestellt",
+			"backupMerged": "Sicherung zusammengeführt",
+			"importFailed": "Import fehlgeschlagen",
+			"profileSaveFailed": "Profil konnte nicht gespeichert werden",
+			"cannotDeleteLastProfile": "Das letzte Profil kann nicht gelöscht werden",
+			"profileHasApplications": "Profil hat Bewerbungen",
+			"profileHasApplicationsDescription": "Lösche oder archiviere diese Bewerbungen zuerst."
+		}
+	},
+	"common": {
+		"back": "Zurück",
+		"add": "Hinzufügen",
+		"remove": "Entfernen",
+		"cancel": "Abbrechen",
+		"create": "Erstellen",
+		"open": "Öffnen",
+		"undo": "Rückgängig",
+		"draft": "Entwurf",
+		"more": "Mehr",
+		"loading": "…"
+	},
+	"shell": {
+		"openApplications": "Bewerbungen öffnen",
+		"showSidebar": "Seitenleiste einblenden",
+		"hideSidebar": "Seitenleiste ausblenden",
+		"searchApplications": "Bewerbungen suchen",
+		"newApplication": "Neue Bewerbung",
+		"noApplications": "Noch keine Bewerbungen. Erstelle deine erste, um loszulegen.",
+		"noMatches": "Keine Treffer.",
+		"archived": "Archiviert ({{count}})",
+		"unarchive": "Wiederherstellen",
+		"archive": "Archivieren",
+		"delete": "Löschen",
+		"applicationDeleted": "Bewerbung gelöscht",
+		"settings": "Einstellungen",
+		"dragToResize": "Ziehen zum Vergrößern",
+		"closeMenu": "Menü schließen"
+	},
+	"home": {
+		"title": "Neue Bewerbung starten",
+		"description": "Füge eine Stellenanzeige ein, prüfe wie gut dein Profil passt, und erstelle dann zugeschnittene Lebensläufe auf Englisch oder Deutsch.",
+		"newApplication": "Neue Bewerbung"
+	},
+	"settings": {
+		"tab": {
+			"appearance": "Darstellung",
+			"ai": "KI",
+			"data": "Daten",
+			"profile": "Profil"
+		},
+		"appearance": {
+			"mode": "Modus",
+			"textSize": "Textgröße",
+			"typeface": "Schriftart",
+			"palette": "Farbpalette",
+			"language": "Sprache",
+			"selectTextSize": "Textgröße wählen"
+		},
+		"theme": {
+			"light": "Hell",
+			"dark": "Dunkel",
+			"system": "System"
+		},
+		"textSize": {
+			"small": "Klein",
+			"default": "Standard",
+			"large": "Groß",
+			"larger": "Größer"
+		},
+		"ai": {
+			"preferredTool": "Bevorzugtes Tool",
+			"model": "Modell",
+			"refreshTools": "Tools aktualisieren",
+			"tool": {
+				"auto": "Automatisch",
+				"claude": "Claude",
+				"codex": "Codex",
+				"cursor": "Cursor"
+			}
+		},
+		"data": {
+			"updates": {
+				"title": "Desktop-Updates",
+				"description": "Prüfe GitHub Releases auf eine neuere macOS-Version.",
+				"check": "Nach Updates suchen"
+			}
+		}
+	},
+	"application": {
+		"tab": {
+			"jobDetails": "Stellendetails",
+			"review": "Analyse",
+			"generateCv": "Lebenslauf",
+			"locked": "Schließe zuerst den vorherigen Schritt ab"
+		},
+		"jobDetails": {
+			"title": "Stellenanzeige",
+			"subtitle": "Füge die Anzeige ein oder importiere sie über einen öffentlichen Link.",
+			"mode": {
+				"paste": "Text einfügen",
+				"url": "Von Link"
+			},
+			"url": {
+				"label": "URL der Stellenanzeige",
+				"placeholder": "https://www.stepstone.de/stellenangebote--...",
+				"helpDesktop": "Füge einen öffentlichen Link zur Stellenanzeige ein. CV Tailor lädt die Seite und füllt Titel, Unternehmen und Beschreibung aus.",
+				"helpWeb": "Öffne die Desktop-App, um Stellenanzeigen per URL zu importieren.",
+				"importButton": "Von Link importieren"
+			},
+			"field": {
+				"jobTitle": {
+					"label": "Stellenbezeichnung",
+					"placeholder": "Senior Frontend Engineer"
+				},
+				"company": {
+					"label": "Unternehmen",
+					"placeholder": "Acme GmbH"
+				},
+				"positionType": {
+					"label": "Positionstyp",
+					"ariaLabel": "Positionstyp",
+					"placeholder": "Positionstyp wählen"
+				},
+				"links": {
+					"label": "Anzeigen-Links",
+					"placeholder": "https://www.stepstone.de/..."
+				},
+				"description": {
+					"label": "Stellenbeschreibung",
+					"placeholder": "Füge hier den vollständigen Stellentext ein."
+				}
+			},
+			"continue": "Weiter zur Analyse",
+			"toast": {
+				"invalidUrl": "Gib eine gültige URL zur Stellenanzeige ein",
+				"urlImportDesktopOnly": "URL-Import ist nur in der Desktop-App verfügbar",
+				"importSuccess": "Stellenanzeige vom Link importiert",
+				"importFailed": "Stellenanzeige konnte nicht importiert werden"
+			}
+		},
+		"review": {
+			"noRun": "Noch kein Lebenslauf-Durchlauf ausgewählt.",
+			"title": "Stellenanalyse",
+			"status": {
+				"reviewingJob": "KI analysiert die Anzeige und extrahiert relevante Schlüsselwörter.",
+				"analyzingMatch": "KI bewertet, wie gut dein Profil zu dieser Stelle passt.",
+				"preparing": "Stellenanalyse wird vorbereitet…",
+				"reviewed": "Analysiert mit {{reviewTool}}. Passung bewertet{{evaluatorSuffix}}.",
+				"evaluatorWithTool": " mit {{evaluatorTool}}",
+				"evaluatorHeuristics": " mit Schlüsselwort-Heuristiken",
+				"waiting": "Warte auf KI-Analyse.",
+				"aiUnavailable": "KI-Analyse nicht verfügbar. Installiere ein Desktop-KI-Tool, um diese Anzeige zu analysieren."
+			},
+			"rematch": "Profil neu abgleichen",
+			"reanalyze": "Stelle neu analysieren",
+			"generateCv": "Lebenslauf generieren",
+			"roleSummary": "Rollenübersicht",
+			"metric": {
+				"profileMatch": "Profilpassung",
+				"seniority": "Erfahrungslevel",
+				"keywords": "Schlüsselwörter"
+			},
+			"detectedKeywords": "Erkannte Schlüsselwörter",
+			"goodFit": {
+				"title": "Gute Passung",
+				"empty": "Noch keine klaren Stärken erkannt. Gleiche dein Profil erneut ab, nachdem du es aktualisiert hast."
+			},
+			"gaps": {
+				"title": "Lücken schließen",
+				"empty": "Keine klaren Lücken erkannt."
+			}
+		},
+		"generate": {
+			"title": "Lebenslauf auf diese Stelle zuschneiden",
+			"subtitle": "Wähle eine Sprache, generiere mit deiner lokalen KI und verfeinere dann beliebige Abschnitte. Jede Sprache behält ihre eigene Version.",
+			"exportPdf": "PDF exportieren",
+			"generate": "{{language}} generieren",
+			"regenerate": "{{language}} neu generieren",
+			"aiSetupDesktop": "Installiere oder authentifiziere ein KI-Tool (Claude, Codex oder Cursor) und aktualisiere es in den Einstellungen.",
+			"aiSetupWeb": "Öffne die Tauri-Desktop-App für lokale KI-Generierung. Du kannst weiterhin manuell bearbeiten.",
+			"noVersionYet": "Noch keine {{language}}-Version. Generiere eine, um mit Bearbeitung und Export zu beginnen."
+		}
+	},
+	"jobPosition": {
+		"unspecified": "Nicht angegeben",
+		"frontend": "Frontend",
+		"backend": "Backend",
+		"fullstack": "Full Stack",
+		"mobile": "Mobile",
+		"devops": "DevOps / Platform",
+		"data": "Data Engineering",
+		"ml": "ML / KI",
+		"design": "Design / UX",
+		"product": "Produkt",
+		"other": "Sonstiges"
+	},
+	"cvLanguage": {
+		"en": "Englisch",
+		"de": "Deutsch"
+	},
+	"commandPalette": {
+		"close": "Befehlspalette schließen",
+		"dialog": "Befehlspalette",
+		"placeholder": "Befehl eingeben oder suchen…",
+		"escapeHint": "ESC",
+		"noResults": "Keine Ergebnisse für „{{query}}“.",
+		"group": {
+			"actions": "Aktionen",
+			"applications": "Bewerbungen",
+			"appearance": "Darstellung"
+		},
+		"newApplication": "Neue Bewerbung",
+		"settings": "Profil & Einstellungen öffnen",
+		"exportPdf": "Aktiven Lebenslauf als PDF exportieren",
+		"generate": "Zugeschnittenen Lebenslauf generieren",
+		"themeLight": "Design: Hell",
+		"themeDark": "Design: Dunkel",
+		"themeSystem": "Design: System",
+		"palette": "Palette: {{paletteName}}"
+	},
+	"insights": {
+		"keywords": {
+			"empty": "Noch keine Schlüsselwörter.",
+			"analyzing": "Anzeige wird analysiert…",
+			"legend": "Hervorgehobene Tags erscheinen in deinem Profil. Gedämpfte Tags brauchen noch stärkere Abdeckung."
+		},
+		"match": {
+			"analyzing": "Profilpassung wird analysiert…",
+			"countOf": " von {{total}}"
+		},
+		"panel": {
+			"title": "Stellensignale",
+			"metric": {
+				"match": "Passung",
+				"level": "Level",
+				"terms": "Begriffe"
+			},
+			"detectedKeywords": "Erkannte Schlüsselwörter",
+			"goodFit": {
+				"title": "Gute Passung",
+				"empty": "Noch keine klaren Stärken erkannt."
+			},
+			"gaps": {
+				"title": "Lücken schließen",
+				"empty": "Keine klaren Lücken erkannt."
+			}
+		},
+		"aiStatus": {
+			"title": "KI-Tool-Status",
+			"ready": "Bereit",
+			"unavailable": "Nicht verfügbar",
+			"notChecked": "Nicht geprüft"
+		},
+		"history": {
+			"metric": {
+				"match": "Passung",
+				"keywords": "Schlüsselwörter",
+				"level": "Level"
+			},
+			"open": "Öffnen",
+			"untitledRole": "Unbenannte Stelle"
+		}
+	},
+	"profile": {
+		"editor": {
+			"name": "Name",
+			"email": "E-Mail",
+			"phone": "Telefon",
+			"location": "Standort",
+			"links": "Links",
+			"linksPlaceholder": "https://linkedin.com/in/...",
+			"headline": "Überschrift",
+			"summary": "Basis-Zusammenfassung",
+			"summaryPlaceholder": "Eine sachliche, wiederverwendbare Zusammenfassung.",
+			"targetRoles": "Zielrollen",
+			"targetRolesPlaceholder": "Frontend Engineer",
+			"preferredTone": "Bevorzugter Ton",
+			"skills": "Fähigkeiten",
+			"skillsPlaceholder": "React",
+			"achievements": "Erfolge",
+			"experience": {
+				"section": "Berufserfahrung",
+				"fallbackTitle": "Berufserfahrung",
+				"title": "Titel",
+				"company": "Unternehmen",
+				"start": "Beginn",
+				"end": "Ende",
+				"bullets": "Aufzählungspunkte",
+				"technologies": "Technologien"
+			},
+			"projects": {
+				"section": "Projekte",
+				"fallbackTitle": "Projekt",
+				"name": "Name",
+				"role": "Rolle",
+				"url": "URL",
+				"description": "Beschreibung"
+			},
+			"education": {
+				"section": "Ausbildung",
+				"fallbackTitle": "Ausbildung",
+				"institution": "Institution",
+				"degree": "Abschluss",
+				"details": "Details"
+			},
+			"languages": "Sprachen",
+			"languagesPlaceholder": "Deutsch",
+			"toast": {
+				"saveFailed": "Profil konnte nicht gespeichert werden"
+			}
+		},
+		"importer": {
+			"title": "Profil erstellen",
+			"saveTo": "Speichern in",
+			"updateCurrent": "Aktuelles Profil aktualisieren",
+			"updateNamed": "{{profileName}} aktualisieren",
+			"createNew": "Neues Profil erstellen",
+			"language": "Profilsprache",
+			"languageAriaLabel": "Profilsprache",
+			"languagePlaceholder": "Sprache",
+			"name": "Profilname",
+			"namePlaceholder": "Optional · Standard ist {{language}}",
+			"context": "Kontext",
+			"contextPlaceholder": "Füge Lebenslauftext, LinkedIn-Profiltext, Notizen, Erfolge, Projekte, Ausbildung, Sprachen und Links ein.",
+			"files": "Lokale Dateien",
+			"addFiles": "Dateien hinzufügen",
+			"filesHelp": "Lade Lebenslauf-Dateien als Text oder PDF hoch. PDF-Extraktion funktioniert in der Desktop-App.",
+			"chars": "{{count}} Zeichen",
+			"removeFile": "{{fileName}} entfernen",
+			"urls": "Öffentliche URLs",
+			"urlsPlaceholder": "https://www.linkedin.com/in/...\nhttps://example.com/about",
+			"submit": "Profil erstellen",
+			"aiNotReady": "Lokale KI ist nicht bereit für die Profilerstellung.",
+			"sourceFetched": "Geladen",
+			"sourceStatus": "{{status}} · {{count}} Zeichen",
+			"rawResponse": "KI-Antwort (Rohdaten)",
+			"lastLog": "Letztes KI-Ausführungsprotokoll",
+			"allProfiles": "Alle Profile ({{count}})",
+			"noContent": "Noch kein Inhalt",
+			"updated": "Aktualisiert {{date}}",
+			"progress": {
+				"preparing": "Profilkontext wird vorbereitet...",
+				"fetching": "Öffentliche URLs werden geladen...",
+				"runningAi": "Lokales KI-Tool wird ausgeführt...",
+				"working": "Wird bearbeitet..."
+			},
+			"error": {
+				"noReadableText": "Kein lesbarer Text im Kontext, in URLs oder hochgeladenen Dateien gefunden.",
+				"urlFetchDesktop": "Öffne die Tauri-Desktop-App, um öffentliche URLs zu laden."
+			},
+			"toast": {
+				"fileAdded": "Datei zum Kontext hinzugefügt",
+				"filesAdded": "{{count}} Dateien zum Kontext hinzugefügt",
+				"fileReadFailed": "Datei konnte nicht gelesen werden",
+				"filesReadFailed": "Einige Dateien konnten nicht gelesen werden",
+				"filesReadError": "Dateien konnten nicht gelesen werden",
+				"noContext": "Füge zuerst Profilkontext hinzu",
+				"noAi": "Kein lokales KI-Tool ist bereit",
+				"emptyProfile": "Profil wirkt leer",
+				"emptyProfileDescription": "Die KI hat JSON ohne Karrieredetails zurückgegeben. Prüfe die KI-Antwort unten und füge Lebenslauftext direkt in Kontext ein.",
+				"created": "Neues Profil erstellt",
+				"updated": "Profil aktualisiert",
+				"successDescription": "{{language}} · {{summary}}",
+				"failed": "Profilerstellung fehlgeschlagen"
+			}
+		},
+		"manager": {
+			"title": "Deine Profile",
+			"subtitle": "{{count}} gespeichert · klicke ein Profil zum Öffnen",
+			"addEmpty": "Leeres Profil hinzufügen",
+			"cvLanguageSuffix": "{{language}}-Lebenslauf",
+			"noContent": "Noch kein Inhalt",
+			"updated": "Aktualisiert {{date}}",
+			"delete": "{{name}} löschen",
+			"namePlaceholder": "Profilname",
+			"nameAriaLabel": "Profilname",
+			"languageAriaLabel": "Lebenslauf-Sprache",
+			"languagePlaceholder": "Sprache",
+			"newNamePlaceholder": "Profilname (optional)",
+			"newNameAriaLabel": "Neuer Profilname",
+			"newLanguageAriaLabel": "Sprache des neuen Profils"
+		}
+	},
+	"cv": {
+		"section": {
+			"summary": "Zusammenfassung",
+			"skills": "Fähigkeiten",
+			"experience": "Berufserfahrung",
+			"projects": "Projekte",
+			"education": "Ausbildung",
+			"languages": "Sprachen"
+		},
+		"present": "Heute",
+		"preview": {
+			"nameFallback": "Dein Name"
+		},
+		"print": {
+			"nameFallback": "Lebenslauf"
+		},
+		"editor": {
+			"empty": "Generiere oder öffne einen Lebenslauf, um die zugeschnittene Ausgabe zu bearbeiten.",
+			"summarySkills": "Zusammenfassung & Fähigkeiten",
+			"summary": "Zugeschnittene Zusammenfassung",
+			"skills": "Zugeschnittene Fähigkeiten (eine pro Zeile)",
+			"experience": "Berufserfahrung-Aufzählungspunkte",
+			"resetSource": "Auf Quelle zurücksetzen",
+			"experienceFallback": "Berufserfahrung",
+			"experienceLabel": "{{title}} · {{company}}",
+			"projects": "Projekt-Aufzählungspunkte",
+			"projectFallback": "Projekt",
+			"reviewNotes": "Prüfhinweise",
+			"missingRequirements": "Fehlende Anforderungen",
+			"warnings": "Prüfer-Warnungen"
+		}
+	},
+	"backup": {
+		"title": "Sicherung & Wiederherstellung",
+		"description": "Exportiere Profile, Bewerbungen, zugeschnittene Lebensläufe, KI-Ausgaben und Einstellungen in eine JSON-Datei. Importiere auf diesem Gerät oder einer anderen Installation.",
+		"profiles": "Profile",
+		"applications": "Bewerbungen",
+		"cvVersions": "Lebenslauf-Versionen",
+		"export": "Sicherung exportieren",
+		"import": "Sicherung importieren",
+		"importMode": "Importmodus",
+		"merge": "Zusammenführen",
+		"replaceAll": "Alles ersetzen",
+		"mergeHelp": "Zusammenführen fügt Datensätze aus der Sicherung hinzu, die noch nicht existieren. Bestehende Datensätze bleiben erhalten.",
+		"replaceHelp": "Ersetzen löscht zuerst alle lokalen Daten und stellt dann die Sicherung exakt wieder her.",
+		"confirmReplace": "Alle lokalen Daten durch diese Sicherung ersetzen? Dies kann nicht rückgängig gemacht werden."
+	},
+	"font": {
+		"product": {
+			"label": "Produkt",
+			"description": "Neutrale Sans-Serif für dichte UI-Arbeit.",
+			"preview": "Klar und effizient"
+		},
+		"editorial": {
+			"label": "Editorial",
+			"description": "Lesbare Serif für Fließtext mit ausdrucksstarken Überschriften.",
+			"preview": "Raffiniert und literarisch"
+		},
+		"magazine": {
+			"label": "Magazin",
+			"description": "Newsreader-Text mit scharfen Instrument-Serif-Titeln.",
+			"preview": "Zeitgenössisch redaktionell"
+		},
+		"literary": {
+			"label": "Literarisch",
+			"description": "Warme klassische Serif durchgehend, wie ein gedruckter Lebenslauf.",
+			"preview": "Zeitlos und persönlich"
+		},
+		"previewBrand": "CV Tailor"
+	},
+	"palette": {
+		"graphite": {
+			"name": "Graphit & Indigo",
+			"description": "Ruhig, neutral, unverkennbar Linear."
+		},
+		"violet": {
+			"name": "Obsidian & Violett",
+			"description": "Premium und kreativ, etwas lebendiger."
+		},
+		"slate": {
+			"name": "Schiefer & Azur",
+			"description": "Klar, vertrauenswürdig, kühles blaues SaaS."
+		},
+		"amber": {
+			"name": "Warmes Graphit & Amber",
+			"description": "Weicher, redaktionell, einladende Wärme."
+		},
+		"emerald": {
+			"name": "Zink & Smaragd",
+			"description": "Deine grüne Identität, modern und raffiniert."
+		}
+	},
+	"db": {
+		"errorTitle": "Datenbank nicht verfügbar",
+		"errorFallback": "Datenbank konnte nicht geöffnet werden."
+	}
+}

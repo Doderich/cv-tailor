@@ -18,10 +18,10 @@ import { Label } from "@cv-tailor/ui/components/label";
 import { Textarea } from "@cv-tailor/ui/components/textarea";
 import { Plus, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-
-import { getErrorMessage } from "@/lib/cv-app-context";
 import { ArrayLinesField } from "@/components/array-lines-field";
+import { getErrorMessage } from "@/lib/cv-app-context";
 
 interface ProfileEditorProps {
 	profile: BaseProfile;
@@ -171,6 +171,7 @@ export function ProfileEditor({
 	onPatch,
 	profileRevision = 0,
 }: ProfileEditorProps) {
+	const { t } = useTranslation();
 	const profileRef = useRef(profile);
 	profileRef.current = profile;
 	const [draft, setDraft] = useState(() => normalizeDraft(profile));
@@ -190,13 +191,13 @@ export function ProfileEditor({
 				try {
 					onPatch(patch);
 				} catch (error) {
-					toast.error("Could not save profile", {
+					toast.error(t("profile.editor.toast.saveFailed"), {
 						description: getErrorMessage(error),
 					});
 				}
 			});
 		},
-		[onPatch],
+		[onPatch, t],
 	);
 
 	const updateProfile = (patch: Partial<BaseProfile>) => {
@@ -287,9 +288,7 @@ export function ProfileEditor({
 		setIsDirty(true);
 		setDraft((current) => {
 			const base = isDirty ? current : normalizeDraft(profileRef.current);
-			const projects = (base.projects ?? []).filter(
-				(entry) => entry.id !== id,
-			);
+			const projects = (base.projects ?? []).filter((entry) => entry.id !== id);
 			persistPatch({ projects });
 			return { ...base, projects };
 		});
@@ -322,79 +321,81 @@ export function ProfileEditor({
 			<div className="grid gap-3">
 				<div className="grid grid-cols-2 gap-2">
 					<Field
-						label="Name"
+						label={t("profile.editor.name")}
 						value={visible.contact.name}
 						onChange={(name) => updateContact({ name })}
 					/>
 					<Field
-						label="Email"
+						label={t("profile.editor.email")}
 						value={visible.contact.email}
 						onChange={(email) => updateContact({ email })}
 					/>
 					<Field
-						label="Phone"
+						label={t("profile.editor.phone")}
 						value={visible.contact.phone}
 						onChange={(phone) => updateContact({ phone })}
 					/>
 					<Field
-						label="Location"
+						label={t("profile.editor.location")}
 						value={visible.contact.location}
 						onChange={(location) => updateContact({ location })}
 					/>
 				</div>
 				<ArrayField
-					label="Links"
+					label={t("profile.editor.links")}
 					values={visible.contact.links}
 					onChange={(links) => updateContact({ links })}
-					placeholder="https://linkedin.com/in/..."
+					placeholder={t("profile.editor.linksPlaceholder")}
 					rows={3}
 				/>
 				<Field
-					label="Headline"
+					label={t("profile.editor.headline")}
 					value={visible.headline}
 					onChange={(headline) => updateProfile({ headline })}
 				/>
 				<TextField
-					label="Base summary"
+					label={t("profile.editor.summary")}
 					value={visible.summary}
 					onChange={(summary) => updateProfile({ summary })}
-					placeholder="A factual reusable summary."
+					placeholder={t("profile.editor.summaryPlaceholder")}
 				/>
 				<ArrayField
-					label="Target roles"
+					label={t("profile.editor.targetRoles")}
 					values={visible.targetRoles}
 					onChange={(targetRoles) => updateProfile({ targetRoles })}
-					placeholder="Frontend Engineer"
+					placeholder={t("profile.editor.targetRolesPlaceholder")}
 					rows={3}
 				/>
 				<TextField
-					label="Preferred tone"
+					label={t("profile.editor.preferredTone")}
 					value={visible.preferredTone}
 					onChange={(preferredTone) => updateProfile({ preferredTone })}
 					rows={3}
 				/>
 				<ArrayField
-					label="Skills"
+					label={t("profile.editor.skills")}
 					values={visible.skills}
 					onChange={(skills) => updateProfile({ skills })}
-					placeholder="React"
+					placeholder={t("profile.editor.skillsPlaceholder")}
 				/>
 				<ArrayField
-					label="Achievements"
+					label={t("profile.editor.achievements")}
 					values={visible.achievements}
 					onChange={(achievements) => updateProfile({ achievements })}
 				/>
 			</div>
 
 			<div className="flex items-center justify-between">
-				<h3 className="font-medium text-sm font-heading">Experience</h3>
+				<h3 className="font-medium text-sm font-heading">
+					{t("profile.editor.experience.section")}
+				</h3>
 				<Button
 					type="button"
 					size="sm"
 					variant="outline"
 					onClick={appendExperience}
 				>
-					<Plus /> Add
+					<Plus /> {t("common.add")}
 				</Button>
 			</div>
 			<div className="grid gap-3">
@@ -402,46 +403,48 @@ export function ProfileEditor({
 					<Card key={item.id} id={`experience-${item.id}`} size="sm">
 						<CardHeader>
 							<CardTitle>
-								{item.title || item.company || "Experience"}
+								{item.title ||
+									item.company ||
+									t("profile.editor.experience.fallbackTitle")}
 							</CardTitle>
 						</CardHeader>
 						<CardContent className="grid gap-2">
 							<div className="grid grid-cols-2 gap-2">
 								<Field
-									label="Title"
+									label={t("profile.editor.experience.title")}
 									value={item.title}
 									onChange={(title) => updateExperience(item.id, { title })}
 								/>
 								<Field
-									label="Company"
+									label={t("profile.editor.experience.company")}
 									value={item.company}
 									onChange={(company) => updateExperience(item.id, { company })}
 								/>
 								<Field
-									label="Start"
+									label={t("profile.editor.experience.start")}
 									value={item.startDate}
 									onChange={(startDate) =>
 										updateExperience(item.id, { startDate })
 									}
 								/>
 								<Field
-									label="End"
+									label={t("profile.editor.experience.end")}
 									value={item.endDate}
 									onChange={(endDate) => updateExperience(item.id, { endDate })}
 								/>
 							</div>
 							<Field
-								label="Location"
+								label={t("profile.editor.location")}
 								value={item.location}
 								onChange={(location) => updateExperience(item.id, { location })}
 							/>
 							<ArrayField
-								label="Bullets"
+								label={t("profile.editor.experience.bullets")}
 								values={item.bullets}
 								onChange={(bullets) => updateExperience(item.id, { bullets })}
 							/>
 							<ArrayField
-								label="Technologies"
+								label={t("profile.editor.experience.technologies")}
 								values={item.technologies}
 								onChange={(technologies) =>
 									updateExperience(item.id, { technologies })
@@ -453,7 +456,7 @@ export function ProfileEditor({
 								variant="destructive"
 								onClick={() => removeExperience(item.id)}
 							>
-								<Trash2 /> Remove
+								<Trash2 /> {t("common.remove")}
 							</Button>
 						</CardContent>
 					</Card>
@@ -461,42 +464,46 @@ export function ProfileEditor({
 			</div>
 
 			<div className="flex items-center justify-between">
-				<h3 className="font-medium text-sm font-heading">Projects</h3>
+				<h3 className="font-medium text-sm font-heading">
+					{t("profile.editor.projects.section")}
+				</h3>
 				<Button
 					type="button"
 					size="sm"
 					variant="outline"
 					onClick={appendProject}
 				>
-					<Plus /> Add
+					<Plus /> {t("common.add")}
 				</Button>
 			</div>
 			<div className="grid gap-3">
 				{(visible.projects ?? []).map((item) => (
 					<Card key={item.id} id={`project-${item.id}`} size="sm">
 						<CardHeader>
-							<CardTitle>{item.name || "Project"}</CardTitle>
+							<CardTitle>
+								{item.name || t("profile.editor.projects.fallbackTitle")}
+							</CardTitle>
 						</CardHeader>
 						<CardContent className="grid gap-2">
 							<div className="grid grid-cols-2 gap-2">
 								<Field
-									label="Name"
+									label={t("profile.editor.projects.name")}
 									value={item.name}
 									onChange={(name) => updateProject(item.id, { name })}
 								/>
 								<Field
-									label="Role"
+									label={t("profile.editor.projects.role")}
 									value={item.role}
 									onChange={(role) => updateProject(item.id, { role })}
 								/>
 							</div>
 							<Field
-								label="URL"
+								label={t("profile.editor.projects.url")}
 								value={item.url}
 								onChange={(url) => updateProject(item.id, { url })}
 							/>
 							<TextField
-								label="Description"
+								label={t("profile.editor.projects.description")}
 								value={item.description}
 								onChange={(description) =>
 									updateProject(item.id, { description })
@@ -504,12 +511,12 @@ export function ProfileEditor({
 								rows={3}
 							/>
 							<ArrayField
-								label="Bullets"
+								label={t("profile.editor.experience.bullets")}
 								values={item.bullets}
 								onChange={(bullets) => updateProject(item.id, { bullets })}
 							/>
 							<ArrayField
-								label="Technologies"
+								label={t("profile.editor.experience.technologies")}
 								values={item.technologies}
 								onChange={(technologies) =>
 									updateProject(item.id, { technologies })
@@ -521,7 +528,7 @@ export function ProfileEditor({
 								variant="destructive"
 								onClick={() => removeProject(item.id)}
 							>
-								<Trash2 /> Remove
+								<Trash2 /> {t("common.remove")}
 							</Button>
 						</CardContent>
 					</Card>
@@ -529,14 +536,16 @@ export function ProfileEditor({
 			</div>
 
 			<div className="flex items-center justify-between">
-				<h3 className="font-medium text-sm font-heading">Education</h3>
+				<h3 className="font-medium text-sm font-heading">
+					{t("profile.editor.education.section")}
+				</h3>
 				<Button
 					type="button"
 					size="sm"
 					variant="outline"
 					onClick={appendEducation}
 				>
-					<Plus /> Add
+					<Plus /> {t("common.add")}
 				</Button>
 			</div>
 			<div className="grid gap-3">
@@ -544,43 +553,45 @@ export function ProfileEditor({
 					<Card key={item.id} id={`education-${item.id}`} size="sm">
 						<CardHeader>
 							<CardTitle>
-								{item.degree || item.institution || "Education"}
+								{item.degree ||
+									item.institution ||
+									t("profile.editor.education.fallbackTitle")}
 							</CardTitle>
 						</CardHeader>
 						<CardContent className="grid gap-2">
 							<div className="grid grid-cols-2 gap-2">
 								<Field
-									label="Institution"
+									label={t("profile.editor.education.institution")}
 									value={item.institution}
 									onChange={(institution) =>
 										updateEducation(item.id, { institution })
 									}
 								/>
 								<Field
-									label="Degree"
+									label={t("profile.editor.education.degree")}
 									value={item.degree}
 									onChange={(degree) => updateEducation(item.id, { degree })}
 								/>
 								<Field
-									label="Start"
+									label={t("profile.editor.experience.start")}
 									value={item.startDate}
 									onChange={(startDate) =>
 										updateEducation(item.id, { startDate })
 									}
 								/>
 								<Field
-									label="End"
+									label={t("profile.editor.experience.end")}
 									value={item.endDate}
 									onChange={(endDate) => updateEducation(item.id, { endDate })}
 								/>
 							</div>
 							<Field
-								label="Location"
+								label={t("profile.editor.location")}
 								value={item.location}
 								onChange={(location) => updateEducation(item.id, { location })}
 							/>
 							<ArrayField
-								label="Details"
+								label={t("profile.editor.education.details")}
 								values={item.details}
 								onChange={(details) => updateEducation(item.id, { details })}
 								rows={3}
@@ -590,7 +601,7 @@ export function ProfileEditor({
 								variant="destructive"
 								onClick={() => removeEducation(item.id)}
 							>
-								<Trash2 /> Remove
+								<Trash2 /> {t("common.remove")}
 							</Button>
 						</CardContent>
 					</Card>
@@ -598,10 +609,10 @@ export function ProfileEditor({
 			</div>
 
 			<ArrayField
-				label="Languages"
+				label={t("profile.editor.languages")}
 				values={visible.languages}
 				onChange={(languages) => updateProfile({ languages })}
-				placeholder="English"
+				placeholder={t("profile.editor.languagesPlaceholder")}
 				rows={3}
 			/>
 		</div>

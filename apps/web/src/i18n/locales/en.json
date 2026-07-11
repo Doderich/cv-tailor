@@ -1,0 +1,509 @@
+{
+	"app": {
+		"title": "cv-tailor",
+		"description": "cv-tailor is a web application",
+		"application": {
+			"untitledRole": "Untitled role",
+			"noCompany": "No company"
+		},
+		"run": {
+			"label": "{{language}}",
+			"labelVersioned": "{{language}} v{{version}}"
+		},
+		"error": {
+			"noAiForReview": "No AI tool is available for job review.",
+			"jobReviewLoginHint": "{{message}} Try Settings → AI tool and pick Cursor, or run `claude /login`.",
+			"dbWriteProfile": "Could not write profile to the database: {{message}}"
+		},
+		"toast": {
+			"aiDetectFailed": "Could not detect AI tools",
+			"aiSettingsSaveFailed": "Could not save AI settings",
+			"jobReviewFailed": "Job review failed",
+			"generationFailed": "Generation failed",
+			"cvGenerated": "{{language}} CV generated",
+			"pdfExported": "PDF exported",
+			"pdfRevealed": "The PDF was revealed in Finder.",
+			"pdfExportFailed": "PDF export failed",
+			"backupExported": "Backup exported",
+			"backupSummary": "{{profiles}} profiles, {{applications}} applications, {{cvRuns}} CV versions.",
+			"exportFailed": "Export failed",
+			"backupRestored": "Backup restored",
+			"backupMerged": "Backup merged",
+			"importFailed": "Import failed",
+			"profileSaveFailed": "Could not save profile",
+			"cannotDeleteLastProfile": "Cannot delete the last profile",
+			"profileHasApplications": "Profile has applications",
+			"profileHasApplicationsDescription": "Delete or archive those applications first."
+		}
+	},
+	"common": {
+		"back": "Back",
+		"add": "Add",
+		"remove": "Remove",
+		"cancel": "Cancel",
+		"create": "Create",
+		"open": "Open",
+		"undo": "Undo",
+		"draft": "Draft",
+		"more": "More",
+		"loading": "…"
+	},
+	"shell": {
+		"openApplications": "Open applications",
+		"showSidebar": "Show sidebar",
+		"hideSidebar": "Hide sidebar",
+		"searchApplications": "Search applications",
+		"newApplication": "New application",
+		"noApplications": "No applications yet. Create your first to get started.",
+		"noMatches": "No matches.",
+		"archived": "Archived ({{count}})",
+		"unarchive": "Unarchive",
+		"archive": "Archive",
+		"delete": "Delete",
+		"applicationDeleted": "Application deleted",
+		"settings": "Settings",
+		"dragToResize": "Drag to resize",
+		"closeMenu": "Close menu"
+	},
+	"home": {
+		"title": "Start a new application",
+		"description": "Paste a job offer, review how well your profile matches, then tailor and export focused CVs in English or German.",
+		"newApplication": "New application"
+	},
+	"settings": {
+		"tab": {
+			"appearance": "Appearance",
+			"ai": "AI",
+			"data": "Data",
+			"profile": "Profile"
+		},
+		"appearance": {
+			"mode": "Mode",
+			"textSize": "Text size",
+			"typeface": "Typeface",
+			"palette": "Palette",
+			"language": "Language",
+			"selectTextSize": "Select text size"
+		},
+		"theme": {
+			"light": "Light",
+			"dark": "Dark",
+			"system": "System"
+		},
+		"textSize": {
+			"small": "Small",
+			"default": "Default",
+			"large": "Large",
+			"larger": "Larger"
+		},
+		"ai": {
+			"preferredTool": "Preferred tool",
+			"model": "Model",
+			"refreshTools": "Refresh tools",
+			"tool": {
+				"auto": "Auto",
+				"claude": "Claude",
+				"codex": "Codex",
+				"cursor": "Cursor"
+			}
+		},
+		"data": {
+			"updates": {
+				"title": "Desktop updates",
+				"description": "Check GitHub Releases for a newer macOS build.",
+				"check": "Check for updates"
+			}
+		}
+	},
+	"application": {
+		"tab": {
+			"jobDetails": "Job Details",
+			"review": "Review",
+			"generateCv": "Generate CV",
+			"locked": "Complete the previous step first"
+		},
+		"jobDetails": {
+			"title": "Job posting",
+			"subtitle": "Paste the offer or import it from a public link.",
+			"mode": {
+				"paste": "Paste text",
+				"url": "From link"
+			},
+			"url": {
+				"label": "Job posting URL",
+				"placeholder": "https://www.stepstone.de/stellenangebote--...",
+				"helpDesktop": "Paste a public job posting link. CV Tailor will fetch the page and fill in title, company, and description.",
+				"helpWeb": "Open the desktop app to import job postings from a URL.",
+				"importButton": "Import from link"
+			},
+			"field": {
+				"jobTitle": {
+					"label": "Job title",
+					"placeholder": "Senior Frontend Engineer"
+				},
+				"company": {
+					"label": "Company",
+					"placeholder": "Acme Inc."
+				},
+				"positionType": {
+					"label": "Position type",
+					"ariaLabel": "Position type",
+					"placeholder": "Select position type"
+				},
+				"links": {
+					"label": "Posting links",
+					"placeholder": "https://www.stepstone.de/..."
+				},
+				"description": {
+					"label": "Job description",
+					"placeholder": "Paste the full job offer text here."
+				}
+			},
+			"continue": "Continue to review",
+			"toast": {
+				"invalidUrl": "Enter a valid job posting URL",
+				"urlImportDesktopOnly": "URL import is available only in the desktop app",
+				"importSuccess": "Job posting imported from link",
+				"importFailed": "Could not import job posting"
+			}
+		},
+		"review": {
+			"noRun": "No CV run selected yet.",
+			"title": "Job analysis",
+			"status": {
+				"reviewingJob": "AI is reviewing the posting and extracting meaningful keywords.",
+				"analyzingMatch": "AI is evaluating how well your profile matches this role.",
+				"preparing": "Preparing job analysis…",
+				"reviewed": "Reviewed with {{reviewTool}}. Match evaluated{{evaluatorSuffix}}.",
+				"evaluatorWithTool": " with {{evaluatorTool}}",
+				"evaluatorHeuristics": " with keyword heuristics",
+				"waiting": "Waiting for AI review.",
+				"aiUnavailable": "AI review unavailable. Install a desktop AI tool to analyze this posting."
+			},
+			"rematch": "Re-match profile",
+			"reanalyze": "Re-analyze job",
+			"generateCv": "Generate CV",
+			"roleSummary": "Role summary",
+			"metric": {
+				"profileMatch": "Profile match",
+				"seniority": "Seniority",
+				"keywords": "Keywords"
+			},
+			"detectedKeywords": "Detected keywords",
+			"goodFit": {
+				"title": "Good fit",
+				"empty": "No clear strengths detected yet. Re-match your profile after updating it."
+			},
+			"gaps": {
+				"title": "Gaps to address",
+				"empty": "No clear gaps detected."
+			}
+		},
+		"generate": {
+			"title": "Tailor the CV to this offer",
+			"subtitle": "Choose a language, generate with your local AI, then refine any section. Each language keeps its own version.",
+			"exportPdf": "Export PDF",
+			"generate": "Generate {{language}}",
+			"regenerate": "Regenerate {{language}}",
+			"aiSetupDesktop": "Install or authenticate an AI tool (Claude, Codex, or Cursor), then refresh in settings.",
+			"aiSetupWeb": "Open the Tauri desktop app to run local AI generation. You can still edit manually.",
+			"noVersionYet": "No {{language}} version yet. Generate one to start editing and exporting."
+		}
+	},
+	"jobPosition": {
+		"unspecified": "Not specified",
+		"frontend": "Frontend",
+		"backend": "Backend",
+		"fullstack": "Full stack",
+		"mobile": "Mobile",
+		"devops": "DevOps / Platform",
+		"data": "Data engineering",
+		"ml": "ML / AI",
+		"design": "Design / UX",
+		"product": "Product",
+		"other": "Other"
+	},
+	"cvLanguage": {
+		"en": "English",
+		"de": "German"
+	},
+	"commandPalette": {
+		"close": "Close command palette",
+		"dialog": "Command palette",
+		"placeholder": "Type a command or search…",
+		"escapeHint": "ESC",
+		"noResults": "No results for “{{query}}”.",
+		"group": {
+			"actions": "Actions",
+			"applications": "Applications",
+			"appearance": "Appearance"
+		},
+		"newApplication": "New application",
+		"settings": "Open profile & settings",
+		"exportPdf": "Export active CV as PDF",
+		"generate": "Generate tailored CV",
+		"themeLight": "Theme: Light",
+		"themeDark": "Theme: Dark",
+		"themeSystem": "Theme: System",
+		"palette": "Palette: {{paletteName}}"
+	},
+	"insights": {
+		"keywords": {
+			"empty": "No keywords yet.",
+			"analyzing": "Analyzing posting…",
+			"legend": "Highlighted tags appear in your profile. Muted tags still need stronger coverage."
+		},
+		"match": {
+			"analyzing": "Analyzing profile fit…",
+			"countOf": " of {{total}}"
+		},
+		"panel": {
+			"title": "Job Signals",
+			"metric": {
+				"match": "Match",
+				"level": "Level",
+				"terms": "Terms"
+			},
+			"detectedKeywords": "Detected Keywords",
+			"goodFit": {
+				"title": "Good fit",
+				"empty": "No clear strengths detected yet."
+			},
+			"gaps": {
+				"title": "Gaps to address",
+				"empty": "No clear gaps detected."
+			}
+		},
+		"aiStatus": {
+			"title": "AI Tool Status",
+			"ready": "Ready",
+			"unavailable": "Unavailable",
+			"notChecked": "Not checked"
+		},
+		"history": {
+			"metric": {
+				"match": "Match",
+				"keywords": "Keywords",
+				"level": "Level"
+			},
+			"open": "Open",
+			"untitledRole": "Untitled role"
+		}
+	},
+	"profile": {
+		"editor": {
+			"name": "Name",
+			"email": "Email",
+			"phone": "Phone",
+			"location": "Location",
+			"links": "Links",
+			"linksPlaceholder": "https://linkedin.com/in/...",
+			"headline": "Headline",
+			"summary": "Base summary",
+			"summaryPlaceholder": "A factual reusable summary.",
+			"targetRoles": "Target roles",
+			"targetRolesPlaceholder": "Frontend Engineer",
+			"preferredTone": "Preferred tone",
+			"skills": "Skills",
+			"skillsPlaceholder": "React",
+			"achievements": "Achievements",
+			"experience": {
+				"section": "Experience",
+				"fallbackTitle": "Experience",
+				"title": "Title",
+				"company": "Company",
+				"start": "Start",
+				"end": "End",
+				"bullets": "Bullets",
+				"technologies": "Technologies"
+			},
+			"projects": {
+				"section": "Projects",
+				"fallbackTitle": "Project",
+				"name": "Name",
+				"role": "Role",
+				"url": "URL",
+				"description": "Description"
+			},
+			"education": {
+				"section": "Education",
+				"fallbackTitle": "Education",
+				"institution": "Institution",
+				"degree": "Degree",
+				"details": "Details"
+			},
+			"languages": "Languages",
+			"languagesPlaceholder": "English",
+			"toast": {
+				"saveFailed": "Could not save profile"
+			}
+		},
+		"importer": {
+			"title": "Create Profile",
+			"saveTo": "Save to",
+			"updateCurrent": "Update current profile",
+			"updateNamed": "Update {{profileName}}",
+			"createNew": "Create new profile",
+			"language": "Profile language",
+			"languageAriaLabel": "Profile language",
+			"languagePlaceholder": "Language",
+			"name": "Profile name",
+			"namePlaceholder": "Optional · defaults to {{language}}",
+			"context": "Context",
+			"contextPlaceholder": "Paste resume text, LinkedIn profile text, notes, achievements, projects, education, languages, and links.",
+			"files": "Local files",
+			"addFiles": "Add files",
+			"filesHelp": "Upload resume files as text or PDF. PDF extraction works in the desktop app.",
+			"chars": "{{count}} chars",
+			"removeFile": "Remove {{fileName}}",
+			"urls": "Public URLs",
+			"urlsPlaceholder": "https://www.linkedin.com/in/...\nhttps://example.com/about",
+			"submit": "Create profile",
+			"aiNotReady": "Local AI is not ready for profile creation.",
+			"sourceFetched": "Fetched",
+			"sourceStatus": "{{status}} · {{count}} chars",
+			"rawResponse": "AI response (raw)",
+			"lastLog": "Last AI run log",
+			"allProfiles": "All profiles ({{count}})",
+			"noContent": "No content yet",
+			"updated": "Updated {{date}}",
+			"progress": {
+				"preparing": "Preparing profile context...",
+				"fetching": "Fetching public URLs...",
+				"runningAi": "Running local AI tool...",
+				"working": "Working..."
+			},
+			"error": {
+				"noReadableText": "No readable text was found in the context, URLs, or uploaded files.",
+				"urlFetchDesktop": "Open the Tauri desktop app to fetch public URLs."
+			},
+			"toast": {
+				"fileAdded": "File added to context",
+				"filesAdded": "{{count}} files added to context",
+				"fileReadFailed": "Could not read file",
+				"filesReadFailed": "Some files could not be read",
+				"filesReadError": "Could not read files",
+				"noContext": "Add profile context first",
+				"noAi": "No local AI tool is ready",
+				"emptyProfile": "Profile looks empty",
+				"emptyProfileDescription": "The AI returned JSON without career details. Check the AI response below and try pasting resume text directly into Context.",
+				"created": "New profile created",
+				"updated": "Profile updated",
+				"successDescription": "{{language}} · {{summary}}",
+				"failed": "Profile creation failed"
+			}
+		},
+		"manager": {
+			"title": "Your profiles",
+			"subtitle": "{{count}} saved · click a profile to open it",
+			"addEmpty": "Add empty profile",
+			"cvLanguageSuffix": "{{language}} CV",
+			"noContent": "No content yet",
+			"updated": "Updated {{date}}",
+			"delete": "Delete {{name}}",
+			"namePlaceholder": "Profile name",
+			"nameAriaLabel": "Profile name",
+			"languageAriaLabel": "CV language",
+			"languagePlaceholder": "Language",
+			"newNamePlaceholder": "Profile name (optional)",
+			"newNameAriaLabel": "New profile name",
+			"newLanguageAriaLabel": "New profile language"
+		}
+	},
+	"cv": {
+		"section": {
+			"summary": "Summary",
+			"skills": "Skills",
+			"experience": "Experience",
+			"projects": "Projects",
+			"education": "Education",
+			"languages": "Languages"
+		},
+		"present": "Present",
+		"preview": {
+			"nameFallback": "Your name"
+		},
+		"print": {
+			"nameFallback": "CV"
+		},
+		"editor": {
+			"empty": "Generate or reopen a CV to edit the tailored output.",
+			"summarySkills": "Summary & skills",
+			"summary": "Tailored summary",
+			"skills": "Tailored skills (one per line)",
+			"experience": "Experience bullets",
+			"resetSource": "Reset to source",
+			"experienceFallback": "Experience",
+			"experienceLabel": "{{title}} · {{company}}",
+			"projects": "Project bullets",
+			"projectFallback": "Project",
+			"reviewNotes": "Review notes",
+			"missingRequirements": "Missing requirements",
+			"warnings": "Reviewer warnings"
+		}
+	},
+	"backup": {
+		"title": "Backup & restore",
+		"description": "Export profiles, applications, tailored CVs, AI outputs, and settings to a JSON file. Import on this device or another installation.",
+		"profiles": "Profiles",
+		"applications": "Applications",
+		"cvVersions": "CV versions",
+		"export": "Export backup",
+		"import": "Import backup",
+		"importMode": "Import mode",
+		"merge": "Merge",
+		"replaceAll": "Replace all",
+		"mergeHelp": "Merge adds records from the backup that do not already exist. Existing records are kept.",
+		"replaceHelp": "Replace deletes all local data first, then restores the backup exactly.",
+		"confirmReplace": "Replace all local data with this backup? This cannot be undone."
+	},
+	"font": {
+		"product": {
+			"label": "Product",
+			"description": "Neutral sans-serif for dense UI work.",
+			"preview": "Clear and efficient"
+		},
+		"editorial": {
+			"label": "Editorial",
+			"description": "Readable serif body with expressive display headings.",
+			"preview": "Refined and literary"
+		},
+		"magazine": {
+			"label": "Magazine",
+			"description": "Newsreader text with sharp instrument-serif titles.",
+			"preview": "Contemporary editorial"
+		},
+		"literary": {
+			"label": "Literary",
+			"description": "Warm classic serif throughout, like a printed CV.",
+			"preview": "Timeless and personal"
+		},
+		"previewBrand": "CV Tailor"
+	},
+	"palette": {
+		"graphite": {
+			"name": "Graphite & Indigo",
+			"description": "Calm, neutral, unmistakably Linear."
+		},
+		"violet": {
+			"name": "Obsidian & Violet",
+			"description": "Premium and creative, a touch more vibrant."
+		},
+		"slate": {
+			"name": "Slate & Azure",
+			"description": "Crisp, trustworthy, cool blue SaaS."
+		},
+		"amber": {
+			"name": "Warm Graphite & Amber",
+			"description": "Softer, editorial, inviting warmth."
+		},
+		"emerald": {
+			"name": "Zinc & Emerald",
+			"description": "Your green identity, modern and refined."
+		}
+	},
+	"db": {
+		"errorTitle": "Database unavailable",
+		"errorFallback": "Could not open database."
+	}
+}

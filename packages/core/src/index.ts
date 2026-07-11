@@ -212,7 +212,9 @@ export type JobPostingReview = z.infer<typeof jobPostingReviewSchema>;
 export type JobOffer = z.infer<typeof jobOfferSchema>;
 export type TailoredCv = z.infer<typeof tailoredCvSchema>;
 export type MatchAnalysis = z.infer<typeof matchAnalysisSchema>;
-export type ApplicationProfileMatch = z.infer<typeof applicationProfileMatchSchema>;
+export type ApplicationProfileMatch = z.infer<
+	typeof applicationProfileMatchSchema
+>;
 export type CvLanguage = z.infer<typeof cvLanguageSchema>;
 export type CvRunSource = z.infer<typeof cvRunSourceSchema>;
 export type ProfileRecord = z.infer<typeof profileRecordSchema>;
@@ -561,7 +563,12 @@ export function resolveCachedProfileMatch(
 		return undefined;
 	}
 
-	return normalizeMatchAnalysis(application.profileMatch?.matchAnalysis);
+	const matchAnalysis = application.profileMatch?.matchAnalysis;
+	if (!matchAnalysis) {
+		return undefined;
+	}
+
+	return normalizeMatchAnalysis(matchAnalysis);
 }
 
 export function normalizeApplication(application: Application): Application {
@@ -668,7 +675,9 @@ function buildDraftGoodFit(
 		for (const softSkill of signals.softSkills) {
 			if (
 				requirementIsMatched(softSkill, profileTerms, profileText) &&
-				!goodFit.some((item) => normalizeText(item).includes(normalizeText(softSkill)))
+				!goodFit.some((item) =>
+					normalizeText(item).includes(normalizeText(softSkill)),
+				)
 			) {
 				goodFit.push(`Profile reflects ${softSkill}.`);
 			}
@@ -998,8 +1007,7 @@ export function hasMeaningfulProfileContent(profile: BaseProfile): boolean {
 			item.institution.trim().length > 0 || item.degree.trim().length > 0,
 	);
 	const hasProjects = normalized.projects.some(
-		(item) =>
-			item.name.trim().length > 0 || hasNonEmptyText(item.bullets),
+		(item) => item.name.trim().length > 0 || hasNonEmptyText(item.bullets),
 	);
 	const hasSkills = hasNonEmptyText(normalized.skills);
 
@@ -1083,15 +1091,15 @@ export function normalizeBaseProfile(profile: BaseProfile): BaseProfile {
 }
 
 export {
+	inferJobPositionFromText,
+	type JobPosition,
+	jobPositionLabel,
+	jobPositionSchema,
+	jobPositions,
+} from "./job-position";
+export {
 	buildJobOfferFromFetchedPage,
 	extractTitleCompanyFromJobText,
 	normalizeJobOffer,
 	parseJobPostingUrl,
 } from "./job-posting";
-export {
-	inferJobPositionFromText,
-	jobPositionLabel,
-	jobPositions,
-	jobPositionSchema,
-	type JobPosition,
-} from "./job-position";

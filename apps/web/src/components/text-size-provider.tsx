@@ -51,8 +51,7 @@ export function TextSizeProvider({ children }: { children: ReactNode }) {
 
 	useEffect(() => {
 		const scale =
-			textSizeOptions.find((option) => option.id === textSize)?.scale ??
-			"100%";
+			textSizeOptions.find((option) => option.id === textSize)?.scale ?? "100%";
 		document.documentElement.style.fontSize = scale;
 		document.documentElement.dataset.textSize = textSize;
 	}, [textSize]);

@@ -1,5 +1,6 @@
 import type { Application, BaseProfile, CvRun } from "@cv-tailor/core";
 import type { ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 
 interface PrintableCvProps {
 	profile: BaseProfile;
@@ -7,8 +8,13 @@ interface PrintableCvProps {
 	run: CvRun | undefined;
 }
 
-function joinDateRange(startDate: string, endDate: string, current = false) {
-	const end = current ? "Present" : endDate;
+function joinDateRange(
+	startDate: string,
+	endDate: string,
+	current = false,
+	presentLabel = "Present",
+) {
+	const end = current ? presentLabel : endDate;
 	return [startDate, end].filter(Boolean).join(" – ");
 }
 
@@ -40,6 +46,7 @@ export function PrintableCv({
 	application: _application,
 	run,
 }: PrintableCvProps) {
+	const { t } = useTranslation();
 	const cv = run?.cv;
 
 	if (!cv) {
@@ -53,7 +60,7 @@ export function PrintableCv({
 	return (
 		<article className="print-cv">
 			<header>
-				<h1>{profile.contact.name || "CV"}</h1>
+				<h1>{profile.contact.name || t("cv.print.nameFallback")}</h1>
 				<p className="print-headline">{profile.headline}</p>
 				<p className="print-contact">
 					{[
@@ -67,15 +74,15 @@ export function PrintableCv({
 				</p>
 			</header>
 
-			<Section title="Summary">
+			<Section title={t("cv.section.summary")}>
 				<p>{cv.summary}</p>
 			</Section>
 
-			<Section title="Skills">
+			<Section title={t("cv.section.skills")}>
 				<p>{cv.skills.join("  ·  ")}</p>
 			</Section>
 
-			<Section title="Experience">
+			<Section title={t("cv.section.experience")}>
 				{cv.experience.map((tailoredItem) => {
 					const source = profile.experience.find(
 						(item) => item.id === tailoredItem.experienceId,
@@ -97,6 +104,7 @@ export function PrintableCv({
 										source.startDate,
 										source.endDate,
 										source.current,
+										t("cv.present"),
 									)}
 								</span>
 							</div>
@@ -112,7 +120,7 @@ export function PrintableCv({
 			</Section>
 
 			{cv.projects.length > 0 ? (
-				<Section title="Projects">
+				<Section title={t("cv.section.projects")}>
 					{cv.projects.map((tailoredItem) => {
 						const source = profile.projects.find(
 							(item) => item.id === tailoredItem.projectId,
@@ -142,12 +150,19 @@ export function PrintableCv({
 			) : null}
 
 			{includedEducation.length > 0 ? (
-				<Section title="Education">
+				<Section title={t("cv.section.education")}>
 					{includedEducation.map((item) => (
 						<div key={item.id} className="print-item">
 							<div className="print-item-heading">
 								<strong>{item.degree || item.institution}</strong>
-								<span>{joinDateRange(item.startDate, item.endDate)}</span>
+								<span>
+									{joinDateRange(
+										item.startDate,
+										item.endDate,
+										false,
+										t("cv.present"),
+									)}
+								</span>
 							</div>
 							<div className="print-item-meta">
 								{[item.institution, item.location]
@@ -161,7 +176,7 @@ export function PrintableCv({
 			) : null}
 
 			{profile.languages.length > 0 ? (
-				<Section title="Languages">
+				<Section title={t("cv.section.languages")}>
 					<p>{profile.languages.join("  ·  ")}</p>
 				</Section>
 			) : null}

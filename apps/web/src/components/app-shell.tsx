@@ -22,8 +22,11 @@ import {
 	Settings,
 	Trash2,
 } from "lucide-react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { type ReactNode, useCallback, useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
+import { AnimatedPage } from "@/components/animated-page";
 import { ApplicationStepTabBar } from "@/components/application-step-tab-bar";
 import { CommandPalette } from "@/components/command-palette";
 import { ScoreBadge } from "@/components/cv/score-badge";
@@ -37,6 +40,7 @@ import {
 	applicationTitle,
 	useCvApp,
 } from "@/lib/cv-app-context";
+import { transitionForReduced, transitions } from "@/lib/motion";
 import { isTauriRuntime } from "@/lib/tauri-ai";
 
 const isDesktop = isTauriRuntime();
@@ -57,6 +61,8 @@ function SidebarToggle({
 	onToggleCollapse: () => void;
 	collapsed: boolean;
 }) {
+	const { t } = useTranslation();
+
 	return (
 		<>
 			<Button
@@ -64,7 +70,7 @@ function SidebarToggle({
 				size="icon-sm"
 				className="lg:hidden"
 				onClick={onOpenRail}
-				title="Open applications"
+				title={t("shell.openApplications")}
 			>
 				<PanelLeft />
 			</Button>
@@ -73,7 +79,7 @@ function SidebarToggle({
 				size="icon-sm"
 				className="hidden shrink-0 lg:inline-flex"
 				onClick={onToggleCollapse}
-				title={collapsed ? "Show sidebar" : "Hide sidebar"}
+				title={collapsed ? t("shell.showSidebar") : t("shell.hideSidebar")}
 			>
 				{collapsed ? <PanelLeft /> : <PanelLeftClose />}
 			</Button>
@@ -98,6 +104,7 @@ function ApplicationRailItem({
 	onArchiveToggle: () => void;
 	onDelete: () => void;
 }) {
+	const { t } = useTranslation();
 	const archived = Boolean(application.archived);
 
 	return (
@@ -119,8 +126,8 @@ function ApplicationRailItem({
 				</span>
 				<span className="flex items-center gap-1.5">
 					{application.isDraft ? (
-						<span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-muted-foreground text-xs">
-							Draft
+						<span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+							{t("common.draft")}
 						</span>
 					) : application.previewScore !== undefined ? (
 						<ScoreBadge score={application.previewScore} />
@@ -138,7 +145,7 @@ function ApplicationRailItem({
 							<Button
 								variant="ghost"
 								size="icon-xs"
-								title="More"
+								title={t("common.more")}
 								onClick={(event) => event.stopPropagation()}
 							/>
 						}
@@ -149,17 +156,17 @@ function ApplicationRailItem({
 						<DropdownMenuItem onClick={onArchiveToggle}>
 							{archived ? (
 								<>
-									<ArchiveRestore /> Unarchive
+									<ArchiveRestore /> {t("shell.unarchive")}
 								</>
 							) : (
 								<>
-									<Archive /> Archive
+									<Archive /> {t("shell.archive")}
 								</>
 							)}
 						</DropdownMenuItem>
 						<DropdownMenuSeparator />
 						<DropdownMenuItem variant="destructive" onClick={onDelete}>
-							<Trash2 /> Delete
+							<Trash2 /> {t("shell.delete")}
 						</DropdownMenuItem>
 					</DropdownMenuContent>
 				</DropdownMenu>
@@ -169,6 +176,7 @@ function ApplicationRailItem({
 }
 
 function ApplicationRail({ onNavigate }: { onNavigate?: () => void }) {
+	const { t } = useTranslation();
 	const {
 		activeApplications,
 		archivedApplications,
@@ -179,6 +187,7 @@ function ApplicationRail({ onNavigate }: { onNavigate?: () => void }) {
 		openApplication,
 	} = useCvApp();
 	const navigate = useNavigate();
+	const reduced = useReducedMotion();
 	const pathname = useRouterState({
 		select: (state) => state.location.pathname,
 	});
@@ -217,11 +226,11 @@ function ApplicationRail({ onNavigate }: { onNavigate?: () => void }) {
 		if (application.id === activeApplicationId) {
 			void navigate({ to: "/" });
 		}
-		toast("Application deleted", {
+		toast(t("shell.applicationDeleted"), {
 			description: applicationTitle(application),
 			action: snapshot
 				? {
-						label: "Undo",
+						label: t("common.undo"),
 						onClick: () => restoreApplication(snapshot),
 					}
 				: undefined,
@@ -236,13 +245,13 @@ function ApplicationRail({ onNavigate }: { onNavigate?: () => void }) {
 					<Input
 						value={query}
 						onChange={(event) => setQuery(event.target.value)}
-						placeholder="Search applications"
+						placeholder={t("shell.searchApplications")}
 						className="h-9 w-full bg-sidebar pl-9"
 					/>
 				</div>
 
 				<Button className="w-full justify-center" onClick={handleCreate}>
-					<Plus /> New application
+					<Plus /> {t("shell.newApplication")}
 				</Button>
 
 				<ScrollArea className="-mx-1 min-h-0 flex-1">
@@ -250,8 +259,8 @@ function ApplicationRail({ onNavigate }: { onNavigate?: () => void }) {
 						{visibleActive.length === 0 ? (
 							<p className="px-2 py-6 text-center text-muted-foreground text-sm">
 								{activeApplications.length === 0
-									? "No applications yet. Create your first to get started."
-									: "No matches."}
+									? t("shell.noApplications")
+									: t("shell.noMatches")}
 							</p>
 						) : (
 							<ul className="grid gap-1">
@@ -284,25 +293,37 @@ function ApplicationRail({ onNavigate }: { onNavigate?: () => void }) {
 											showArchived && "rotate-90",
 										)}
 									/>
-									Archived ({visibleArchived.length})
+									{t("shell.archived", { count: visibleArchived.length })}
 								</button>
-								{showArchived ? (
-									<ul className="mt-1 grid gap-1">
-										{visibleArchived.map((application) => (
-											<li key={application.id}>
-												<ApplicationRailItem
-													application={application}
-													active={application.id === activeApplicationId}
-													onOpen={() => handleOpen(application.id)}
-													onArchiveToggle={() =>
-														archiveApplication(application.id, false)
-													}
-													onDelete={() => handleDelete(application)}
-												/>
-											</li>
-										))}
-									</ul>
-								) : null}
+								<AnimatePresence initial={false}>
+									{showArchived ? (
+										<motion.ul
+											key="archived-list"
+											initial={{ height: 0, opacity: 0 }}
+											animate={{ height: "auto", opacity: 1 }}
+											exit={{ height: 0, opacity: 0 }}
+											transition={transitionForReduced(
+												reduced,
+												transitions.fast,
+											)}
+											className="mt-1 grid gap-1 overflow-hidden"
+										>
+											{visibleArchived.map((application) => (
+												<li key={application.id}>
+													<ApplicationRailItem
+														application={application}
+														active={application.id === activeApplicationId}
+														onOpen={() => handleOpen(application.id)}
+														onArchiveToggle={() =>
+															archiveApplication(application.id, false)
+														}
+														onDelete={() => handleDelete(application)}
+													/>
+												</li>
+											))}
+										</motion.ul>
+									) : null}
+								</AnimatePresence>
 							</div>
 						) : null}
 					</div>
@@ -317,7 +338,7 @@ function ApplicationRail({ onNavigate }: { onNavigate?: () => void }) {
 							onNavigate?.();
 						}}
 					>
-						<Settings /> Settings
+						<Settings /> {t("shell.settings")}
 						{isDesktop ? (
 							<kbd className="ml-auto rounded border bg-muted px-1.5 py-0.5 font-medium text-[10px] text-muted-foreground">
 								⌘,
@@ -429,10 +450,12 @@ function RouteTopBar({
 	);
 }
 
-export function AppShell({ children }: { children: ReactNode }) {
+export function AppShell() {
+	const { t } = useTranslation();
 	const [railOpen, setRailOpen] = useState(false);
 	const [collapsed, setCollapsed] = useState(false);
 	const [width, setWidth] = useState(defaultSidebarWidth);
+	const reduced = useReducedMotion();
 	useAppMenuShortcuts();
 	useDesktopUpdater();
 	const pathname = useRouterState({
@@ -514,45 +537,64 @@ export function AppShell({ children }: { children: ReactNode }) {
 					collapsed={collapsed}
 				/>
 			)}
-			<div
-				className={cn(
-					"grid min-h-0 flex-1 grid-cols-1 [grid-template-rows:minmax(0,1fr)]",
-					collapsed
-						? "lg:grid-cols-1"
-						: "lg:[grid-template-columns:var(--rail-w)_minmax(0,1fr)]",
-				)}
-			>
-				<aside
-					className={cn(
-						"relative hidden flex-col border-r bg-sidebar text-sidebar-foreground lg:flex lg:h-full",
-						collapsed ? "lg:hidden" : "lg:flex",
-					)}
+			<div className="flex min-h-0 flex-1">
+				<motion.aside
+					initial={false}
+					animate={{ width: collapsed ? 0 : width }}
+					transition={transitionForReduced(reduced, transitions.sidebar)}
+					className="relative hidden shrink-0 flex-col overflow-hidden border-r bg-sidebar text-sidebar-foreground lg:flex lg:h-full"
+					style={{ pointerEvents: collapsed ? "none" : undefined }}
 				>
-					<ApplicationRail />
-					<div
-						onPointerDown={startResize}
-						className="absolute top-0 right-0 z-10 hidden h-full w-1.5 cursor-col-resize hover:bg-primary/30 lg:block"
-						title="Drag to resize"
-					/>
-				</aside>
-
-				{railOpen ? (
-					<div className="fixed inset-0 z-40 lg:hidden">
-						<button
-							type="button"
-							aria-label="Close menu"
-							className="absolute inset-0 bg-foreground/40"
-							onClick={() => setRailOpen(false)}
+					<div className="flex h-full min-w-[var(--rail-w)] flex-col">
+						<ApplicationRail />
+						<div
+							onPointerDown={startResize}
+							className="absolute top-0 right-0 z-10 hidden h-full w-1.5 cursor-col-resize hover:bg-primary/30 lg:block"
+							title={t("shell.dragToResize")}
 						/>
-						<div className="absolute inset-y-0 left-0 w-72 border-r bg-sidebar text-sidebar-foreground shadow-xl">
-							<ApplicationRail onNavigate={() => setRailOpen(false)} />
-						</div>
 					</div>
-				) : null}
+				</motion.aside>
 
-				<ScrollArea className="min-h-0 flex-1">
-					<main>{children}</main>
-				</ScrollArea>
+				<AnimatePresence>
+					{railOpen ? (
+						<motion.div
+							key="mobile-rail"
+							initial={{ opacity: 0 }}
+							animate={{ opacity: 1 }}
+							exit={{ opacity: 0 }}
+							transition={transitionForReduced(reduced, transitions.fast)}
+							className="fixed inset-0 z-40 lg:hidden"
+						>
+							<button
+								type="button"
+								aria-label={t("shell.closeMenu")}
+								className="absolute inset-0 bg-foreground/40"
+								onClick={() => setRailOpen(false)}
+							/>
+							<motion.div
+								initial={{ x: "-100%" }}
+								animate={{ x: 0 }}
+								exit={{ x: "-100%" }}
+								transition={transitionForReduced(reduced, transitions.drawer)}
+								className="absolute inset-y-0 left-0 flex w-72 flex-col border-r bg-sidebar text-sidebar-foreground shadow-xl"
+							>
+								<ApplicationRail onNavigate={() => setRailOpen(false)} />
+							</motion.div>
+						</motion.div>
+					) : null}
+				</AnimatePresence>
+
+				<motion.div
+					layout
+					transition={transitionForReduced(reduced, transitions.sidebar)}
+					className="min-h-0 min-w-0 flex-1"
+				>
+					<ScrollArea className="h-full">
+						<main>
+							<AnimatedPage />
+						</main>
+					</ScrollArea>
+				</motion.div>
 			</div>
 			<CommandPalette />
 		</div>

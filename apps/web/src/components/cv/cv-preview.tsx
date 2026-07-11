@@ -1,8 +1,14 @@
 import type { Application, BaseProfile, CvRun } from "@cv-tailor/core";
 import type { ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 
-function joinDateRange(startDate: string, endDate: string, current = false) {
-	const end = current ? "Present" : endDate;
+function joinDateRange(
+	startDate: string,
+	endDate: string,
+	current = false,
+	presentLabel = "Present",
+) {
+	const end = current ? presentLabel : endDate;
 	return [startDate, end].filter(Boolean).join(" – ");
 }
 
@@ -40,6 +46,7 @@ export function CvPreview({
 	application: Application | undefined;
 	run: CvRun | undefined;
 }) {
+	const { t } = useTranslation();
 	const cv = run?.cv;
 
 	if (!cv) {
@@ -60,7 +67,7 @@ export function CvPreview({
 		<article className="mx-auto grid max-w-2xl gap-6 rounded-xl border bg-card p-8 text-card-foreground shadow-sm ring-1 ring-foreground/5">
 			<header className="grid gap-1 text-center">
 				<h1 className="font-semibold text-2xl tracking-tight">
-					{profile.contact.name || "Your name"}
+					{profile.contact.name || t("cv.preview.nameFallback")}
 				</h1>
 				{profile.headline ? (
 					<p className="text-muted-foreground text-sm">{profile.headline}</p>
@@ -73,13 +80,13 @@ export function CvPreview({
 			</header>
 
 			{cv.summary ? (
-				<Section title="Summary">
+				<Section title={t("cv.section.summary")}>
 					<p className="text-sm leading-relaxed">{cv.summary}</p>
 				</Section>
 			) : null}
 
 			{cv.skills.length > 0 ? (
-				<Section title="Skills">
+				<Section title={t("cv.section.skills")}>
 					<div className="flex flex-wrap gap-1.5">
 						{cv.skills.map((skill) => (
 							<span
@@ -94,7 +101,7 @@ export function CvPreview({
 			) : null}
 
 			{cv.experience.length > 0 ? (
-				<Section title="Experience">
+				<Section title={t("cv.section.experience")}>
 					<div className="grid gap-4">
 						{cv.experience.map((tailored) => {
 							const source = profile.experience.find(
@@ -116,6 +123,7 @@ export function CvPreview({
 												source.startDate,
 												source.endDate,
 												source.current,
+												t("cv.present"),
 											)}
 										</span>
 									</div>
@@ -128,7 +136,7 @@ export function CvPreview({
 			) : null}
 
 			{cv.projects.length > 0 ? (
-				<Section title="Projects">
+				<Section title={t("cv.section.projects")}>
 					<div className="grid gap-4">
 						{cv.projects.map((tailored) => {
 							const source = profile.projects.find(
@@ -160,7 +168,7 @@ export function CvPreview({
 			) : null}
 
 			{includedEducation.length > 0 ? (
-				<Section title="Education">
+				<Section title={t("cv.section.education")}>
 					<div className="grid gap-3">
 						{includedEducation.map((item) => (
 							<div key={item.id} className="grid gap-0.5">
@@ -169,7 +177,12 @@ export function CvPreview({
 										{item.degree || item.institution}
 									</p>
 									<span className="shrink-0 text-muted-foreground text-xs tabular-nums">
-										{joinDateRange(item.startDate, item.endDate)}
+										{joinDateRange(
+											item.startDate,
+											item.endDate,
+											false,
+											t("cv.present"),
+										)}
 									</span>
 								</div>
 								{item.institution && item.degree ? (
@@ -185,7 +198,7 @@ export function CvPreview({
 			) : null}
 
 			{profile.languages.length > 0 ? (
-				<Section title="Languages">
+				<Section title={t("cv.section.languages")}>
 					<p className="text-sm">{profile.languages.join("  ·  ")}</p>
 				</Section>
 			) : null}

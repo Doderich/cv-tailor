@@ -162,7 +162,9 @@ export function buildJobOfferFromFetchedPage(input: {
 	links: string[];
 } {
 	const rawText = input.text.trim();
-	const urlHints = input.url ? parseJobPostingUrl(input.url) : { title: "", company: "" };
+	const urlHints = input.url
+		? parseJobPostingUrl(input.url)
+		: { title: "", company: "" };
 	const textHints = extractTitleCompanyFromJobText(rawText);
 	const title = textHints.title || urlHints.title || "";
 

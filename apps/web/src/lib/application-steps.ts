@@ -5,14 +5,14 @@ export type ApplicationStepId = "job-details" | "review" | "generate-cv";
 
 export interface ApplicationStepMeta {
 	id: ApplicationStepId;
-	label: string;
+	translationKey: string;
 	number: number;
 }
 
 export const applicationSteps: ApplicationStepMeta[] = [
-	{ id: "job-details", label: "Job Details", number: 1 },
-	{ id: "review", label: "Review", number: 2 },
-	{ id: "generate-cv", label: "Generate CV", number: 3 },
+	{ id: "job-details", translationKey: "application.tab.jobDetails", number: 1 },
+	{ id: "review", translationKey: "application.tab.review", number: 2 },
+	{ id: "generate-cv", translationKey: "application.tab.generateCv", number: 3 },
 ];
 
 export interface AnalysisState {
@@ -119,5 +119,7 @@ export function parseApplicationStep(
 }
 
 export function applicationStepMeta(step: ApplicationStepId) {
-	return applicationSteps.find((entry) => entry.id === step) ?? applicationSteps[0];
+	return (
+		applicationSteps.find((entry) => entry.id === step) ?? applicationSteps[0]
+	);
 }

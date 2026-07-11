@@ -133,11 +133,14 @@ export async function runAiTool(
 
 	if (options?.onProgress) {
 		const { listen } = await import("@tauri-apps/api/event");
-		unlisten = await listen<AiRunProgressEvent>(AI_RUN_PROGRESS_EVENT, (event) => {
-			if (event.payload.runId === runId) {
-				options.onProgress?.(event.payload);
-			}
-		});
+		unlisten = await listen<AiRunProgressEvent>(
+			AI_RUN_PROGRESS_EVENT,
+			(event) => {
+				if (event.payload.runId === runId) {
+					options.onProgress?.(event.payload);
+				}
+			},
+		);
 	}
 
 	try {
