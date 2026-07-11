@@ -14,6 +14,7 @@ import {
 	WandSparkles,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import { usePalette } from "@/components/palette-provider";
 import { useTheme } from "@/components/theme-provider";
@@ -22,19 +23,22 @@ import { applicationTitle, useCvApp } from "@/lib/cv-app-context";
 
 export const openCommandPaletteEvent = "cmdk:open";
 
+type CommandGroup = "actions" | "applications" | "appearance";
+
 interface CommandItem {
 	id: string;
 	label: string;
-	group: string;
+	group: CommandGroup;
 	icon: LucideIcon;
 	keywords?: string;
 	hint?: string;
 	run: () => void;
 }
 
-const groupOrder = ["Actions", "Applications", "Appearance"];
+const groupOrder: CommandGroup[] = ["actions", "applications", "appearance"];
 
 export function CommandPalette() {
+	const { t } = useTranslation();
 	const {
 		activeApplications,
 		activeApplication,
@@ -90,8 +94,8 @@ export function CommandPalette() {
 		const actions: CommandItem[] = [
 			{
 				id: "new-application",
-				label: "New application",
-				group: "Actions",
+				label: t("commandPalette.newApplication"),
+				group: "actions",
 				icon: Plus,
 				keywords: "create add job",
 				run: () => {
@@ -104,8 +108,8 @@ export function CommandPalette() {
 			},
 			{
 				id: "settings",
-				label: "Open profile & settings",
-				group: "Actions",
+				label: t("commandPalette.settings"),
+				group: "actions",
 				icon: Settings,
 				keywords: "profile appearance ai tools palette",
 				run: () => {
@@ -118,8 +122,8 @@ export function CommandPalette() {
 		if (activeApplication) {
 			actions.push({
 				id: "export-pdf",
-				label: "Export active CV as PDF",
-				group: "Actions",
+				label: t("commandPalette.exportPdf"),
+				group: "actions",
 				icon: Printer,
 				keywords: "print download",
 				run: () => {
@@ -131,8 +135,8 @@ export function CommandPalette() {
 			if (canGenerateActive) {
 				actions.push({
 					id: "generate",
-					label: "Generate tailored CV",
-					group: "Actions",
+					label: t("commandPalette.generate"),
+					group: "actions",
 					icon: WandSparkles,
 					keywords: "ai tailor regenerate",
 					run: () => {
@@ -147,7 +151,7 @@ export function CommandPalette() {
 			(application) => ({
 				id: `app-${application.id}`,
 				label: applicationTitle(application),
-				group: "Applications",
+				group: "applications",
 				icon: FileText,
 				keywords: `${application.jobOffer.company} open switch`,
 				hint: application.jobOffer.company.trim() || undefined,
@@ -162,8 +166,8 @@ export function CommandPalette() {
 		const appearanceItems: CommandItem[] = [
 			{
 				id: "theme-light",
-				label: "Theme: Light",
-				group: "Appearance",
+				label: t("commandPalette.themeLight"),
+				group: "appearance",
 				icon: Sun,
 				keywords: "mode color",
 				run: () => {
@@ -173,8 +177,8 @@ export function CommandPalette() {
 			},
 			{
 				id: "theme-dark",
-				label: "Theme: Dark",
-				group: "Appearance",
+				label: t("commandPalette.themeDark"),
+				group: "appearance",
 				icon: Moon,
 				keywords: "mode color",
 				run: () => {
@@ -184,8 +188,8 @@ export function CommandPalette() {
 			},
 			{
 				id: "theme-system",
-				label: "Theme: System",
-				group: "Appearance",
+				label: t("commandPalette.themeSystem"),
+				group: "appearance",
 				icon: Monitor,
 				keywords: "mode color",
 				run: () => {
@@ -195,8 +199,10 @@ export function CommandPalette() {
 			},
 			...palettes.map((option) => ({
 				id: `palette-${option.id}`,
-				label: `Palette: ${option.name}`,
-				group: "Appearance",
+				label: t("commandPalette.palette", {
+					paletteName: t(`palette.${option.id}.name`),
+				}),
+				group: "appearance" as const,
 				icon: Palette,
 				keywords: "color theme accent",
 				run: () => {
@@ -219,6 +225,7 @@ export function CommandPalette() {
 		palettes,
 		setPalette,
 		setTheme,
+		t,
 	]);
 
 	const filtered = useMemo(() => {
@@ -262,18 +269,24 @@ export function CommandPalette() {
 		}
 	}
 
+	const groupLabels: Record<CommandGroup, string> = {
+		actions: t("commandPalette.group.actions"),
+		applications: t("commandPalette.group.applications"),
+		appearance: t("commandPalette.group.appearance"),
+	};
+
 	return (
 		<div className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-[15vh]">
 			<button
 				type="button"
-				aria-label="Close command palette"
+				aria-label={t("commandPalette.close")}
 				className="absolute inset-0 bg-foreground/40 backdrop-blur-sm"
 				onClick={() => setOpen(false)}
 			/>
 			<div
 				role="dialog"
 				aria-modal="true"
-				aria-label="Command palette"
+				aria-label={t("commandPalette.dialog")}
 				className="relative w-full max-w-lg overflow-hidden rounded-xl border bg-popover text-popover-foreground shadow-2xl"
 				onKeyDown={handleKeyDown}
 			>
@@ -283,18 +296,18 @@ export function CommandPalette() {
 						ref={inputRef}
 						value={query}
 						onChange={(event) => setQuery(event.target.value)}
-						placeholder="Type a command or search…"
+						placeholder={t("commandPalette.placeholder")}
 						className="h-11 w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
 					/>
 					<kbd className="rounded border bg-muted px-1.5 py-0.5 font-medium text-[10px] text-muted-foreground">
-						ESC
+						{t("commandPalette.escapeHint")}
 					</kbd>
 				</div>
 
 				<div className="max-h-80 overflow-y-auto p-2">
 					{filtered.length === 0 ? (
 						<p className="px-2 py-6 text-center text-muted-foreground text-sm">
-							No results for “{query}”.
+							{t("commandPalette.noResults", { query })}
 						</p>
 					) : (
 						groupOrder.map((group) => {
@@ -308,7 +321,7 @@ export function CommandPalette() {
 							return (
 								<div key={group} className="mb-1 last:mb-0">
 									<p className="px-2 py-1.5 font-medium text-[11px] text-muted-foreground uppercase tracking-wide">
-										{group}
+										{groupLabels[group]}
 									</p>
 									<ul>
 										{groupItems.map((item) => {

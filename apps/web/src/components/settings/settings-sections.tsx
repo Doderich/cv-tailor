@@ -9,6 +9,7 @@ import {
 } from "@cv-tailor/ui/components/select";
 import { cn } from "@cv-tailor/ui/lib/utils";
 import { Monitor, Moon, RefreshCw, Sun } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 import { DataBackupPanel } from "@/components/data-backup-panel";
 import { AiStatusPanel } from "@/components/cv/insights";
@@ -16,6 +17,7 @@ import { ProfileEditor } from "@/components/cv/profile-editor";
 import { ProfileImporter } from "@/components/cv/profile-importer";
 import { ProfileManager } from "@/components/cv/profile-manager";
 import { FontPicker } from "@/components/font-picker";
+import { LanguagePicker } from "@/components/language-picker";
 import { PalettePicker } from "@/components/palette-picker";
 import { useTextSize, type TextSizeId } from "@/components/text-size-provider";
 import { useTheme } from "@/components/theme-provider";
@@ -27,37 +29,27 @@ import {
 	useCvApp,
 } from "@/lib/cv-app-context";
 
-const themeOptions = [
-	{ id: "light", label: "Light", icon: Sun },
-	{ id: "dark", label: "Dark", icon: Moon },
-	{ id: "system", label: "System", icon: Monitor },
-] as const;
-
-const segmentedContainerClass =
-	"inline-flex w-fit rounded-md border bg-card p-0.5";
-const segmentedButtonClass =
-	"rounded-sm px-2.5 py-1 text-sm font-medium transition-colors";
-
-const toolOptions: { id: AiToolId; label: string }[] = [
-	{ id: "auto", label: "Auto" },
-	{ id: "claude", label: "Claude" },
-	{ id: "codex", label: "Codex" },
-	{ id: "cursor", label: "Cursor" },
-];
+const themeOptionIds = ["light", "dark", "system"] as const;
+const themeIcons = {
+	light: Sun,
+	dark: Moon,
+	system: Monitor,
+} as const;
 
 function ThemeToggleGroup() {
+	const { t } = useTranslation();
 	const { theme, setTheme } = useTheme();
 
 	return (
 		<div className={segmentedContainerClass}>
-			{themeOptions.map((option) => {
-				const Icon = option.icon;
-				const active = theme === option.id;
+			{themeOptionIds.map((optionId) => {
+				const Icon = themeIcons[optionId];
+				const active = theme === optionId;
 				return (
 					<button
-						key={option.id}
+						key={optionId}
 						type="button"
-						onClick={() => setTheme(option.id)}
+						onClick={() => setTheme(optionId)}
 						className={cn(
 							"inline-flex items-center gap-1.5",
 							segmentedButtonClass,
@@ -67,7 +59,7 @@ function ThemeToggleGroup() {
 						)}
 					>
 						<Icon className="size-3.5" />
-						{option.label}
+						{t(`settings.theme.${optionId}`)}
 					</button>
 				);
 			})}
@@ -75,7 +67,15 @@ function ThemeToggleGroup() {
 	);
 }
 
+const segmentedContainerClass =
+	"inline-flex w-fit rounded-md border bg-card p-0.5";
+const segmentedButtonClass =
+	"rounded-sm px-2.5 py-1 text-sm font-medium transition-colors";
+
+const toolOptionIds: AiToolId[] = ["auto", "claude", "codex", "cursor"];
+
 function TextSizeSelect() {
+	const { t } = useTranslation();
 	const { textSize, setTextSize, textSizeOptions } = useTextSize();
 
 	return (
@@ -88,12 +88,12 @@ function TextSizeSelect() {
 			}}
 		>
 			<SelectTrigger className="max-w-xs" size="sm">
-				<SelectValue placeholder="Select text size" />
+				<SelectValue placeholder={t("settings.appearance.selectTextSize")} />
 			</SelectTrigger>
 			<SelectContent>
 				{textSizeOptions.map((option) => (
 					<SelectItem key={option.id} value={option.id}>
-						{option.label}
+						{t(`settings.textSize.${option.id}`)}
 					</SelectItem>
 				))}
 			</SelectContent>
@@ -143,23 +143,29 @@ function SettingsSection({ children }: { children: React.ReactNode }) {
 }
 
 export function SettingsAppearanceSection() {
+	const { t } = useTranslation();
+
 	return (
 		<SettingsSection>
 			<div className="grid gap-4">
 				<div className="grid gap-3">
-					<span className="font-medium text-base">Mode</span>
+					<span className="font-medium text-base">{t("settings.appearance.mode")}</span>
 					<ThemeToggleGroup />
 				</div>
 				<div className="grid gap-3">
-					<span className="font-medium text-base">Text size</span>
+					<span className="font-medium text-base">{t("settings.appearance.language")}</span>
+					<LanguagePicker />
+				</div>
+				<div className="grid gap-3">
+					<span className="font-medium text-base">{t("settings.appearance.textSize")}</span>
 					<TextSizeSelect />
 				</div>
 				<div className="grid gap-3">
-					<span className="font-medium text-base">Typeface</span>
+					<span className="font-medium text-base">{t("settings.appearance.typeface")}</span>
 					<FontPicker />
 				</div>
 				<div className="grid gap-3">
-					<span className="font-medium text-base">Palette</span>
+					<span className="font-medium text-base">{t("settings.appearance.palette")}</span>
 					<PalettePicker />
 				</div>
 			</div>
@@ -168,6 +174,7 @@ export function SettingsAppearanceSection() {
 }
 
 export function SettingsAiSection() {
+	const { t } = useTranslation();
 	const {
 		aiModels,
 		aiStatuses,
@@ -188,11 +195,16 @@ export function SettingsAiSection() {
 		? aiModels[effectiveAiProvider]
 		: undefined;
 
+	const toolOptions = toolOptionIds.map((id) => ({
+		id,
+		label: t(`settings.ai.tool.${id}`),
+	}));
+
 	return (
 		<SettingsSection>
 			<div className="grid gap-4">
 				<div className="grid gap-3">
-					<span className="font-medium text-base">Preferred tool</span>
+					<span className="font-medium text-base">{t("settings.ai.preferredTool")}</span>
 					<SegmentedControl
 						options={toolOptions}
 						value={selectedTool}
@@ -201,7 +213,7 @@ export function SettingsAiSection() {
 				</div>
 				{effectiveAiProvider ? (
 					<div className="grid gap-3">
-						<span className="font-medium text-base">Model</span>
+						<span className="font-medium text-base">{t("settings.ai.model")}</span>
 						<SegmentedControl
 							options={modelOptions}
 							value={activeModel ?? modelOptions[0]?.id ?? ""}
@@ -217,7 +229,7 @@ export function SettingsAiSection() {
 						size="sm"
 						onClick={() => void refreshAiStatuses()}
 					>
-						<RefreshCw /> Refresh tools
+						<RefreshCw /> {t("settings.ai.refreshTools")}
 					</Button>
 				</div>
 				<AiStatusPanel statuses={aiStatuses} />

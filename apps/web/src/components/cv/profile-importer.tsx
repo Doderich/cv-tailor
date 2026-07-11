@@ -5,7 +5,6 @@ import {
 	parseCliGeneratedProfileOutput,
 } from "@cv-tailor/ai";
 import {
-	cvLanguageLabel,
 	cvLanguages,
 	type CvLanguage,
 	hasMeaningfulProfileContent,
@@ -32,6 +31,7 @@ import { Textarea } from "@cv-tailor/ui/components/textarea";
 import { cn } from "@cv-tailor/ui/lib/utils";
 import { FileSearch, Loader2, Paperclip, X } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
 import {
@@ -51,6 +51,7 @@ import {
 	type AiRunProgressEvent,
 } from "@/lib/tauri-ai";
 import { resolveEffectiveAiModel, useCvApp } from "@/lib/cv-app-context";
+import { formatLocalizedDate, useCvLanguageLabel } from "@/lib/i18n-labels";
 
 interface ProfileImporterProps {
 	selectedTool: AiToolId;
@@ -114,6 +115,8 @@ export function ProfileImporter({
 	canUseAi,
 	preferredTone,
 }: ProfileImporterProps) {
+	const { t } = useTranslation();
+	const cvLanguageLabel = useCvLanguageLabel();
 	const {
 		aiModels,
 		aiStatuses,
@@ -180,7 +183,7 @@ export function ProfileImporter({
 			return urls.map((url) => ({
 				url,
 				text: "",
-				error: "Open the Tauri desktop app to fetch public URLs.",
+				error: t("profile.importer.error.urlFetchDesktop"),
 			}));
 		}
 
@@ -221,23 +224,25 @@ export function ProfileImporter({
 			if (succeeded.length > 0) {
 				toast.success(
 					succeeded.length === 1
-						? "File added to context"
-						: `${succeeded.length} files added to context`,
+						? t("profile.importer.toast.fileAdded")
+						: t("profile.importer.toast.filesAdded", {
+								count: succeeded.length,
+							}),
 				);
 			}
 
 			if (failed.length > 0) {
 				toast.error(
 					failed.length === 1
-						? "Could not read file"
-						: "Some files could not be read",
+						? t("profile.importer.toast.fileReadFailed")
+						: t("profile.importer.toast.filesReadFailed"),
 					{
 						description: failed[0]?.error,
 					},
 				);
 			}
 		} catch (error) {
-			toast.error("Could not read files", {
+			toast.error(t("profile.importer.toast.filesReadError"), {
 				description: getErrorMessage(error),
 			});
 		} finally {
@@ -256,25 +261,27 @@ export function ProfileImporter({
 
 	async function handleGenerateProfile() {
 		if (!hasInput) {
-			toast.error("Add profile context first");
+			toast.error(t("profile.importer.toast.noContext"));
 			return;
 		}
 
 		if (!canUseAi) {
-			toast.error("No local AI tool is ready");
+			toast.error(t("profile.importer.toast.noAi"));
 			return;
 		}
 
+		const preparingMessage = t("profile.importer.progress.preparing");
 		setIsGenerating(true);
-		setGenerationPhase("Preparing profile context...");
-		setGenerationLog(["Preparing profile context..."]);
+		setGenerationPhase(preparingMessage);
+		setGenerationLog([preparingMessage]);
 		setRawOutput(undefined);
 
 		try {
 			if (sourceUrls.length > 0) {
-				setGenerationPhase("Fetching public URLs...");
+				const fetchingMessage = t("profile.importer.progress.fetching");
+				setGenerationPhase(fetchingMessage);
 				setGenerationLog((current) =>
-					appendProgressLine(current, "Fetching public URLs..."),
+					appendProgressLine(current, fetchingMessage),
 				);
 			}
 
@@ -287,14 +294,13 @@ export function ProfileImporter({
 				hasReadableText(fileSources);
 
 			if (!hasReadableSource) {
-				throw new Error(
-					"No readable text was found in the context, URLs, or uploaded files.",
-				);
+				throw new Error(t("profile.importer.error.noReadableText"));
 			}
 
-			setGenerationPhase("Running local AI tool...");
+			const runningAiMessage = t("profile.importer.progress.runningAi");
+			setGenerationPhase(runningAiMessage);
 			setGenerationLog((current) =>
-				appendProgressLine(current, "Running local AI tool..."),
+				appendProgressLine(current, runningAiMessage),
 			);
 
 			const prompt = buildGenerateProfilePrompt({
@@ -327,9 +333,8 @@ export function ProfileImporter({
 				);
 
 				if (!hasMeaningfulProfileContent(profile)) {
-					toast.warning("Profile looks empty", {
-						description:
-							"The AI returned JSON without career details. Check the AI response below and try pasting resume text directly into Context.",
+					toast.warning(t("profile.importer.toast.emptyProfile"), {
+						description: t("profile.importer.toast.emptyProfileDescription"),
 					});
 					return;
 				}
@@ -340,9 +345,14 @@ export function ProfileImporter({
 					name: targetMode === "new" ? newProfileName : undefined,
 				});
 				toast.success(
-					targetMode === "new" ? "New profile created" : "Profile updated",
+					targetMode === "new"
+						? t("profile.importer.toast.created")
+						: t("profile.importer.toast.updated"),
 					{
-						description: `${cvLanguageLabel(targetLanguage)} · ${summarizeProfileContent(profile)}`,
+						description: t("profile.importer.toast.successDescription", {
+							language: cvLanguageLabel(targetLanguage),
+							summary: summarizeProfileContent(profile),
+						}),
 					},
 				);
 				if (targetMode === "new") {
@@ -359,7 +369,7 @@ export function ProfileImporter({
 				throw error;
 			}
 		} catch (error) {
-			toast.error("Profile creation failed", {
+			toast.error(t("profile.importer.toast.failed"), {
 				description: getErrorMessage(error),
 			});
 		} finally {
@@ -371,31 +381,33 @@ export function ProfileImporter({
 	return (
 		<Card size="sm">
 			<CardHeader>
-				<CardTitle>Create Profile</CardTitle>
+				<CardTitle>{t("profile.importer.title")}</CardTitle>
 			</CardHeader>
 			<CardContent className="grid gap-3">
 				<div className="grid gap-3">
-					<Label>Save to</Label>
+					<Label>{t("profile.importer.saveTo")}</Label>
 					<div className="grid gap-2 sm:grid-cols-2">
 						<TargetModeButton
 							active={targetMode === "current"}
 							label={
 								profileRecord
-									? `Update ${profileRecord.name}`
-									: "Update current profile"
+									? t("profile.importer.updateNamed", {
+											profileName: profileRecord.name,
+										})
+									: t("profile.importer.updateCurrent")
 							}
 							onClick={() => setTargetMode("current")}
 						/>
 						<TargetModeButton
 							active={targetMode === "new"}
-							label="Create new profile"
+							label={t("profile.importer.createNew")}
 							onClick={() => setTargetMode("new")}
 						/>
 					</div>
 				</div>
 				<div className="grid gap-3 sm:grid-cols-2">
 					<div className="grid gap-3">
-						<Label>Profile language</Label>
+						<Label>{t("profile.importer.language")}</Label>
 						<Select
 							value={targetLanguage}
 							onValueChange={(value) => {
@@ -404,8 +416,10 @@ export function ProfileImporter({
 								}
 							}}
 						>
-							<SelectTrigger aria-label="Profile language">
-								<SelectValue placeholder="Language" />
+							<SelectTrigger aria-label={t("profile.importer.languageAriaLabel")}>
+								<SelectValue
+									placeholder={t("profile.importer.languagePlaceholder")}
+								/>
 							</SelectTrigger>
 							<SelectContent>
 								{cvLanguages.map((option) => (
@@ -418,27 +432,29 @@ export function ProfileImporter({
 					</div>
 					{targetMode === "new" ? (
 						<div className="grid gap-3">
-							<Label>Profile name</Label>
+							<Label>{t("profile.importer.name")}</Label>
 							<Input
 								value={newProfileName}
 								onChange={(event) => setNewProfileName(event.target.value)}
-								placeholder={`Optional · defaults to ${cvLanguageLabel(targetLanguage)}`}
+								placeholder={t("profile.importer.namePlaceholder", {
+									language: cvLanguageLabel(targetLanguage),
+								})}
 							/>
 						</div>
 					) : null}
 				</div>
 				<div className="grid gap-3">
-					<Label>Context</Label>
+					<Label>{t("profile.importer.context")}</Label>
 					<Textarea
 						value={contextText}
 						onChange={(event) => setContextText(event.target.value)}
-						placeholder="Paste resume text, LinkedIn profile text, notes, achievements, projects, education, languages, and links."
+						placeholder={t("profile.importer.contextPlaceholder")}
 						rows={6}
 					/>
 				</div>
 				<div className="grid gap-3">
 					<div className="flex items-center justify-between gap-2">
-						<Label>Local files</Label>
+						<Label>{t("profile.importer.files")}</Label>
 						<Button
 							type="button"
 							variant="outline"
@@ -451,7 +467,7 @@ export function ProfileImporter({
 							) : (
 								<Paperclip />
 							)}
-							Add files
+							{t("profile.importer.addFiles")}
 						</Button>
 					</div>
 					<input
@@ -466,8 +482,7 @@ export function ProfileImporter({
 						}
 					/>
 					<p className="text-muted-foreground text-xs">
-						Upload resume files as text or PDF. PDF extraction works in the
-						desktop app.
+						{t("profile.importer.filesHelp")}
 					</p>
 					{fileSources.length > 0 ? (
 						<div className="grid gap-1 text-xs">
@@ -487,7 +502,9 @@ export function ProfileImporter({
 										>
 											{file.error
 												? file.error
-												: `${file.text.length} chars`}
+												: t("profile.importer.chars", {
+														count: file.text.length,
+													})}
 										</p>
 									</div>
 									<Button
@@ -495,7 +512,9 @@ export function ProfileImporter({
 										variant="ghost"
 										size="icon-sm"
 										onClick={() => removeFileSource(file.name)}
-										aria-label={`Remove ${file.name}`}
+										aria-label={t("profile.importer.removeFile", {
+											fileName: file.name,
+										})}
 									>
 										<X className="size-3.5" />
 									</Button>
@@ -505,11 +524,11 @@ export function ProfileImporter({
 					) : null}
 				</div>
 				<div className="grid gap-3">
-					<Label>Public URLs</Label>
+					<Label>{t("profile.importer.urls")}</Label>
 					<Textarea
 						value={urlsText}
 						onChange={(event) => setUrlsText(event.target.value)}
-						placeholder={"https://www.linkedin.com/in/...\nhttps://example.com/about"}
+						placeholder={t("profile.importer.urlsPlaceholder")}
 						rows={3}
 					/>
 				</div>
@@ -518,12 +537,12 @@ export function ProfileImporter({
 					disabled={!canGenerate}
 				>
 					{isGenerating ? <Loader2 className="animate-spin" /> : <FileSearch />}
-					Create profile
+					{t("profile.importer.submit")}
 				</Button>
 				{isGenerating ? (
 					<div className="grid gap-2 rounded-lg border bg-muted/30 p-3">
 						<p className="font-medium text-xs">
-							{generationPhase ?? "Working..."}
+							{generationPhase ?? t("profile.importer.progress.working")}
 						</p>
 						{generationLog.length > 0 ? (
 							<div className="max-h-48 overflow-auto">
@@ -536,7 +555,7 @@ export function ProfileImporter({
 					</div>
 				) : generationLog.length > 0 ? (
 					<div className="grid gap-2 rounded-lg border p-3">
-						<p className="font-medium text-xs">Last AI run log</p>
+						<p className="font-medium text-xs">{t("profile.importer.lastLog")}</p>
 						<pre className="max-h-48 overflow-auto text-xs leading-relaxed">
 							{generationLog.join("\n")}
 						</pre>
@@ -544,7 +563,7 @@ export function ProfileImporter({
 				) : null}
 				{!canUseAi ? (
 					<p className="text-destructive text-xs">
-						Local AI is not ready for profile creation.
+						{t("profile.importer.aiNotReady")}
 					</p>
 				) : null}
 				{sourceResults.length > 0 ? (
@@ -559,7 +578,12 @@ export function ProfileImporter({
 								>
 									{source.error
 										? source.error
-										: `${source.status ?? "Fetched"} · ${source.text.length} chars`}
+										: t("profile.importer.sourceStatus", {
+												status:
+													source.status?.toString() ??
+													t("profile.importer.sourceFetched"),
+												count: source.text.length,
+											})}
 								</p>
 							</div>
 						))}
@@ -567,7 +591,7 @@ export function ProfileImporter({
 				) : null}
 				{rawOutput ? (
 					<div className="grid gap-2">
-						<p className="font-medium text-xs">AI response (raw)</p>
+						<p className="font-medium text-xs">{t("profile.importer.rawResponse")}</p>
 						<pre className="max-h-60 overflow-auto border p-2 text-xs">
 							{rawOutput}
 						</pre>
@@ -576,7 +600,11 @@ export function ProfileImporter({
 				{sortedProfiles.length > 0 ? (
 					<div className="grid gap-2 border-t pt-3">
 						<div className="flex items-center justify-between gap-2">
-							<Label>All profiles ({sortedProfiles.length})</Label>
+							<Label>
+								{t("profile.importer.allProfiles", {
+									count: sortedProfiles.length,
+								})}
+							</Label>
 						</div>
 						<div className="grid gap-1">
 							{sortedProfiles.map((item) => {
@@ -585,7 +613,7 @@ export function ProfileImporter({
 									item.contact.name.trim() ||
 									item.summary.trim() ||
 									item.headline.trim() ||
-									"No content yet";
+									t("profile.importer.noContent");
 								return (
 									<button
 										key={item.id}
@@ -606,7 +634,9 @@ export function ProfileImporter({
 										</div>
 										<p className="truncate text-muted-foreground">{preview}</p>
 										<p className="text-[11px] text-muted-foreground">
-											Updated {new Date(item.updatedAt).toLocaleString()}
+											{t("profile.importer.updated", {
+												date: formatLocalizedDate(item.updatedAt),
+											})}
 										</p>
 									</button>
 								);

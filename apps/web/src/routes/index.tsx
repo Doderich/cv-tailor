@@ -2,6 +2,7 @@ import { Button } from "@cv-tailor/ui/components/button";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Sparkles, WandSparkles } from "lucide-react";
 import { useEffect } from "react";
+import { useTranslation } from "react-i18next";
 
 import { applicationStepPath } from "@/lib/application-route";
 import { useCvApp } from "@/lib/cv-app-context";
@@ -46,6 +47,8 @@ function HomeRoute() {
 }
 
 function EmptyWorkspace({ onCreate }: { onCreate: () => void }) {
+	const { t } = useTranslation();
+
 	return (
 		<div className="grid min-h-[70vh] place-items-center p-6">
 			<div className="grid max-w-md justify-items-center gap-4 text-center">
@@ -54,15 +57,14 @@ function EmptyWorkspace({ onCreate }: { onCreate: () => void }) {
 				</div>
 				<div className="grid gap-1.5">
 					<h2 className="font-semibold text-xl tracking-tight">
-						Start a new application
+						{t("home.title")}
 					</h2>
 					<p className="text-muted-foreground text-sm">
-						Paste a job offer, review how well your profile matches, then tailor
-						and export focused CVs in English or German.
+						{t("home.description")}
 					</p>
 				</div>
 				<Button size="lg" onClick={onCreate}>
-					<WandSparkles /> New application
+					<WandSparkles /> {t("home.newApplication")}
 				</Button>
 			</div>
 		</div>
