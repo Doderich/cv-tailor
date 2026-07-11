@@ -287,8 +287,8 @@ function main() {
 
 	run("pnpm", ["run", "desktop:build"], {
 		env: {
+			CI: "true",
 			TAURI_SIGNING_PRIVATE_KEY: privateKeyPath,
-			TAURI_SIGNING_PRIVATE_KEY_PASSWORD: "",
 		},
 	});
 

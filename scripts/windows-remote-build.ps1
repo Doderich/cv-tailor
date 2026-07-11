@@ -23,8 +23,8 @@ Require-Path $SigningKeyPath "Missing signing key at $SigningKeyPath. Run deskto
 $webRoot = Join-Path $RepoPath "apps\web"
 Require-Path $webRoot "Web app directory not found: $webRoot"
 
+$env:CI = "true"
 $env:TAURI_SIGNING_PRIVATE_KEY = $SigningKeyPath
-$env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD = ""
 
 Write-Host "Installing dependencies..."
 Push-Location $RepoPath

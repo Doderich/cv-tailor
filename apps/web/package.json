@@ -12,7 +12,7 @@
 		"tauri": "tauri",
 		"desktop:dev": "node scripts/tauri-dev.mjs",
 		"desktop:run": "cargo run --manifest-path src-tauri/Cargo.toml --no-default-features",
-		"desktop:build": "tauri build",
+		"desktop:build": "node ../../scripts/run-tauri-build.mjs",
 		"desktop:setup-signing": "tsx ../../scripts/setup-desktop-signing.ts",
 		"desktop:release": "tsx ../../scripts/release-desktop-macos.ts",
 		"desktop:release:windows": "tsx ../../scripts/release-desktop-windows.ts",
