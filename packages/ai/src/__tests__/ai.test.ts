@@ -1,12 +1,14 @@
 import { describe, expect, it } from "vitest";
 
 import {
+	buildEvaluateProfileMatchPrompt,
 	buildGenerateProfilePrompt,
 	buildReviewJobPostingPrompt,
 	buildTailorCvPrompt,
 	generatedProfileOutputJsonSchema,
 	parseCliGeneratedProfileOutput,
 	parseCliJobPostingReviewOutput,
+	parseCliMatchAnalysisOutput,
 	parseCliTailoredCvOutput,
 	type TailorCvInput,
 	tailoredCvOutputJsonSchema,
@@ -132,7 +134,9 @@ const promptInput: TailorCvInput = {
 		matchedKeywords: ["react"],
 		missingKeywords: [],
 		missingRequirements: [],
+		goodFit: ["Strong React experience across multiple roles."],
 		warnings: [],
+		source: "draft",
 	},
 	targetLanguage: "en",
 };
@@ -291,6 +295,46 @@ describe("job posting review prompt and parser", () => {
 
 	it("parses fenced job review JSON", () => {
 		const stdout = `\`\`\`json\n${JSON.stringify(validJobReviewOutput)}\n\`\`\``;
-		expect(parseCliJobPostingReviewOutput(stdout)).toEqual(validJobReviewOutput);
+		expect(parseCliJobPostingReviewOutput(stdout)).toEqual(
+			validJobReviewOutput,
+		);
+	});
+});
+
+const validMatchAnalysisOutput = {
+	score: 78,
+	matchedKeywords: ["typescript", "next.js", "postgresql"],
+	missingKeywords: ["aws", "nestjs"],
+	missingRequirements: ["AWS production experience is not evidenced."],
+	goodFit: [
+		"Strong TypeScript and Next.js experience across professional roles and side projects.",
+		"PostgreSQL is used in current SaaS work at Example Co.",
+		"Startup experience with end-to-end feature ownership matches the role scope.",
+	],
+	warnings: ["GCP experience may partially cover basic cloud expectations."],
+};
+
+describe("profile match evaluation prompt and parser", () => {
+	it("builds a semantic match prompt with profile and job signals", () => {
+		const prompt = buildEvaluateProfileMatchPrompt({
+			profile: promptInput.profile,
+			jobOffer: promptInput.jobOffer,
+			signals: promptInput.signals,
+		});
+
+		expect(prompt).toContain(
+			"Judge semantically, not by naive keyword overlap.",
+		);
+		expect(prompt).toContain("goodFit must list the strongest factual reasons");
+		expect(prompt).toContain("Base profile JSON:");
+		expect(prompt).toContain("Extracted job signals JSON:");
+	});
+
+	it("parses fenced match analysis JSON", () => {
+		const stdout = `\`\`\`json\n${JSON.stringify(validMatchAnalysisOutput)}\n\`\`\``;
+		expect(parseCliMatchAnalysisOutput(stdout)).toEqual({
+			...validMatchAnalysisOutput,
+			source: "ai",
+		});
 	});
 });

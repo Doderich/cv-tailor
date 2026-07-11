@@ -2,6 +2,7 @@ import {
 	createDefaultAppSettings,
 	createDefaultProfileRecord,
 	defaultProfileId,
+	normalizeCvRun,
 	normalizeProfileRecord,
 } from "@cv-tailor/core";
 
@@ -33,6 +34,47 @@ export async function seedDefaults(collections: DbCollections) {
 		}
 	}
 
+	for (const application of collections.applications.values()) {
+		if (application.profileMatch) {
+			continue;
+		}
+
+		const runs = [...collections.cvRuns.values()].filter(
+			(run) => run.applicationId === application.id,
+		);
+		const aiRun = runs.find((run) => run.matchAnalysis.source === "ai");
+		if (!aiRun) {
+			continue;
+		}
+
+		const profile = collections.profiles.get(application.profileId);
+		if (!profile) {
+			continue;
+		}
+
+		collections.applications.update(application.id, (draft) => {
+			draft.profileMatch = {
+				profileId: application.profileId,
+				jobRawText: application.jobOffer.rawText.trim(),
+				jobReviewedAt: application.jobOffer.review?.reviewedAt,
+				profileUpdatedAt: profile.updatedAt,
+				matchAnalysis: normalizeCvRun(aiRun).matchAnalysis,
+				evaluatedAt: aiRun.updatedAt,
+			};
+		});
+	}
+
+	for (const run of collections.cvRuns.values()) {
+		if (Array.isArray(run.matchAnalysis.goodFit)) {
+			continue;
+		}
+
+		const normalized = normalizeCvRun(run);
+		collections.cvRuns.update(run.id, (draft) => {
+			draft.matchAnalysis = normalized.matchAnalysis;
+		});
+	}
+
 	const hasSettings = collections.settings.has("settings");
 	if (hasSettings) {
 		const settings = collections.settings.get("settings");
@@ -45,7 +87,8 @@ export async function seedDefaults(collections: DbCollections) {
 			if (needsAiSettings) {
 				const defaults = createDefaultAppSettings(settings.activeProfileId);
 				collections.settings.update("settings", (draft) => {
-					draft.selectedAiTool = draft.selectedAiTool ?? defaults.selectedAiTool;
+					draft.selectedAiTool =
+						draft.selectedAiTool ?? defaults.selectedAiTool;
 					draft.aiModels = {
 						...defaults.aiModels,
 						...draft.aiModels,

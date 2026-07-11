@@ -2,6 +2,8 @@ mod ai;
 mod commands;
 mod errors;
 mod file_import;
+#[cfg(desktop)]
+mod menu;
 mod pdf_export;
 mod web_fetch;
 
@@ -35,7 +37,7 @@ struct NativeStatus {
 fn status_payload(runtime: &'static str, local_api_url: &str) -> NativeStatus {
     NativeStatus {
         status: "ok",
-        app_name: "cv-tailor",
+        app_name: "CV Tailor",
         runtime,
         pid: std::process::id(),
         local_api_url: local_api_url.to_string(),
@@ -111,9 +113,13 @@ pub fn run() {
     let local_api_state = start_local_api().expect("failed to start local API server");
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(local_api_state)
         .plugin(tauri_plugin_sql::Builder::default().build())
         .setup(|app| {
+            #[cfg(desktop)]
+            menu::install(app)?;
             if cfg!(debug_assertions) {
                 app.handle().plugin(
                     tauri_plugin_log::Builder::default()
@@ -127,6 +133,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             native_status,
             commands::detect_ai_tools,
+            commands::suggest_ai_tool_paths,
             commands::run_ai_tool,
             commands::fetch_url_text,
             commands::extract_profile_file_text,

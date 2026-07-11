@@ -2,7 +2,6 @@ import { Toaster } from "@cv-tailor/ui/components/sonner";
 import {
 	createRootRouteWithContext,
 	HeadContent,
-	Outlet,
 } from "@tanstack/react-router";
 import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
 
@@ -24,17 +23,22 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
 	head: () => ({
 		meta: [
 			{
-				title: "cv-tailor",
+				title: "CV Tailor",
 			},
 			{
 				name: "description",
-				content: "cv-tailor is a web application",
+				content:
+					"Tailor CVs to job applications locally with profile import, job analysis, and AI-assisted generation.",
 			},
 		],
 		links: [
 			{
 				rel: "icon",
 				href: "/favicon.ico",
+			},
+			{
+				rel: "apple-touch-icon",
+				href: "/apple-touch-icon.png",
 			},
 		],
 	}),
@@ -56,9 +60,7 @@ function RootComponent() {
 						<TextSizeProvider>
 							<DbBootstrap>
 								<CvAppProvider>
-									<AppShell>
-										<Outlet />
-									</AppShell>
+									<AppShell />
 									<PrintSurface />
 								</CvAppProvider>
 							</DbBootstrap>

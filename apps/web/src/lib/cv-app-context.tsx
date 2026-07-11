@@ -2,6 +2,7 @@ import {
 	type AiModels,
 	type AiProviderId,
 	type AiToolId,
+	buildEvaluateProfileMatchPrompt,
 	buildReviewJobPostingPrompt,
 	buildTailorCvPrompt,
 	claudeModelOptions,
@@ -9,12 +10,15 @@ import {
 	cursorModelOptions,
 	defaultAiModels,
 	jobPostingReviewOutputJsonSchema,
+	matchAnalysisOutputJsonSchema,
 	parseCliJobPostingReviewOutput,
+	parseCliMatchAnalysisOutput,
 	parseCliTailoredCvOutput,
 	tailoredCvOutputJsonSchema,
 } from "@cv-tailor/ai";
 import {
 	type Application,
+	type AppSettings,
 	type BaseProfile,
 	type CvLanguage,
 	type CvRun,
@@ -24,19 +28,23 @@ import {
 	createEmptyApplication,
 	createId,
 	createProfileRecord,
-	cvLanguageLabel,
 	cvLanguages,
 	type JobOffer,
 	type JobPostingReview,
+	type JobSignals,
 	jobOfferNeedsReview,
+	type MatchAnalysis,
 	normalizeBaseProfile,
+	normalizeCvRun,
+	normalizeMatchAnalysis,
 	normalizeProfileRecord,
-	profilesHaveSameContent,
 	type ProfileRecord,
+	profileMatchNeedsEvaluation,
+	profilesHaveSameContent,
+	resolveCachedProfileMatch,
 	resolveJobSignals,
 	scoreProfileAgainstJob,
 	type TailoredCv,
-	type AppSettings,
 } from "@cv-tailor/core";
 import { useLiveQuery } from "@tanstack/react-db";
 import {
@@ -49,21 +57,23 @@ import {
 	useState,
 } from "react";
 import { toast } from "sonner";
-
-import type {
-	ApplicationView,
-	ApplicationViewType,
-} from "@/lib/application-views";
+import i18n from "@/i18n";
+import {
+	exportAllData as exportBackup,
+	importAllData as importBackup,
+} from "@/lib/data-backup";
 import { useDb } from "@/lib/db-provider";
 import { createDebouncedCallback } from "@/lib/debounce";
-import { exportAllData as exportBackup, importAllData as importBackup } from "@/lib/data-backup";
+import { translateCvLanguage } from "@/lib/i18n-labels";
 import {
+	type AiToolPaths,
 	type AiToolStatus,
 	detectAiTools,
 	exportGeneratedCvPdf,
 	formatAppError,
 	isTauriRuntime,
 	runAiToolResilient,
+	suggestAiToolPaths,
 } from "@/lib/tauri-ai";
 
 export type SaveStatus = "idle" | "saving" | "saved" | "error";
@@ -86,13 +96,6 @@ export interface DeletedApplicationSnapshot {
 	runs: CvRun[];
 }
 
-interface ViewsEntry {
-	views: ApplicationView[];
-	activeViewId: string;
-}
-
-type ViewsByApp = Record<string, ViewsEntry>;
-
 interface CvAppContextValue {
 	profile: BaseProfile;
 	profileRecord: ProfileRecord | undefined;
@@ -105,12 +108,10 @@ interface CvAppContextValue {
 	activeRuns: CvRun[];
 	activeId: string | undefined;
 	selectedLanguage: CvLanguage;
-	activeViews: ApplicationView[];
-	activeViewId: string | undefined;
-	activeView: ApplicationView | undefined;
 	aiStatuses: AiToolStatus[];
 	selectedTool: AiToolId;
 	aiModels: AiModels;
+	aiToolPaths: AiToolPaths;
 	effectiveAiProvider: AiProviderId | undefined;
 	effectiveAiModel: string | undefined;
 	saveStatus: SaveStatus;
@@ -118,13 +119,18 @@ interface CvAppContextValue {
 	canGenerateActive: boolean;
 	isGenerating: boolean;
 	isReviewingJobOffer: boolean;
+	isAnalyzingProfileMatch: boolean;
 	isExportingPdf: boolean;
 	generationError: string | undefined;
 	jobReviewError: string | undefined;
+	profileMatchError: string | undefined;
 	rawCliOutput: string | undefined;
 	rawJobReviewOutput: string | undefined;
+	rawProfileMatchOutput: string | undefined;
 	setSelectedTool: (tool: AiToolId) => void;
 	setAiModel: (provider: AiProviderId, model: string) => void;
+	setAiToolPath: (provider: AiProviderId, path: string) => void;
+	suggestAndApplyAiToolPaths: () => Promise<void>;
 	setSelectedLanguage: (language: CvLanguage) => void;
 	refreshAiStatuses: () => Promise<void>;
 	createApplication: () => string;
@@ -133,20 +139,16 @@ interface CvAppContextValue {
 	archiveApplication: (id: string, archived: boolean) => void;
 	openApplication: (id: string) => void;
 	setActiveId: (id: string) => void;
-	openView: (type: ApplicationViewType) => void;
-	closeView: (viewId: string) => void;
-	setActiveView: (viewId: string) => void;
 	updateActiveJobOffer: (patch: JobOfferPatch) => void;
+	flushActiveJobOffer: () => void;
 	updateActiveCv: (cv: TailoredCv) => void;
 	reviewActiveJobOffer: (options?: { force?: boolean }) => Promise<void>;
+	analyzeActiveProfileMatch: (options?: { force?: boolean }) => Promise<void>;
 	generateActive: (language?: CvLanguage) => Promise<void>;
 	switchActiveRun: (runId: string) => void;
 	exportPdf: () => Promise<void>;
 	exportAllData: () => Promise<void>;
-	importAllData: (
-		file: File,
-		mode: "replace" | "merge",
-	) => Promise<void>;
+	importAllData: (file: File, mode: "replace" | "merge") => Promise<void>;
 	isExportingData: boolean;
 	isImportingData: boolean;
 	profileRevision: number;
@@ -233,16 +235,26 @@ export function resolveEffectiveAiModel(
 export { claudeModelOptions, codexModelOptions, cursorModelOptions };
 
 export function applicationTitle(application: Pick<Application, "jobOffer">) {
-	return application.jobOffer.title.trim() || "Untitled role";
+	return (
+		application.jobOffer.title.trim() || i18n.t("app.application.untitledRole")
+	);
 }
 
 export function applicationCompany(application: Pick<Application, "jobOffer">) {
-	return application.jobOffer.company.trim() || "No company";
+	return (
+		application.jobOffer.company.trim() || i18n.t("app.application.noCompany")
+	);
 }
 
-function defaultViewsFor(appId: string): ViewsEntry {
-	const id = `${appId}:editor`;
-	return { views: [{ id, type: "editor" }], activeViewId: id };
+function runLabel(language: CvLanguage, version: number) {
+	const languageLabel = translateCvLanguage(language);
+	if (version <= 1) {
+		return i18n.t("app.run.label", { language: languageLabel });
+	}
+	return i18n.t("app.run.labelVersioned", {
+		language: languageLabel,
+		version,
+	});
 }
 
 function toListItem(
@@ -322,27 +334,31 @@ function mergeJobOfferPatch(
 
 export function CvAppProvider({ children }: { children: ReactNode }) {
 	const db = useDb();
-	const [viewsByApp, setViewsByApp] = useState<ViewsByApp>({});
 	const [selectedLanguage, setSelectedLanguageState] =
 		useState<CvLanguage>("en");
 	const [aiStatuses, setAiStatuses] = useState<AiToolStatus[]>([]);
 	const [isGenerating, setIsGenerating] = useState(false);
 	const [isReviewingJobOffer, setIsReviewingJobOffer] = useState(false);
+	const [isAnalyzingProfileMatch, setIsAnalyzingProfileMatch] = useState(false);
 	const [isExportingPdf, setIsExportingPdf] = useState(false);
 	const [isExportingData, setIsExportingData] = useState(false);
 	const [isImportingData, setIsImportingData] = useState(false);
 	const [generationError, setGenerationError] = useState<string>();
 	const [jobReviewError, setJobReviewError] = useState<string>();
+	const [profileMatchError, setProfileMatchError] = useState<string>();
 	const [rawCliOutput, setRawCliOutput] = useState<string>();
 	const [rawJobReviewOutput, setRawJobReviewOutput] = useState<string>();
+	const [rawProfileMatchOutput, setRawProfileMatchOutput] = useState<string>();
 	const [profileRevision, setProfileRevision] = useState(0);
-	const [profileSnapshot, setProfileSnapshot] = useState<BaseProfile | undefined>();
+	const [profileSnapshot, setProfileSnapshot] = useState<
+		BaseProfile | undefined
+	>();
 	const profileSnapshotUpdatedAtRef = useRef<string | undefined>(undefined);
 	const deletedSnapshots = useRef(
 		new Map<string, DeletedApplicationSnapshot>(),
 	);
 	const pendingAiSettingsRef = useRef<
-		Partial<Pick<AppSettings, "selectedAiTool" | "aiModels">>
+		Partial<Pick<AppSettings, "selectedAiTool" | "aiModels" | "aiToolPaths">>
 	>({});
 
 	const {
@@ -357,6 +373,10 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 		useLiveQuery((q) => q.from({ application: db.applications }));
 	const { data: runRows = [], isLoading: runsLoading } = useLiveQuery((q) =>
 		q.from({ run: db.cvRuns }),
+	);
+	const normalizedRunRows = useMemo(
+		() => runRows.map((run) => normalizeCvRun(run)),
+		[runRows],
 	);
 	const { data: aiOutputRows = [] } = useLiveQuery((q) =>
 		q.from({ output: db.aiOutputs }),
@@ -378,6 +398,12 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 	const applicationRowsRef = useRef(applicationRows);
 	const runRowsRef = useRef(runRows);
 	const selectedLanguageRef = useRef(selectedLanguage);
+	const aiStatusesRef = useRef(aiStatuses);
+	const selectedToolRef = useRef<AiToolId>("auto");
+	const aiModelsRef = useRef<AiModels>(defaultAiModels);
+	const aiToolPathsRef = useRef<AiToolPaths>({});
+	const effectiveAiModelRef = useRef<string | undefined>(undefined);
+	const profileMatchRequestRef = useRef(0);
 	const persistProfilePatchRef = useRef<(patch: Partial<BaseProfile>) => void>(
 		() => undefined,
 	);
@@ -420,6 +446,7 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 	applicationRowsRef.current = applicationRows;
 	runRowsRef.current = runRows;
 	selectedLanguageRef.current = selectedLanguage;
+	aiStatusesRef.current = aiStatuses;
 
 	const selectedTool =
 		(settings?.selectedAiTool as AiToolId | undefined) ?? "auto";
@@ -430,6 +457,10 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 				...(settings?.aiModels ?? {}),
 			}) as AiModels,
 		[settings?.aiModels],
+	);
+	const aiToolPaths = useMemo(
+		() => ({ ...(settings?.aiToolPaths ?? {}) }),
+		[settings?.aiToolPaths],
 	);
 
 	useEffect(() => {
@@ -447,10 +478,12 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 			applicationRows.map((application) =>
 				toListItem(
 					application,
-					runRows.filter((run) => run.applicationId === application.id),
+					normalizedRunRows.filter(
+						(run) => run.applicationId === application.id,
+					),
 				),
 			),
-		[applicationRows, runRows],
+		[applicationRows, normalizedRunRows],
 	);
 	const activeApplications = applications.filter((item) => !item.archived);
 	const archivedApplications = applications.filter((item) => item.archived);
@@ -458,21 +491,13 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 	const activeApplication =
 		applicationRows.find((item) => item.id === activeId) ??
 		activeApplications[0];
-	const activeRuns = runRows.filter(
+	const activeRuns = normalizedRunRows.filter(
 		(run) => run.applicationId === activeApplication?.id,
 	);
 	const activeRun =
 		activeRuns.find((run) => run.id === settings?.activeRunId) ??
 		activeRuns.find((run) => run.language === selectedLanguage) ??
 		activeRuns[0];
-
-	const activeViewsEntry = activeApplication
-		? (viewsByApp[activeApplication.id] ??
-			defaultViewsFor(activeApplication.id))
-		: undefined;
-	const activeViews = activeViewsEntry?.views ?? [];
-	const activeViewId = activeViewsEntry?.activeViewId;
-	const activeView = activeViews.find((view) => view.id === activeViewId);
 
 	const saveStatus: SaveStatus =
 		settingsLoading || profilesLoading || applicationsLoading || runsLoading
@@ -489,6 +514,10 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 	const effectiveAiModel = effectiveAiProvider
 		? aiModels[effectiveAiProvider]
 		: undefined;
+	selectedToolRef.current = selectedTool;
+	aiModelsRef.current = aiModels;
+	aiToolPathsRef.current = aiToolPaths;
+	effectiveAiModelRef.current = effectiveAiModel;
 	const canGenerateActive =
 		Boolean(activeApplication?.jobOffer.rawText.trim()) &&
 		canUseSelectedAi &&
@@ -503,16 +532,16 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 	useEffect(() => {
 		async function loadAiStatuses() {
 			try {
-				setAiStatuses(await detectAiTools());
+				setAiStatuses(await detectAiTools(aiToolPathsRef.current));
 			} catch (error) {
-				toast.error("Could not detect AI tools", {
+				toast.error(i18n.t("app.toast.aiDetectFailed"), {
 					description: getErrorMessage(error),
 				});
 			}
 		}
 
 		void loadAiStatuses();
-	}, []);
+	}, [aiToolPaths]);
 
 	function updateSettings(patch: Partial<typeof settings>) {
 		if (!settings) {
@@ -536,9 +565,9 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 		);
 	}
 
-	async function awaitPersisted(
-		transaction: { isPersisted: { promise: Promise<unknown> } },
-	) {
+	async function awaitPersisted(transaction: {
+		isPersisted: { promise: Promise<unknown> };
+	}) {
 		await transaction.isPersisted.promise;
 	}
 
@@ -568,13 +597,15 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 			throw new Error(
 				message.toLowerCase().includes("database")
 					? message
-					: `Could not write profile to the database: ${message}`,
+					: i18n.t("app.error.dbWriteProfile", { message }),
 			);
 		}
 	}
 
 	async function persistAiSettings(
-		patch: Partial<Pick<AppSettings, "selectedAiTool" | "aiModels">>,
+		patch: Partial<
+			Pick<AppSettings, "selectedAiTool" | "aiModels" | "aiToolPaths">
+		>,
 	) {
 		if (!settingsRef.current) {
 			pendingAiSettingsRef.current = {
@@ -587,7 +618,7 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 		try {
 			await persistSettings(patch);
 		} catch (error) {
-			toast.error("Could not save AI settings", {
+			toast.error(i18n.t("app.toast.aiSettingsSaveFailed"), {
 				description: getErrorMessage(error),
 			});
 		}
@@ -607,6 +638,35 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 		});
 	}
 
+	function setAiToolPath(provider: AiProviderId, path: string) {
+		const current = { ...(settingsRef.current?.aiToolPaths ?? {}) };
+		const trimmed = path.trim();
+		if (trimmed) {
+			current[provider] = trimmed;
+		} else {
+			delete current[provider];
+		}
+		void persistAiSettings({ aiToolPaths: current });
+	}
+
+	async function suggestAndApplyAiToolPaths() {
+		try {
+			const suggested = await suggestAiToolPaths();
+			const current = { ...(settingsRef.current?.aiToolPaths ?? {}) };
+			for (const provider of ["claude", "codex", "cursor"] as const) {
+				if (!current[provider]?.trim() && suggested[provider]?.trim()) {
+					current[provider] = suggested[provider]!.trim();
+				}
+			}
+			await persistAiSettings({ aiToolPaths: current });
+			setAiStatuses(await detectAiTools(current));
+		} catch (error) {
+			toast.error(i18n.t("app.toast.aiDetectFailed"), {
+				description: getErrorMessage(error),
+			});
+		}
+	}
+
 	function setSelectedLanguage(language: CvLanguage) {
 		setSelectedLanguageState(language);
 		const runForLanguage = activeRuns
@@ -619,9 +679,9 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 
 	async function refreshAiStatuses() {
 		try {
-			setAiStatuses(await detectAiTools());
+			setAiStatuses(await detectAiTools(aiToolPathsRef.current));
 		} catch (error) {
-			toast.error("Could not detect AI tools", {
+			toast.error(i18n.t("app.toast.aiDetectFailed"), {
 				description: getErrorMessage(error),
 			});
 		}
@@ -647,10 +707,6 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 			activeApplicationId: application.id,
 			activeRunId: draftRun.id,
 		});
-		setViewsByApp((prev) => ({
-			...prev,
-			[application.id]: defaultViewsFor(application.id),
-		}));
 		setSelectedLanguageState(profileLanguage);
 		return application.id;
 	}
@@ -685,10 +741,6 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 		updateSettings({
 			activeApplicationId: nextActive,
 			activeRunId: nextRuns[0]?.id,
-		});
-		setViewsByApp((prev) => {
-			const { [id]: _removed, ...rest } = prev;
-			return rest;
 		});
 		return snapshot;
 	}
@@ -747,83 +799,223 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 		setSelectedLanguageState(run.language);
 	}
 
-	function openView(type: ApplicationViewType) {
-		const application = activeApplication;
-		if (!application) {
-			return;
-		}
-
-		setViewsByApp((prev) => {
-			const entry = prev[application.id] ?? defaultViewsFor(application.id);
-			const existing = entry.views.find((view) => view.type === type);
-			if (existing) {
-				return {
-					...prev,
-					[application.id]: { ...entry, activeViewId: existing.id },
-				};
-			}
-
-			const view: ApplicationView = {
-				id: `${application.id}:${type}:${createId("view")}`,
-				type,
-			};
-			return {
-				...prev,
-				[application.id]: {
-					views: [...entry.views, view],
-					activeViewId: view.id,
-				},
-			};
-		});
-	}
-
-	function closeView(viewId: string) {
-		const application = activeApplication;
-		if (!application) {
-			return;
-		}
-
-		setViewsByApp((prev) => {
-			const entry = prev[application.id] ?? defaultViewsFor(application.id);
-			const index = entry.views.findIndex((view) => view.id === viewId);
-			if (index === -1) {
-				return prev;
-			}
-
-			const views = entry.views.filter((view) => view.id !== viewId);
-			if (views.length === 0) {
-				return { ...prev, [application.id]: defaultViewsFor(application.id) };
-			}
-
-			let activeViewId = entry.activeViewId;
-			if (activeViewId === viewId) {
-				activeViewId = (views[index] ?? views[index - 1] ?? views[0]).id;
-			}
-			return { ...prev, [application.id]: { views, activeViewId } };
-		});
-	}
-
-	function setActiveView(viewId: string) {
-		const application = activeApplication;
-		if (!application) {
-			return;
-		}
-
-		setViewsByApp((prev) => {
-			const entry = prev[application.id] ?? defaultViewsFor(application.id);
-			return {
-				...prev,
-				[application.id]: { ...entry, activeViewId: viewId },
-			};
-		});
-	}
-
 	function updateActiveJobOffer(patch: JobOfferPatch) {
 		pendingJobOfferPatchRef.current = mergeJobOfferPatch(
 			pendingJobOfferPatchRef.current,
 			patch,
 		);
 		debouncedPersistJobOfferPatch.current.debounced();
+	}
+
+	function flushActiveJobOffer() {
+		debouncedPersistJobOfferPatch.current.flush();
+	}
+
+	function updateApplicationRunsMatchAnalysis(
+		applicationId: string,
+		signals: JobSignals,
+		matchAnalysis: MatchAnalysis,
+	) {
+		const now = new Date().toISOString();
+		for (const run of runRowsRef.current.filter(
+			(entry) => entry.applicationId === applicationId,
+		)) {
+			db.cvRuns.update(run.id, (draft) => {
+				draft.signals = signals;
+				draft.matchAnalysis = normalizeMatchAnalysis(matchAnalysis);
+				draft.updatedAt = now;
+			});
+		}
+	}
+
+	async function evaluateProfileMatchAnalysis(
+		profileForScoring: BaseProfile,
+		jobOffer: JobOffer,
+		signals: JobSignals,
+	): Promise<{ analysis: MatchAnalysis; stdout: string }> {
+		const tool = selectedToolRef.current;
+		const statuses = aiStatusesRef.current;
+		const model = effectiveAiModelRef.current;
+		const models = aiModelsRef.current;
+
+		if (!toolIsReady(tool, statuses)) {
+			return {
+				analysis: scoreProfileAgainstJob(profileForScoring, {
+					...jobOffer,
+					signals,
+				}),
+				stdout: "",
+			};
+		}
+
+		const response = await runAiToolResilient(
+			{
+				tool,
+				prompt: buildEvaluateProfileMatchPrompt({
+					profile: profileForScoring,
+					jobOffer,
+					signals,
+				}),
+				schema: matchAnalysisOutputJsonSchema,
+				model,
+			},
+			{
+				statuses,
+				model,
+				models,
+				toolPaths: aiToolPathsRef.current,
+			},
+		);
+
+		try {
+			const analysis = parseCliMatchAnalysisOutput(response.stdout);
+			return {
+				analysis: normalizeMatchAnalysis({
+					...analysis,
+					evaluatorTool: response.tool,
+				}),
+				stdout: response.stdout,
+			};
+		} catch (parseError) {
+			setRawProfileMatchOutput(response.stdout);
+			throw parseError;
+		}
+	}
+
+	function saveApplicationProfileMatch(
+		applicationId: string,
+		input: {
+			profileId: string;
+			profileUpdatedAt: string;
+			jobRawText: string;
+			jobReviewedAt?: string;
+			matchAnalysis: MatchAnalysis;
+			stdout?: string;
+		},
+	) {
+		const now = new Date().toISOString();
+		db.applications.update(applicationId, (draft) => {
+			draft.profileMatch = {
+				profileId: input.profileId,
+				jobRawText: input.jobRawText,
+				jobReviewedAt: input.jobReviewedAt,
+				profileUpdatedAt: input.profileUpdatedAt,
+				matchAnalysis: normalizeMatchAnalysis(input.matchAnalysis),
+				evaluatedAt: now,
+				stdout: input.stdout,
+			};
+			draft.updatedAt = now;
+		});
+	}
+
+	async function analyzeProfileMatchForApplication(
+		applicationId: string,
+		options?: { force?: boolean },
+	) {
+		const record = profileRecordRef.current;
+		const application = applicationRowsRef.current.find(
+			(item) => item.id === applicationId,
+		);
+		if (!application || !record) {
+			return;
+		}
+
+		const rawText = application.jobOffer.rawText.trim();
+		if (!rawText) {
+			return;
+		}
+
+		const jobOffer: JobOffer = {
+			...application.jobOffer,
+			signals: resolveJobSignals(application.jobOffer),
+		};
+		const signals = jobOffer.signals ?? resolveJobSignals(jobOffer);
+		const profileForScoring = profileFromRecord(record);
+		const draftAnalysis = scoreProfileAgainstJob(profileForScoring, {
+			...jobOffer,
+			signals,
+		});
+		const cachedAnalysis = resolveCachedProfileMatch(
+			application,
+			record.id,
+			record.updatedAt,
+		);
+
+		if (!options?.force && cachedAnalysis) {
+			updateApplicationRunsMatchAnalysis(
+				applicationId,
+				signals,
+				cachedAnalysis,
+			);
+			return;
+		}
+
+		if (
+			!options?.force &&
+			!profileMatchNeedsEvaluation({
+				application,
+				profileId: record.id,
+				profileUpdatedAt: record.updatedAt,
+			})
+		) {
+			return;
+		}
+
+		if (!toolIsReady(selectedToolRef.current, aiStatusesRef.current)) {
+			updateApplicationRunsMatchAnalysis(applicationId, signals, draftAnalysis);
+			return;
+		}
+
+		const requestId = profileMatchRequestRef.current + 1;
+		profileMatchRequestRef.current = requestId;
+		setIsAnalyzingProfileMatch(true);
+		setProfileMatchError(undefined);
+		setRawProfileMatchOutput(undefined);
+		updateApplicationRunsMatchAnalysis(applicationId, signals, draftAnalysis);
+
+		try {
+			const { analysis, stdout } = await evaluateProfileMatchAnalysis(
+				profileForScoring,
+				jobOffer,
+				signals,
+			);
+			if (profileMatchRequestRef.current !== requestId) {
+				return;
+			}
+			saveApplicationProfileMatch(applicationId, {
+				profileId: record.id,
+				profileUpdatedAt: record.updatedAt,
+				jobRawText: rawText,
+				jobReviewedAt: application.jobOffer.review?.reviewedAt,
+				matchAnalysis: analysis,
+				stdout,
+			});
+			updateApplicationRunsMatchAnalysis(applicationId, signals, analysis);
+		} catch (error) {
+			if (profileMatchRequestRef.current !== requestId) {
+				return;
+			}
+			const message = getErrorMessage(error);
+			setProfileMatchError(message);
+			updateApplicationRunsMatchAnalysis(applicationId, signals, draftAnalysis);
+		} finally {
+			if (profileMatchRequestRef.current === requestId) {
+				setIsAnalyzingProfileMatch(false);
+			}
+		}
+	}
+
+	async function analyzeActiveProfileMatch(options?: { force?: boolean }) {
+		const settingsValue = settingsRef.current;
+		const applications = applicationRowsRef.current;
+		const activeId = settingsValue?.activeApplicationId;
+		const application =
+			applications.find((item) => item.id === activeId) ?? applications[0];
+		if (!application) {
+			return;
+		}
+
+		await analyzeProfileMatchForApplication(application.id, options);
 	}
 
 	function persistActiveJobOffer(patch: JobOfferPatch) {
@@ -845,15 +1037,18 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 		const rawTextChanged =
 			patch.rawText !== undefined && rawText !== previousRawText;
 		let review = application.jobOffer.review;
+		let profileMatch = application.profileMatch;
 		if (rawTextChanged) {
 			review = undefined;
+			profileMatch = undefined;
 		}
 
 		const jobOffer: JobOffer = {
 			...application.jobOffer,
 			...patch,
 			links: patch.links ?? application.jobOffer.links ?? [],
-			position: patch.position ?? application.jobOffer.position ?? "unspecified",
+			position:
+				patch.position ?? application.jobOffer.position ?? "unspecified",
 			review,
 			signals: review
 				? review.signals
@@ -861,11 +1056,22 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 					? undefined
 					: application.jobOffer.signals,
 		};
+		const applicationForMatch = {
+			...application,
+			jobOffer,
+			profileMatch,
+		};
 		const signals = resolveJobSignals(jobOffer);
 		const jobOfferForScoring = { ...jobOffer, signals };
+		const cachedAnalysis = resolveCachedProfileMatch(
+			applicationForMatch,
+			record.id,
+			record.updatedAt,
+		);
 
 		db.applications.update(application.id, (draft) => {
 			draft.jobOffer = jobOffer;
+			draft.profileMatch = profileMatch;
 			draft.updatedAt = now;
 		});
 
@@ -874,12 +1080,21 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 		)) {
 			db.cvRuns.update(run.id, (draft) => {
 				draft.signals = signals;
-				draft.matchAnalysis = scoreProfileAgainstJob(
-					profileForScoring,
-					jobOfferForScoring,
-				);
+				draft.matchAnalysis =
+					cachedAnalysis ??
+					scoreProfileAgainstJob(profileForScoring, jobOfferForScoring);
 				draft.updatedAt = now;
 			});
+		}
+
+		if (
+			profileMatchNeedsEvaluation({
+				application: applicationForMatch,
+				profileId: record.id,
+				profileUpdatedAt: record.updatedAt,
+			})
+		) {
+			void analyzeProfileMatchForApplication(application.id);
 		}
 	}
 
@@ -943,7 +1158,7 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 		}
 
 		if (!canUseSelectedAi) {
-			setJobReviewError("No AI tool is available for job review.");
+			setJobReviewError(i18n.t("app.error.noAiForReview"));
 			return;
 		}
 
@@ -967,9 +1182,13 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 					statuses: aiStatuses,
 					model: effectiveAiModel,
 					models: aiModels,
+					toolPaths: aiToolPaths,
 				},
 			);
-			let parsedReview: { signals: JobPostingReview["signals"]; summary: string };
+			let parsedReview: {
+				signals: JobPostingReview["signals"];
+				summary: string;
+			};
 			try {
 				parsedReview = parseCliJobPostingReviewOutput(response.stdout);
 			} catch (parseError) {
@@ -984,6 +1203,7 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 				rawText,
 				reviewedAt: now,
 				reviewTool: response.tool,
+				stdout: response.stdout,
 			};
 			const jobOffer: JobOffer = {
 				...application.jobOffer,
@@ -994,6 +1214,7 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 
 			db.applications.update(application.id, (draft) => {
 				draft.jobOffer = jobOffer;
+				draft.profileMatch = undefined;
 				draft.updatedAt = now;
 			});
 
@@ -1009,15 +1230,19 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 					draft.updatedAt = now;
 				});
 			}
+
+			await analyzeProfileMatchForApplication(application.id);
 		} catch (error) {
 			const message = getErrorMessage(error);
 			setJobReviewError(
 				message.toLowerCase().includes("not logged in") ||
 					message.toLowerCase().includes("login")
-					? `${message} Try Settings → AI tool and pick Cursor, or run \`claude /login\`.`
+					? i18n.t("app.error.jobReviewLoginHint", { message })
 					: message,
 			);
-			toast.error("Job review failed", { description: message });
+			toast.error(i18n.t("app.toast.jobReviewFailed"), {
+				description: message,
+			});
 		} finally {
 			setIsReviewingJobOffer(false);
 		}
@@ -1035,7 +1260,38 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 
 		const signals = resolveJobSignals(application.jobOffer);
 		const jobOffer: JobOffer = { ...application.jobOffer, signals };
-		const analysis = scoreProfileAgainstJob(profile, jobOffer);
+		let analysis = scoreProfileAgainstJob(profile, jobOffer);
+		if (toolIsReady(selectedTool, aiStatuses)) {
+			try {
+				const cached = activeApplication
+					? resolveCachedProfileMatch(
+							activeApplication,
+							profileRecord.id,
+							profileRecord.updatedAt,
+						)
+					: undefined;
+				if (cached) {
+					analysis = cached;
+				} else {
+					const result = await evaluateProfileMatchAnalysis(
+						profile,
+						jobOffer,
+						signals,
+					);
+					analysis = result.analysis;
+					saveApplicationProfileMatch(application.id, {
+						profileId: profileRecord.id,
+						profileUpdatedAt: profileRecord.updatedAt,
+						jobRawText: application.jobOffer.rawText.trim(),
+						jobReviewedAt: application.jobOffer.review?.reviewedAt,
+						matchAnalysis: result.analysis,
+						stdout: result.stdout,
+					});
+				}
+			} catch {
+				analysis = scoreProfileAgainstJob(profile, jobOffer);
+			}
+		}
 		const prompt = buildTailorCvPrompt({
 			profile,
 			jobOffer,
@@ -1056,6 +1312,7 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 					statuses: aiStatuses,
 					model: effectiveAiModel,
 					models: aiModels,
+					toolPaths: aiToolPaths,
 				},
 			);
 			let parsedCv: TailoredCv;
@@ -1076,10 +1333,7 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 				applicationId: application.id,
 				profileId: profileRecord.id,
 				language,
-				label:
-					existingRunsForLanguage.length === 0
-						? cvLanguageLabel(language)
-						: `${cvLanguageLabel(language)} v${existingRunsForLanguage.length + 1}`,
+				label: runLabel(language, existingRunsForLanguage.length + 1),
 				cv: parsedCv,
 				signals,
 				matchAnalysis: analysis,
@@ -1101,11 +1355,17 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 			});
 			updateSettings({ activeRunId: runId });
 			setSelectedLanguageState(language);
-			toast.success(`${cvLanguageLabel(language)} CV generated`);
+			toast.success(
+				i18n.t("app.toast.cvGenerated", {
+					language: translateCvLanguage(language),
+				}),
+			);
 		} catch (error) {
 			const message = getErrorMessage(error);
 			setGenerationError(message);
-			toast.error("Generation failed", { description: message });
+			toast.error(i18n.t("app.toast.generationFailed"), {
+				description: message,
+			});
 		} finally {
 			setIsGenerating(false);
 		}
@@ -1129,13 +1389,13 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 				activeApplication,
 				activeRun,
 			);
-			toast.success("PDF exported", {
+			toast.success(i18n.t("app.toast.pdfExported"), {
 				description: response.revealed
-					? "The PDF was revealed in Finder."
+					? i18n.t("app.toast.pdfRevealed")
 					: response.path,
 			});
 		} catch (error) {
-			toast.error("PDF export failed", {
+			toast.error(i18n.t("app.toast.pdfExportFailed"), {
 				description: getErrorMessage(error),
 			});
 		} finally {
@@ -1147,11 +1407,15 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 		setIsExportingData(true);
 		try {
 			const summary = await exportBackup(db);
-			toast.success("Backup exported", {
-				description: `${summary.profiles} profiles, ${summary.applications} applications, ${summary.cvRuns} CV versions.`,
+			toast.success(i18n.t("app.toast.backupExported"), {
+				description: i18n.t("app.toast.backupSummary", {
+					profiles: summary.profiles,
+					applications: summary.applications,
+					cvRuns: summary.cvRuns,
+				}),
 			});
 		} catch (error) {
-			toast.error("Export failed", {
+			toast.error(i18n.t("app.toast.exportFailed"), {
 				description: getErrorMessage(error),
 			});
 		} finally {
@@ -1159,23 +1423,26 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 		}
 	}
 
-	async function importAllData(
-		file: File,
-		mode: "replace" | "merge",
-	) {
+	async function importAllData(file: File, mode: "replace" | "merge") {
 		setIsImportingData(true);
 		try {
 			const content = await file.text();
 			const summary = await importBackup(db, content, mode);
 			setProfileRevision((current) => current + 1);
 			toast.success(
-				mode === "replace" ? "Backup restored" : "Backup merged",
+				mode === "replace"
+					? i18n.t("app.toast.backupRestored")
+					: i18n.t("app.toast.backupMerged"),
 				{
-					description: `${summary.profiles} profiles, ${summary.applications} applications, ${summary.cvRuns} CV versions.`,
+					description: i18n.t("app.toast.backupSummary", {
+						profiles: summary.profiles,
+						applications: summary.applications,
+						cvRuns: summary.cvRuns,
+					}),
 				},
 			);
 		} catch (error) {
-			toast.error("Import failed", {
+			toast.error(i18n.t("app.toast.importFailed"), {
 				description: getErrorMessage(error),
 			});
 			throw error;
@@ -1317,7 +1584,7 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 				profileSnapshotUpdatedAtRef.current = undefined;
 				setProfileRevision((current) => current + 1);
 			} catch (error) {
-				toast.error("Could not save profile", {
+				toast.error(i18n.t("app.toast.profileSaveFailed"), {
 					description: getErrorMessage(error),
 				});
 			}
@@ -1341,7 +1608,7 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 				applyProfilePatch(draft, patch, now);
 			});
 		} catch (error) {
-			toast.error("Could not save profile", {
+			toast.error(i18n.t("app.toast.profileSaveFailed"), {
 				description: getErrorMessage(error),
 			});
 		}
@@ -1388,7 +1655,7 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 
 	function deleteProfile(id: string) {
 		if (profiles.length <= 1) {
-			toast.error("Cannot delete the last profile");
+			toast.error(i18n.t("app.toast.cannotDeleteLastProfile"));
 			return;
 		}
 
@@ -1396,8 +1663,8 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 			(item) => item.profileId === id,
 		);
 		if (linkedApplications.length > 0) {
-			toast.error("Profile has applications", {
-				description: "Delete or archive those applications first.",
+			toast.error(i18n.t("app.toast.profileHasApplications"), {
+				description: i18n.t("app.toast.profileHasApplicationsDescription"),
 			});
 			return;
 		}
@@ -1446,7 +1713,7 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 		const normalized = normalizeBaseProfile(next);
 		const now = new Date().toISOString();
 		const profileName =
-			options.name?.trim() || cvLanguageLabel(options.language);
+			options.name?.trim() || translateCvLanguage(options.language);
 
 		let record: ProfileRecord;
 		if (options.mode === "new") {
@@ -1497,6 +1764,20 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 	}, [settings]);
 
 	useEffect(() => {
+		const application = activeApplication;
+		const record = profileRecord;
+		if (!application?.jobOffer.rawText.trim() || !record) {
+			return;
+		}
+
+		void analyzeProfileMatchForApplication(application.id);
+	}, [
+		profileRevision,
+		activeApplication?.id,
+		activeApplication?.jobOffer.review?.reviewedAt,
+	]);
+
+	useEffect(() => {
 		return () => {
 			debouncedPersistProfilePatch.current.flush();
 			debouncedPersistJobOfferPatch.current.flush();
@@ -1518,12 +1799,10 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 			activeRuns,
 			activeId,
 			selectedLanguage,
-			activeViews,
-			activeViewId,
-			activeView,
 			aiStatuses,
 			selectedTool,
 			aiModels,
+			aiToolPaths,
 			effectiveAiProvider,
 			effectiveAiModel,
 			saveStatus,
@@ -1531,15 +1810,20 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 			canGenerateActive,
 			isGenerating,
 			isReviewingJobOffer,
+			isAnalyzingProfileMatch,
 			isExportingPdf,
 			isExportingData,
 			isImportingData,
 			generationError,
 			jobReviewError,
+			profileMatchError,
 			rawCliOutput,
 			rawJobReviewOutput,
+			rawProfileMatchOutput,
 			setSelectedTool,
 			setAiModel,
+			setAiToolPath,
+			suggestAndApplyAiToolPaths,
 			setSelectedLanguage,
 			refreshAiStatuses,
 			createApplication,
@@ -1548,12 +1832,11 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 			archiveApplication,
 			openApplication,
 			setActiveId,
-			openView,
-			closeView,
-			setActiveView,
 			updateActiveJobOffer,
+			flushActiveJobOffer,
 			updateActiveCv,
 			reviewActiveJobOffer,
+			analyzeActiveProfileMatch,
 			generateActive,
 			switchActiveRun,
 			exportPdf,
@@ -1582,10 +1865,10 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 			activeRuns,
 			activeId,
 			selectedLanguage,
-			viewsByApp,
 			aiStatuses,
 			selectedTool,
 			aiModels,
+			aiToolPaths,
 			effectiveAiProvider,
 			effectiveAiModel,
 			saveStatus,
@@ -1593,13 +1876,16 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 			canGenerateActive,
 			isGenerating,
 			isReviewingJobOffer,
+			isAnalyzingProfileMatch,
 			isExportingPdf,
 			isExportingData,
 			isImportingData,
 			generationError,
 			jobReviewError,
+			profileMatchError,
 			rawCliOutput,
 			rawJobReviewOutput,
+			rawProfileMatchOutput,
 		],
 	);
 
@@ -1617,4 +1903,4 @@ export function useCvApp() {
 	return context;
 }
 
-export { cvLanguageLabel, cvLanguages };
+export { cvLanguages, translateCvLanguage as cvLanguageLabel };

@@ -1,6 +1,7 @@
 use std::{
+    collections::HashSet,
     io::ErrorKind,
-    path::PathBuf,
+    path::{Path, PathBuf},
     process::Stdio,
     time::{Duration, Instant},
 };
@@ -8,8 +9,7 @@ use std::{
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager};
 use tokio::{
-    io::{AsyncBufReadExt, BufReader},
-    io::AsyncWriteExt,
+    io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
     process::{Child, Command},
     time::timeout,
 };
@@ -27,6 +27,14 @@ fn schema_path(app: &AppHandle) -> Result<PathBuf, AppError> {
     Ok(directory.join("tailored_cv_output.schema.json"))
 }
 
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AiToolPaths {
+    pub claude: Option<String>,
+    pub codex: Option<String>,
+    pub cursor: Option<String>,
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AiToolStatus {
@@ -35,6 +43,7 @@ pub struct AiToolStatus {
     pub available: bool,
     pub version: Option<String>,
     pub error: Option<String>,
+    pub resolved_path: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -45,6 +54,7 @@ pub struct AiRunRequest {
     pub schema: serde_json::Value,
     pub model: Option<String>,
     pub run_id: Option<String>,
+    pub tool_paths: Option<AiToolPaths>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -80,11 +90,102 @@ fn binary_for_tool(tool: &str) -> &str {
     }
 }
 
-async fn run_version(tool: &str) -> AiToolStatus {
+fn home_dir() -> Option<PathBuf> {
+    std::env::var_os("HOME").map(PathBuf::from)
+}
+
+fn path_directories() -> Vec<PathBuf> {
+    let mut dirs = Vec::new();
+    let mut seen = HashSet::new();
+
+    let mut push = |dir: PathBuf| {
+        if dir.as_os_str().is_empty() {
+            return;
+        }
+        if seen.insert(dir.clone()) {
+            dirs.push(dir);
+        }
+    };
+
+    if let Ok(path) = std::env::var("PATH") {
+        for entry in path.split(':').filter(|entry| !entry.is_empty()) {
+            push(PathBuf::from(entry));
+        }
+    }
+
+    if let Some(home) = home_dir() {
+        push(home.join(".local/bin"));
+        push(home.join(".npm-global/bin"));
+        push(home.join(".bun/bin"));
+        push(home.join(".cursor/bin"));
+        push(home.join(".claude/local/bin"));
+        push(home.join(".codex/bin"));
+    }
+
+    push(PathBuf::from("/opt/homebrew/bin"));
+    push(PathBuf::from("/usr/local/bin"));
+    push(PathBuf::from("/usr/bin"));
+    push(PathBuf::from("/bin"));
+
+    dirs
+}
+
+#[cfg(unix)]
+fn is_executable(path: &Path) -> bool {
+    use std::os::unix::fs::PermissionsExt;
+
+    path.metadata()
+        .map(|metadata| metadata.is_file() && metadata.permissions().mode() & 0o111 != 0)
+        .unwrap_or(false)
+}
+
+#[cfg(not(unix))]
+fn is_executable(path: &Path) -> bool {
+    path.is_file()
+}
+
+fn find_on_path(binary: &str) -> Option<PathBuf> {
+    for dir in path_directories() {
+        let candidate = dir.join(binary);
+        if is_executable(&candidate) {
+            return Some(candidate);
+        }
+    }
+
+    None
+}
+
+fn custom_path_for_tool(tool: &str, paths: &AiToolPaths) -> Option<PathBuf> {
+    let raw = match tool {
+        "claude" => paths.claude.as_deref(),
+        "codex" => paths.codex.as_deref(),
+        CURSOR_TOOL_ID => paths.cursor.as_deref(),
+        _ => None,
+    }?;
+
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+
+    Some(PathBuf::from(trimmed))
+}
+
+fn resolve_binary_path(tool: &str, paths: &AiToolPaths) -> PathBuf {
+    if let Some(custom) = custom_path_for_tool(tool, paths) {
+        return custom;
+    }
+
     let binary = binary_for_tool(tool);
+    find_on_path(binary).unwrap_or_else(|| PathBuf::from(binary))
+}
+
+async fn run_version(tool: &str, paths: &AiToolPaths) -> AiToolStatus {
+    let binary_path = resolve_binary_path(tool, paths);
+    let resolved_path = binary_path.to_string_lossy().to_string();
     let output = timeout(
         Duration::from_secs(6),
-        Command::new(binary).arg("--version").output(),
+        Command::new(&binary_path).arg("--version").output(),
     )
     .await;
 
@@ -97,6 +198,7 @@ async fn run_version(tool: &str) -> AiToolStatus {
                     available: true,
                     version: Some(String::from_utf8_lossy(&output.stdout).trim().to_string()),
                     error: None,
+                    resolved_path: Some(resolved_path),
                 }
             } else {
                 AiToolStatus {
@@ -105,6 +207,7 @@ async fn run_version(tool: &str) -> AiToolStatus {
                     available: false,
                     version: None,
                     error: Some(String::from_utf8_lossy(&output.stderr).trim().to_string()),
+                    resolved_path: Some(resolved_path),
                 }
             }
         }
@@ -113,7 +216,11 @@ async fn run_version(tool: &str) -> AiToolStatus {
             label: label_for_tool(tool).to_string(),
             available: false,
             version: None,
-            error: Some(format!("{binary} was not found on PATH.")),
+            error: Some(format!(
+                "Could not find {}. Set a custom path in Settings → AI.",
+                binary_for_tool(tool)
+            )),
+            resolved_path: Some(resolved_path),
         },
         Ok(Err(error)) => AiToolStatus {
             id: tool.to_string(),
@@ -121,6 +228,7 @@ async fn run_version(tool: &str) -> AiToolStatus {
             available: false,
             version: None,
             error: Some(error.to_string()),
+            resolved_path: Some(resolved_path),
         },
         Err(_) => AiToolStatus {
             id: tool.to_string(),
@@ -128,40 +236,49 @@ async fn run_version(tool: &str) -> AiToolStatus {
             available: false,
             version: None,
             error: Some("Version check timed out.".to_string()),
+            resolved_path: Some(resolved_path),
         },
     }
 }
 
-pub async fn detect_ai_tools() -> Vec<AiToolStatus> {
+pub async fn detect_ai_tools(paths: AiToolPaths) -> Vec<AiToolStatus> {
     let (claude, codex, cursor) = tokio::join!(
-        run_version("claude"),
-        run_version("codex"),
-        run_version(CURSOR_TOOL_ID)
+        run_version("claude", &paths),
+        run_version("codex", &paths),
+        run_version(CURSOR_TOOL_ID, &paths)
     );
     vec![claude, codex, cursor]
 }
 
-async fn available_tool(tool: &str) -> bool {
-    run_version(tool).await.available
+pub fn suggest_ai_tool_paths() -> AiToolPaths {
+    AiToolPaths {
+        claude: find_on_path("claude").map(|path| path.to_string_lossy().to_string()),
+        codex: find_on_path("codex").map(|path| path.to_string_lossy().to_string()),
+        cursor: find_on_path(CURSOR_BINARY).map(|path| path.to_string_lossy().to_string()),
+    }
 }
 
-async fn resolve_tool(requested_tool: &str) -> Result<String, AppError> {
+async fn available_tool(tool: &str, paths: &AiToolPaths) -> bool {
+    run_version(tool, paths).await.available
+}
+
+async fn resolve_tool(requested_tool: &str, paths: &AiToolPaths) -> Result<String, AppError> {
     if requested_tool == "auto" {
-        if available_tool("claude").await {
+        if available_tool("claude", paths).await {
             return Ok("claude".to_string());
         }
 
-        if available_tool("codex").await {
+        if available_tool("codex", paths).await {
             return Ok("codex".to_string());
         }
 
-        if available_tool(CURSOR_TOOL_ID).await {
+        if available_tool(CURSOR_TOOL_ID, paths).await {
             return Ok(CURSOR_TOOL_ID.to_string());
         }
 
         return Err(AppError::new(
             "ai_tool_unavailable",
-            "No supported AI tool is available on PATH.",
+            "No supported AI tool is available. Configure tool paths in Settings → AI.",
         ));
     }
 
@@ -176,10 +293,10 @@ async fn resolve_tool(requested_tool: &str) -> Result<String, AppError> {
         ));
     }
 
-    if !available_tool(requested_tool).await {
+    if !available_tool(requested_tool, paths).await {
         return Err(AppError::with_details(
             "ai_tool_unavailable",
-            "The requested AI tool is not available on PATH.",
+            "The requested AI tool is not available. Configure its path in Settings → AI.",
             requested_tool,
         ));
     }
@@ -364,10 +481,10 @@ async fn run_with_stdin(
     app: Option<&AppHandle>,
     run_id: &str,
     tool: &str,
+    binary_path: &Path,
     args: &[String],
     prompt: &str,
 ) -> Result<AiRunResponse, AppError> {
-    let binary = binary_for_tool(tool);
     let start = Instant::now();
     emit_run_progress(
         app,
@@ -376,7 +493,7 @@ async fn run_with_stdin(
         &format!("Starting {tool} and sending prompt..."),
     );
 
-    let mut command = Command::new(binary);
+    let mut command = Command::new(binary_path);
     command
         .current_dir(std::env::temp_dir())
         .args(args)
@@ -390,8 +507,8 @@ async fn run_with_stdin(
         Err(error) if error.kind() == ErrorKind::NotFound => {
             return Err(AppError::with_details(
                 "ai_tool_unavailable",
-                "The requested AI tool was not found on PATH.",
-                binary,
+                "The requested AI tool was not found. Configure its path in Settings → AI.",
+                binary_path.to_string_lossy(),
             ));
         }
         Err(error) => return Err(AppError::from(error)),
@@ -411,10 +528,10 @@ async fn run_with_prompt_arg(
     app: Option<&AppHandle>,
     run_id: &str,
     tool: &str,
+    binary_path: &Path,
     args: &[String],
     prompt: &str,
 ) -> Result<AiRunResponse, AppError> {
-    let binary = binary_for_tool(tool);
     let start = Instant::now();
     emit_run_progress(
         app,
@@ -423,7 +540,7 @@ async fn run_with_prompt_arg(
         &format!("Starting {tool} with inline prompt..."),
     );
 
-    let mut command = Command::new(binary);
+    let mut command = Command::new(binary_path);
     command
         .current_dir(std::env::temp_dir())
         .args(args)
@@ -437,8 +554,8 @@ async fn run_with_prompt_arg(
         Err(error) if error.kind() == ErrorKind::NotFound => {
             return Err(AppError::with_details(
                 "ai_tool_unavailable",
-                "The requested AI tool was not found on PATH.",
-                binary,
+                "The requested AI tool was not found. Configure its path in Settings → AI.",
+                binary_path.to_string_lossy(),
             ));
         }
         Err(error) => return Err(AppError::from(error)),
@@ -469,7 +586,9 @@ pub async fn run_ai_tool(
     app: &AppHandle,
     request: AiRunRequest,
 ) -> Result<AiRunResponse, AppError> {
-    let tool = resolve_tool(&request.tool).await?;
+    let tool_paths = request.tool_paths.unwrap_or_default();
+    let tool = resolve_tool(&request.tool, &tool_paths).await?;
+    let binary_path = resolve_binary_path(&tool, &tool_paths);
     let has_progress = request
         .run_id
         .as_ref()
@@ -502,6 +621,7 @@ pub async fn run_ai_tool(
             progress_app.as_ref(),
             &run_id,
             "claude",
+            &binary_path,
             &args,
             &request.prompt,
         )
@@ -527,6 +647,7 @@ pub async fn run_ai_tool(
             progress_app.as_ref(),
             &run_id,
             CURSOR_TOOL_ID,
+            &binary_path,
             &args,
             &request.prompt,
         )
@@ -560,6 +681,7 @@ pub async fn run_ai_tool(
         progress_app.as_ref(),
         &run_id,
         "codex",
+        &binary_path,
         &args,
         &request.prompt,
     )

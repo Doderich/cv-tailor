@@ -12,8 +12,9 @@ import {
 	CardTitle,
 } from "@cv-tailor/ui/components/card";
 import { cn } from "@cv-tailor/ui/lib/utils";
-import { CheckCircle2, ExternalLink } from "lucide-react";
-
+import { CheckCircle2, ExternalLink, TriangleAlert } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import { formatLocalizedDate } from "@/lib/i18n-labels";
 import type { AiToolStatus } from "@/lib/tauri-ai";
 
 export function Metric({ label, value }: { label: string; value: string }) {
@@ -26,8 +27,14 @@ export function Metric({ label, value }: { label: string; value: string }) {
 }
 
 export function TokenList({ values }: { values: string[] }) {
+	const { t } = useTranslation();
+
 	if (values.length === 0) {
-		return <p className="text-muted-foreground text-xs">No keywords yet.</p>;
+		return (
+			<p className="text-muted-foreground text-xs">
+				{t("insights.keywords.empty")}
+			</p>
+		);
 	}
 
 	return (
@@ -47,22 +54,162 @@ export function TokenList({ values }: { values: string[] }) {
 export function SmallList({
 	empty,
 	values,
+	tone = "negative",
 }: {
 	empty: string;
 	values: string[];
+	tone?: "positive" | "negative";
 }) {
 	if (values.length === 0) {
 		return <p className="text-muted-foreground text-xs">{empty}</p>;
 	}
 
 	return (
-		<ul className="grid gap-1 text-xs">
-			{values.slice(0, 6).map((value) => (
-				<li key={value} className="border-destructive border-l-2 pl-2">
+		<ul className="grid gap-1.5 text-sm">
+			{values.slice(0, 8).map((value) => (
+				<li
+					key={value}
+					className={cn(
+						"pl-2",
+						tone === "positive"
+							? "border-primary/60 border-l-2 text-foreground"
+							: "border-destructive/60 border-l-2 text-muted-foreground",
+					)}
+				>
 					{value}
 				</li>
 			))}
 		</ul>
+	);
+}
+
+export function KeywordMatchGrid({
+	keywords,
+	matchedKeywords,
+	loading = false,
+	limit = 32,
+}: {
+	keywords: string[];
+	matchedKeywords: string[];
+	loading?: boolean;
+	limit?: number;
+}) {
+	const { t } = useTranslation();
+
+	if (loading) {
+		return (
+			<p className="text-muted-foreground text-xs">
+				{t("insights.keywords.analyzing")}
+			</p>
+		);
+	}
+
+	if (keywords.length === 0) {
+		return (
+			<p className="text-muted-foreground text-xs">
+				{t("insights.keywords.empty")}
+			</p>
+		);
+	}
+
+	return (
+		<div className="grid gap-3">
+			<div className="flex flex-wrap gap-1.5">
+				{keywords.slice(0, limit).map((keyword) => {
+					const matched = matchedKeywords.includes(keyword);
+					return (
+						<span
+							key={keyword}
+							className={cn(
+								"rounded-md px-2 py-0.5 text-xs",
+								matched
+									? "bg-primary/15 text-primary"
+									: "bg-muted text-muted-foreground",
+							)}
+						>
+							{keyword}
+						</span>
+					);
+				})}
+			</div>
+			<p className="text-muted-foreground text-xs">
+				{t("insights.keywords.legend")}
+			</p>
+		</div>
+	);
+}
+
+export function MatchBulletList({
+	title,
+	icon: Icon,
+	items,
+	empty,
+	loading = false,
+	tone = "negative",
+	limit = 6,
+	embedded = false,
+}: {
+	title: string;
+	icon?: typeof CheckCircle2;
+	items: string[];
+	empty: string;
+	loading?: boolean;
+	tone?: "positive" | "negative";
+	limit?: number;
+	embedded?: boolean;
+}) {
+	const { t } = useTranslation();
+
+	return (
+		<section
+			className={cn(
+				"flex flex-col gap-3",
+				!embedded && "rounded-xl border bg-card p-4",
+			)}
+		>
+			<div className="flex items-center gap-2">
+				{Icon ? (
+					<Icon
+						className={cn(
+							"size-4 shrink-0",
+							tone === "positive" ? "text-primary" : "text-destructive",
+						)}
+					/>
+				) : null}
+				<h3 className="font-medium text-sm">{title}</h3>
+				{!loading && items.length > 0 ? (
+					<span className="ml-auto text-muted-foreground text-xs">
+						{Math.min(items.length, limit)}
+						{items.length > limit
+							? t("insights.match.countOf", { total: items.length })
+							: ""}
+					</span>
+				) : null}
+			</div>
+			{loading ? (
+				<p className="text-muted-foreground text-xs">
+					{t("insights.match.analyzing")}
+				</p>
+			) : items.length === 0 ? (
+				<p className="text-muted-foreground text-sm">{empty}</p>
+			) : (
+				<ul className="grid gap-2.5">
+					{items.slice(0, limit).map((item) => (
+						<li
+							key={item}
+							className={cn(
+								"break-words border-l-2 pl-3 text-sm leading-relaxed",
+								tone === "positive"
+									? "border-primary/60 text-foreground"
+									: "border-destructive/60 text-muted-foreground",
+							)}
+						>
+							{item}
+						</li>
+					))}
+				</ul>
+			)}
+		</section>
 	);
 }
 
@@ -73,26 +220,54 @@ export function AnalysisPanel({
 	matchAnalysis: MatchAnalysis;
 	signals: JobSignals;
 }) {
+	const { t } = useTranslation();
+
 	return (
 		<Card>
 			<CardHeader>
-				<CardTitle>Job Signals</CardTitle>
+				<CardTitle>{t("insights.panel.title")}</CardTitle>
 			</CardHeader>
 			<CardContent className="grid gap-4">
 				<div className="grid gap-2 sm:grid-cols-3">
-					<Metric label="Match" value={`${matchAnalysis.score}%`} />
-					<Metric label="Level" value={signals.seniority} />
-					<Metric label="Terms" value={signals.keywords.length.toString()} />
+					<Metric
+						label={t("insights.panel.metric.match")}
+						value={`${matchAnalysis.score}%`}
+					/>
+					<Metric
+						label={t("insights.panel.metric.level")}
+						value={signals.seniority}
+					/>
+					<Metric
+						label={t("insights.panel.metric.terms")}
+						value={signals.keywords.length.toString()}
+					/>
 				</div>
 				<div className="grid gap-2">
-					<h3 className="font-medium text-sm">Detected Keywords</h3>
-					<TokenList values={signals.keywords.slice(0, 18)} />
+					<h3 className="font-medium text-sm">
+						{t("insights.panel.detectedKeywords")}
+					</h3>
+					<KeywordMatchGrid
+						keywords={signals.keywords}
+						matchedKeywords={matchAnalysis.matchedKeywords}
+						limit={18}
+					/>
 				</div>
-				<div className="grid gap-2">
-					<h3 className="font-medium text-sm">Missing Requirements</h3>
-					<SmallList
-						values={matchAnalysis.missingRequirements}
-						empty="No clear gaps detected."
+				<div className="grid gap-3 md:grid-cols-2">
+					<MatchBulletList
+						title={t("insights.panel.goodFit.title")}
+						icon={CheckCircle2}
+						items={matchAnalysis.goodFit ?? []}
+						empty={t("insights.panel.goodFit.empty")}
+						tone="positive"
+						embedded
+					/>
+					<MatchBulletList
+						title={t("insights.panel.gaps.title")}
+						icon={TriangleAlert}
+						items={matchAnalysis.missingRequirements}
+						empty={t("insights.panel.gaps.empty")}
+						tone="negative"
+						embedded
 					/>
 				</div>
 			</CardContent>
@@ -101,10 +276,12 @@ export function AnalysisPanel({
 }
 
 export function AiStatusPanel({ statuses }: { statuses: AiToolStatus[] }) {
+	const { t } = useTranslation();
+
 	return (
 		<Card>
 			<CardHeader>
-				<CardTitle>AI Tool Status</CardTitle>
+				<CardTitle>{t("insights.aiStatus.title")}</CardTitle>
 			</CardHeader>
 			<CardContent className="grid gap-2">
 				{statuses.map((status) => (
@@ -117,11 +294,19 @@ export function AiStatusPanel({ statuses }: { statuses: AiToolStatus[] }) {
 									status.available ? "text-primary" : "text-destructive",
 								)}
 							>
-								{status.available ? "Ready" : "Unavailable"}
+								{status.available
+									? t("insights.aiStatus.ready")
+									: t("insights.aiStatus.unavailable")}
 							</span>
 						</div>
 						<p className="mt-1 truncate text-muted-foreground">
-							{status.version || status.error || "Not checked"}
+							{status.version ||
+								status.error ||
+								(status.resolvedPath
+									? t("insights.aiStatus.resolvedPath", {
+											path: status.resolvedPath,
+										})
+									: t("insights.aiStatus.notChecked"))}
 						</p>
 					</div>
 				))}
@@ -141,6 +326,8 @@ export function HistoryRunCard({
 	run: CvRun;
 	onOpen: () => void;
 }) {
+	const { t } = useTranslation();
+
 	return (
 		<Card
 			size="sm"
@@ -167,19 +354,25 @@ export function HistoryRunCard({
 			<CardContent className="grid gap-3">
 				<div className="grid gap-1 text-xs">
 					<p className="text-muted-foreground">
-						{applicationTitle(application)} · {run.aiTool}
+						{applicationTitle(application, t)} · {run.aiTool}
 					</p>
 					<p className="text-muted-foreground">
-						{new Date(run.updatedAt).toLocaleString()}
+						{formatLocalizedDate(run.updatedAt)}
 					</p>
 				</div>
 				<div className="grid gap-2 text-xs sm:grid-cols-3">
-					<Metric label="Match" value={`${run.matchAnalysis.score}%`} />
 					<Metric
-						label="Keywords"
+						label={t("insights.history.metric.match")}
+						value={`${run.matchAnalysis.score}%`}
+					/>
+					<Metric
+						label={t("insights.history.metric.keywords")}
 						value={run.signals.keywords.length.toString()}
 					/>
-					<Metric label="Level" value={run.signals.seniority} />
+					<Metric
+						label={t("insights.history.metric.level")}
+						value={run.signals.seniority}
+					/>
 				</div>
 				<TokenList values={run.signals.keywords.slice(0, 10)} />
 				<div className="flex gap-2">
@@ -191,7 +384,7 @@ export function HistoryRunCard({
 							onOpen();
 						}}
 					>
-						<ExternalLink /> Open
+						<ExternalLink /> {t("insights.history.open")}
 					</Button>
 				</div>
 			</CardContent>
@@ -199,6 +392,11 @@ export function HistoryRunCard({
 	);
 }
 
-function applicationTitle(application: Application) {
-	return application.jobOffer.title.trim() || "Untitled role";
+function applicationTitle(
+	application: Application,
+	t: (key: string) => string,
+) {
+	return (
+		application.jobOffer.title.trim() || t("insights.history.untitledRole")
+	);
 }

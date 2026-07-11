@@ -7,6 +7,13 @@ export interface AiToolStatus {
 	available: boolean;
 	version?: string;
 	error?: string;
+	resolvedPath?: string;
+}
+
+export interface AiToolPaths {
+	claude?: string;
+	codex?: string;
+	cursor?: string;
 }
 
 export interface AiRunRequest {
@@ -15,6 +22,7 @@ export interface AiRunRequest {
 	schema: unknown;
 	model?: string;
 	runId?: string;
+	toolPaths?: AiToolPaths;
 }
 
 export interface AiRunResponse {
@@ -57,7 +65,9 @@ async function loadInvoke() {
 	return invoke;
 }
 
-export async function detectAiTools(): Promise<AiToolStatus[]> {
+export async function detectAiTools(
+	paths?: AiToolPaths,
+): Promise<AiToolStatus[]> {
 	const invoke = await loadInvoke();
 
 	if (!invoke) {
@@ -83,7 +93,17 @@ export async function detectAiTools(): Promise<AiToolStatus[]> {
 		];
 	}
 
-	return invoke<AiToolStatus[]>("detect_ai_tools");
+	return invoke<AiToolStatus[]>("detect_ai_tools", { paths: paths ?? null });
+}
+
+export async function suggestAiToolPaths(): Promise<AiToolPaths> {
+	const invoke = await loadInvoke();
+
+	if (!invoke) {
+		return {};
+	}
+
+	return invoke<AiToolPaths>("suggest_ai_tool_paths");
 }
 
 export function formatAppError(error: unknown) {
@@ -133,11 +153,14 @@ export async function runAiTool(
 
 	if (options?.onProgress) {
 		const { listen } = await import("@tauri-apps/api/event");
-		unlisten = await listen<AiRunProgressEvent>(AI_RUN_PROGRESS_EVENT, (event) => {
-			if (event.payload.runId === runId) {
-				options.onProgress?.(event.payload);
-			}
-		});
+		unlisten = await listen<AiRunProgressEvent>(
+			AI_RUN_PROGRESS_EVENT,
+			(event) => {
+				if (event.payload.runId === runId) {
+					options.onProgress?.(event.payload);
+				}
+			},
+		);
 	}
 
 	try {
@@ -167,6 +190,7 @@ export async function runAiToolResilient(
 		statuses: AiToolStatus[];
 		model?: string;
 		models?: Partial<Record<(typeof aiProviderOrder)[number], string>>;
+		toolPaths?: AiToolPaths;
 		onProgress?: (event: AiRunProgressEvent) => void;
 	},
 ): Promise<AiRunResponse> {
@@ -192,6 +216,7 @@ export async function runAiToolResilient(
 				{
 					...request,
 					tool: provider,
+					toolPaths: options.toolPaths ?? request.toolPaths,
 					model:
 						options.models?.[provider] ??
 						(provider === request.tool ? options.model : undefined) ??
