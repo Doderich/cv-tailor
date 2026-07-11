@@ -113,6 +113,8 @@ pub fn run() {
     let local_api_state = start_local_api().expect("failed to start local API server");
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(local_api_state)
         .plugin(tauri_plugin_sql::Builder::default().build())
         .setup(|app| {

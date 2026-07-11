@@ -9,6 +9,7 @@ import {
 	hasMeaningfulProfileContent,
 	normalizeBaseProfile,
 	summarizeProfileContent,
+	type CvLanguage,
 } from "@cv-tailor/core";
 import { Button } from "@cv-tailor/ui/components/button";
 import {

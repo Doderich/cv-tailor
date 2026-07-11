@@ -32,6 +32,7 @@ import { CommandPalette } from "@/components/command-palette";
 import { ScoreBadge } from "@/components/cv/score-badge";
 import { SettingsTabBar } from "@/components/settings-tab-bar";
 import { useAppMenuShortcuts } from "@/hooks/use-app-menu-shortcuts";
+import { useDesktopUpdater } from "@/hooks/use-desktop-updater";
 import { applicationStepPath } from "@/lib/application-route";
 import type { ApplicationListItem } from "@/lib/cv-app-context";
 import {
@@ -456,6 +457,7 @@ export function AppShell() {
 	const [width, setWidth] = useState(defaultSidebarWidth);
 	const reduced = useReducedMotion();
 	useAppMenuShortcuts();
+	useDesktopUpdater();
 	const pathname = useRouterState({
 		select: (state) => state.location.pathname,
 	});

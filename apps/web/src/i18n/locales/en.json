@@ -106,6 +106,13 @@
 				"codex": "Codex",
 				"cursor": "Cursor"
 			}
+		},
+		"data": {
+			"updates": {
+				"title": "Desktop updates",
+				"description": "Check GitHub Releases for a newer macOS build.",
+				"check": "Check for updates"
+			}
 		}
 	},
 	"application": {

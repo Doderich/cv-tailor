@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { openCommandPaletteEvent } from "@/components/command-palette";
 import { applicationStepPath } from "@/lib/application-route";
 import { useCvApp } from "@/lib/cv-app-context";
+import { checkForDesktopUpdate } from "@/lib/desktop-updater";
 import { isTauriRuntime } from "@/lib/tauri-ai";
 
 const APP_MENU_EVENT = "app-menu";
@@ -13,7 +14,8 @@ type AppMenuAction =
 	| "new_application"
 	| "command_palette"
 	| "export_pdf"
-	| "workspace";
+	| "workspace"
+	| "check_for_updates";
 
 function isEditableTarget(target: EventTarget | null) {
 	if (!(target instanceof HTMLElement)) {
@@ -62,6 +64,9 @@ export function useAppMenuShortcuts() {
 					} else {
 						void navigate({ to: "/" });
 					}
+					break;
+				case "check_for_updates":
+					void checkForDesktopUpdate({ promptBeforeInstall: true });
 					break;
 			}
 		}

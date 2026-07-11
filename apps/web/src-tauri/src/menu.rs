@@ -21,6 +21,8 @@ pub fn install(app: &App) -> tauri::Result<()> {
     let workspace = MenuItemBuilder::with_id("workspace", "Workspace")
         .accelerator("CmdOrCtrl+1")
         .build(app)?;
+    let check_for_updates = MenuItemBuilder::with_id("check_for_updates", "Check for Updates…")
+        .build(app)?;
 
     let about = AboutMetadata {
         name: Some("CV Tailor".into()),
@@ -38,6 +40,8 @@ pub fn install(app: &App) -> tauri::Result<()> {
         .hide()
         .hide_others()
         .show_all()
+        .separator()
+        .item(&check_for_updates)
         .separator()
         .quit()
         .build()?;
@@ -91,6 +95,7 @@ pub fn install(app: &App) -> tauri::Result<()> {
     let command_palette_id = command_palette.id().clone();
     let export_pdf_id = export_pdf.id().clone();
     let workspace_id = workspace.id().clone();
+    let check_for_updates_id = check_for_updates.id().clone();
 
     app.handle().on_menu_event(move |app, event| {
         let action = if event.id() == &settings_id {
@@ -103,6 +108,8 @@ pub fn install(app: &App) -> tauri::Result<()> {
             Some("export_pdf")
         } else if event.id() == &workspace_id {
             Some("workspace")
+        } else if event.id() == &check_for_updates_id {
+            Some("check_for_updates")
         } else {
             None
         };
