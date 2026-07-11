@@ -1,12 +1,15 @@
 param(
-	[Parameter(Mandatory = $true)]
-	[string]$RepoPath,
+	[string]$RepoPath = "",
 
 	[string]$SigningKeyPath = "$env:USERPROFILE\.tauri\cv-tailor.key"
 )
 
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
+
+if (-not $RepoPath) {
+	$RepoPath = Resolve-Path (Join-Path $PSScriptRoot "..")
+}
 
 function Require-Path([string]$Path, [string]$Message) {
 	if (-not (Test-Path -LiteralPath $Path)) {

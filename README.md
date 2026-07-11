@@ -161,9 +161,24 @@ pnpm run desktop:release -- --dry-run   # build only, no GitHub publish
 
 > **Public repo required for auto-update.** The updater fetches release assets without authentication. Private repos need a public CDN or bucket for update files instead.
 
-### Windows release (remote build over SSH)
+### Windows release
 
-Build and publish from your Mac/Linux machine by connecting to a Windows PC over SSH.
+#### On the Windows machine (recommended)
+
+From the repo root:
+
+```bash
+pnpm run desktop:setup-signing   # one-time
+gh auth login                  # one-time, for publishing
+pnpm run desktop:windows:build
+pnpm run desktop:windows:release -- --notes "Windows release notes"
+```
+
+You can also run the same commands from `apps/web` — they forward to the workspace root.
+
+#### From macOS/Linux over SSH
+
+Use this if you want to trigger builds on a remote Windows PC from your Mac.
 
 One-time setup on the **Windows machine**:
 
@@ -172,7 +187,7 @@ One-time setup on the **Windows machine**:
 3. Clone the repo (example: `C:\Users\you\cv-tailor`)
 4. Generate signing keys: `pnpm run desktop:setup-signing`
 
-One-time setup on your **local machine**:
+One-time setup on your **Mac/Linux machine**:
 
 ```bash
 gh auth login
@@ -184,16 +199,8 @@ Then edit `scripts/windows-build.local/config.sh` with your Windows SSH host, us
 | Command | Description |
 | --- | --- |
 | `pnpm run desktop:windows:connect` | SSH into the Windows repo folder |
-| `pnpm run desktop:windows:build` | Remote build only (`--dry-run`, no GitHub publish) |
-| `pnpm run desktop:windows:release` | Build on Windows + publish to GitHub Releases |
-
-Publish a Windows release:
-
-```bash
-pnpm run desktop:windows:release -- --notes "Windows release notes"
-```
-
-The script pulls the latest code on Windows, syncs the bumped version files, builds the NSIS installer remotely, downloads the artifacts, merges `windows-x86_64` into `latest.json`, and uploads everything to GitHub Releases.
+| `pnpm run desktop:windows:build` | Remote build only (no GitHub publish) |
+| `pnpm run desktop:windows:release` | Remote build + publish to GitHub Releases |
 
 If macOS was already released for the same version, reuse that version:
 
@@ -201,7 +208,7 @@ If macOS was already released for the same version, reuse that version:
 pnpm run desktop:windows:release -- --no-bump --notes "Adds Windows build"
 ```
 
-Flags match the macOS release script (`--version`, `--bump`, `--dry-run`, etc.). You can also call `pnpm run desktop:release:windows` directly with env vars or `--host` / `--user` / `--remote-path` flags.
+Flags match the macOS release script (`--version`, `--bump`, `--dry-run`, etc.). For explicit SSH control from macOS, use `pnpm run desktop:windows:remote:release` with `--host` / `--user` / `--remote-path`.
 
 ---
 
@@ -282,11 +289,12 @@ cv-tailor/
 | `cd apps/web && pnpm run desktop:build` | Build macOS `.dmg` + app bundle |
 | `pnpm run desktop:setup-signing` | Generate updater signing keys (one-time) |
 | `pnpm run desktop:release` | Build + publish signed macOS release |
-| `pnpm run desktop:windows:setup` | Create gitignored local SSH config from template |
-| `pnpm run desktop:windows:connect` | SSH into the Windows repo folder |
-| `pnpm run desktop:windows:build` | Remote Windows build only (no GitHub publish) |
-| `pnpm run desktop:windows:release` | Remote Windows build + GitHub publish |
-| `pnpm run desktop:release:windows` | Same as release, with env vars / CLI flags |
+| `pnpm run desktop:windows:setup` | Create gitignored SSH config (macOS/Linux only) |
+| `pnpm run desktop:windows:connect` | SSH into the Windows repo folder (macOS/Linux only) |
+| `pnpm run desktop:windows:build` | Build Windows installer (local on Windows, or remote via SSH) |
+| `pnpm run desktop:windows:release` | Build + publish Windows release |
+| `pnpm run desktop:windows:remote:release` | Explicit SSH release orchestrator from macOS/Linux |
+| `pnpm run desktop:release:windows` | Alias for remote SSH release orchestrator |
 
 ### Web deployment (optional)
 

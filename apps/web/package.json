@@ -15,7 +15,9 @@
 		"desktop:build": "tauri build",
 		"desktop:setup-signing": "tsx ../../scripts/setup-desktop-signing.ts",
 		"desktop:release": "tsx ../../scripts/release-desktop-macos.ts",
-		"desktop:release:windows": "tsx ../../scripts/release-desktop-windows.ts"
+		"desktop:release:windows": "tsx ../../scripts/release-desktop-windows.ts",
+		"desktop:windows:build": "pnpm -w run desktop:windows:build",
+		"desktop:windows:release": "pnpm -w run desktop:windows:release"
 	},
 	"dependencies": {
 		"@cv-tailor/ai": "workspace:*",

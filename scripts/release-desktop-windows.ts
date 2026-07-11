@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -30,18 +30,17 @@ const remoteBuildScriptPath = join(
 	"scripts/windows-remote-build.ps1",
 );
 
+import {
+	buildWindowsPlatforms,
+	collectWindowsUploadPaths,
+	findWindowsUpdaterArtifacts,
+} from "./windows-release-artifacts.ts";
+
 type SshConfig = {
 	host: string;
 	user: string;
 	port: number;
 	remotePath: string;
-};
-
-type WindowsUpdaterArtifact = {
-	fileName: string;
-	localPath: string;
-	signature: string;
-	platformKey: string;
 };
 
 function usage() {
@@ -284,94 +283,6 @@ function downloadWindowsArtifacts(config: SshConfig) {
 	};
 }
 
-function detectWindowsPlatformKey(fileName: string) {
-	if (fileName.includes("aarch64") || fileName.includes("arm64")) {
-		return "windows-aarch64";
-	}
-
-	if (fileName.includes("i686") || fileName.includes("x86-setup")) {
-		return "windows-i686";
-	}
-
-	return "windows-x86_64";
-}
-
-function findWindowsUpdaterArtifacts(localNsisDir: string) {
-	if (!existsSync(localNsisDir)) {
-		throw new Error(`Missing NSIS bundle directory: ${localNsisDir}`);
-	}
-
-	const signatureFiles = readdirSync(localNsisDir).filter((file) =>
-		file.endsWith(".sig"),
-	);
-
-	if (signatureFiles.length === 0) {
-		throw new Error(
-			`No updater signatures found in ${localNsisDir}. Ensure createUpdaterArtifacts is enabled.`,
-		);
-	}
-
-	const artifacts: WindowsUpdaterArtifact[] = [];
-
-	for (const signatureFile of signatureFiles) {
-		const bundleName = signatureFile.slice(0, -".sig".length);
-		const bundlePath = join(localNsisDir, bundleName);
-
-		if (!existsSync(bundlePath)) {
-			continue;
-		}
-
-		if (!bundleName.endsWith("-setup.exe") && !bundleName.endsWith(".msi")) {
-			continue;
-		}
-
-		artifacts.push({
-			fileName: bundleName,
-			localPath: bundlePath,
-			signature: readFileSync(join(localNsisDir, signatureFile), "utf8").trim(),
-			platformKey: detectWindowsPlatformKey(bundleName),
-		});
-	}
-
-	if (artifacts.length === 0) {
-		throw new Error(
-			`No Windows updater bundles found in ${localNsisDir}. Expected *-setup.exe.sig or *.msi.sig files.`,
-		);
-	}
-
-	return artifacts;
-}
-
-function collectUploadPaths(
-	latestJsonPath: string,
-	updaterArtifacts: WindowsUpdaterArtifact[],
-) {
-	const uploadPaths = new Set<string>([latestJsonPath]);
-
-	for (const artifact of updaterArtifacts) {
-		uploadPaths.add(artifact.localPath);
-		uploadPaths.add(`${artifact.localPath}.sig`);
-	}
-
-	return [...uploadPaths];
-}
-
-function buildWindowsPlatforms(
-	tag: string,
-	artifacts: WindowsUpdaterArtifact[],
-): LatestJson["platforms"] {
-	const platforms: LatestJson["platforms"] = {};
-
-	for (const artifact of artifacts) {
-		platforms[artifact.platformKey] = {
-			signature: artifact.signature,
-			url: `https://github.com/${githubRepo}/releases/download/${tag}/${artifact.fileName}`,
-		};
-	}
-
-	return platforms;
-}
-
 function resolveVersionForRelease(options: {
 	noBump: boolean;
 	explicitVersion: string;
@@ -474,7 +385,7 @@ function main() {
 			tag,
 			title: `CV Tailor ${version}`,
 			notes: releaseNotes,
-			uploadPaths: collectUploadPaths(latestJsonPath, updaterArtifacts),
+			uploadPaths: collectWindowsUploadPaths(latestJsonPath, updaterArtifacts),
 		});
 
 		console.log(
