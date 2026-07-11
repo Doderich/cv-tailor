@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
@@ -12,10 +12,23 @@ const publicKeyPath = `${privateKeyPath}.pub`;
 function runTauriSignerGenerate() {
 	const result = spawnSync(
 		"pnpm",
-		["tauri", "signer", "generate", "--ci", "--password=", "-w", privateKeyPath],
+		[
+			"tauri",
+			"signer",
+			"generate",
+			"--ci",
+			"--force",
+			"--password=",
+			"-w",
+			privateKeyPath,
+		],
 		{
 			cwd: webRoot,
 			stdio: "inherit",
+			env: {
+				...process.env,
+				CI: "true",
+			},
 		},
 	);
 
@@ -29,7 +42,20 @@ function readPublicKey() {
 		throw new Error(`Missing public key at ${publicKeyPath}`);
 	}
 
-	return readFileSync(publicKeyPath, "utf8").trim();
+	const publicKey = readFileSync(publicKeyPath, "utf8").trim();
+
+	try {
+		const decoded = Buffer.from(publicKey, "base64").toString("utf8");
+		if (!decoded.includes("minisign public key")) {
+			throw new Error("not a minisign public key");
+		}
+	} catch {
+		throw new Error(
+			`Invalid public key at ${publicKeyPath}. It looks like a private key was copied into the .pub file. Delete ~/.tauri/cv-tailor.key and ~/.tauri/cv-tailor.key.pub, then run this command again.`,
+		);
+	}
+
+	return publicKey;
 }
 
 function syncPublicKeyToConfig(publicKey: string) {
@@ -48,13 +74,36 @@ function syncPublicKeyToConfig(publicKey: string) {
 	writeFileSync(tauriConfigPath, `${JSON.stringify(config, null, 2)}\n`);
 }
 
-function main() {
+function removeExistingKeys() {
+	for (const path of [privateKeyPath, publicKeyPath]) {
+		if (existsSync(path)) {
+			unlinkSync(path);
+		}
+	}
+}
+
+function ensureValidKeys() {
 	if (!existsSync(privateKeyPath)) {
 		console.log(`Generating signing keys at ${privateKeyPath}`);
 		runTauriSignerGenerate();
-	} else {
-		console.log(`Using existing signing key at ${privateKeyPath}`);
+		return;
 	}
+
+	try {
+		readPublicKey();
+		console.log(`Using existing signing key at ${privateKeyPath}`);
+	} catch (error) {
+		console.warn(
+			error instanceof Error ? error.message : "Invalid existing signing keys.",
+		);
+		console.log("Regenerating signing keys...");
+		removeExistingKeys();
+		runTauriSignerGenerate();
+	}
+}
+
+function main() {
+	ensureValidKeys();
 
 	const publicKey = readPublicKey();
 	syncPublicKeyToConfig(publicKey);
