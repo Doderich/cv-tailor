@@ -1,7 +1,7 @@
 use tauri::AppHandle;
 
 use crate::{
-    ai::{self, AiRunRequest, AiRunResponse, AiToolStatus},
+    ai::{self, AiRunRequest, AiRunResponse, AiToolPaths, AiToolStatus},
     errors::AppError,
     file_import::{self, ExtractProfileFileTextRequest, ExtractProfileFileTextResponse},
     pdf_export::{self, ExportPdfRequest, ExportPdfResponse},
@@ -9,8 +9,13 @@ use crate::{
 };
 
 #[tauri::command]
-pub async fn detect_ai_tools() -> Result<Vec<AiToolStatus>, AppError> {
-    Ok(ai::detect_ai_tools().await)
+pub async fn detect_ai_tools(paths: Option<AiToolPaths>) -> Result<Vec<AiToolStatus>, AppError> {
+    Ok(ai::detect_ai_tools(paths.unwrap_or_default()).await)
+}
+
+#[tauri::command]
+pub fn suggest_ai_tool_paths() -> AiToolPaths {
+    ai::suggest_ai_tool_paths()
 }
 
 #[tauri::command]

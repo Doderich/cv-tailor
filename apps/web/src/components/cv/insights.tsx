@@ -301,7 +301,13 @@ export function AiStatusPanel({ statuses }: { statuses: AiToolStatus[] }) {
 							</span>
 						</div>
 						<p className="mt-1 truncate text-muted-foreground">
-							{status.version || status.error || t("insights.aiStatus.notChecked")}
+							{status.version ||
+								status.error ||
+								(status.resolvedPath
+									? t("insights.aiStatus.resolvedPath", {
+											path: status.resolvedPath,
+										})
+									: t("insights.aiStatus.notChecked"))}
 						</p>
 					</div>
 				))}

@@ -133,6 +133,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             native_status,
             commands::detect_ai_tools,
+            commands::suggest_ai_tool_paths,
             commands::run_ai_tool,
             commands::fetch_url_text,
             commands::extract_profile_file_text,

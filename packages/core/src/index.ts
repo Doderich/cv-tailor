@@ -199,6 +199,14 @@ export const appSettingsSchema = z.object({
 		})
 		.partial()
 		.optional(),
+	aiToolPaths: z
+		.object({
+			claude: z.string(),
+			codex: z.string(),
+			cursor: z.string(),
+		})
+		.partial()
+		.optional(),
 	appliedProfilePatches: z.array(z.string()).optional(),
 });
 
