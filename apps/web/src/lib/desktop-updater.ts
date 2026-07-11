@@ -28,6 +28,8 @@ export type DesktopUpdateCheckResult = {
 
 export type DesktopAppInfo = {
 	version: string;
+	appName: string;
+	expectedUpdaterArchive: string;
 	platform: string;
 	arch: string;
 	osVersion: string;
@@ -64,15 +66,19 @@ export async function loadDesktopAppInfo(): Promise<DesktopAppInfo | null> {
 		return null;
 	}
 
-	const [{ getVersion }, { arch, platform, version }] = await Promise.all([
-		import("@tauri-apps/api/app"),
-		import("@tauri-apps/plugin-os"),
-	]);
+	const [{ getName, getVersion }, { arch, platform, version }] =
+		await Promise.all([
+			import("@tauri-apps/api/app"),
+			import("@tauri-apps/plugin-os"),
+		]);
 
 	const isDevBuild = import.meta.env.DEV;
+	const appName = await getName();
 
 	return {
 		version: await getVersion(),
+		appName,
+		expectedUpdaterArchive: `${appName}.app.tar.gz`,
 		platform: platform(),
 		arch: arch(),
 		osVersion: version(),
@@ -88,6 +94,36 @@ async function confirmInstall(version: string, body?: string | null) {
 		title: `CV Tailor ${version} is available`,
 		kind: "info",
 	});
+}
+
+function formatUpdaterError(
+	error: unknown,
+	phase: "check" | "install",
+): string {
+	if (typeof error === "string" && error.trim()) {
+		return error;
+	}
+
+	if (error instanceof Error && error.message.trim()) {
+		return error.message;
+	}
+
+	if (error && typeof error === "object") {
+		const record = error as Record<string, unknown>;
+		if (typeof record.message === "string" && record.message.trim()) {
+			return record.message;
+		}
+
+		try {
+			return JSON.stringify(error);
+		} catch {
+			// Fall through to the default message.
+		}
+	}
+
+	return phase === "install"
+		? "Update installation failed."
+		: "Update check failed.";
 }
 
 function notifyForResult(
@@ -162,7 +198,22 @@ export async function checkForDesktopUpdate(options?: {
 
 	try {
 		const { check } = await import("@tauri-apps/plugin-updater");
-		const update = await check();
+		let update;
+
+		try {
+			update = await check();
+		} catch (error) {
+			const message = formatUpdaterError(error, "check");
+			const result: DesktopUpdateCheckResult = {
+				status: "error",
+				currentVersion: appInfo.version,
+				checkedAt,
+				message,
+			};
+			publishCheckResult(result);
+			notifyForResult(result, notify);
+			return result;
+		}
 
 		if (!update) {
 			const result: DesktopUpdateCheckResult = {
@@ -204,7 +255,21 @@ export async function checkForDesktopUpdate(options?: {
 		publishCheckResult(installing);
 		notifyForResult(installing, notify);
 
-		await update.downloadAndInstall();
+		try {
+			await update.downloadAndInstall();
+		} catch (error) {
+			const message = formatUpdaterError(error, "install");
+			const result: DesktopUpdateCheckResult = {
+				status: "error",
+				currentVersion: appInfo.version,
+				availableVersion: update.version,
+				checkedAt,
+				message,
+			};
+			publishCheckResult(result);
+			notifyForResult(result, notify);
+			return result;
+		}
 
 		const installed: DesktopUpdateCheckResult = {
 			...available,
@@ -217,8 +282,7 @@ export async function checkForDesktopUpdate(options?: {
 
 		return installed;
 	} catch (error) {
-		const message =
-			error instanceof Error ? error.message : "Update check failed.";
+		const message = formatUpdaterError(error, "check");
 		const result: DesktopUpdateCheckResult = {
 			status: "error",
 			currentVersion: appInfo.version,
@@ -231,7 +295,33 @@ export async function checkForDesktopUpdate(options?: {
 	}
 }
 
-export async function fetchUpdaterManifestForDebug() {
+export type UpdaterManifestDebugInfo = {
+	version: string;
+	notes?: string;
+	pub_date?: string;
+	platforms?: Record<string, { url: string; signature: string }>;
+};
+
+export async function fetchUpdaterManifestForDebug(): Promise<UpdaterManifestDebugInfo> {
+	if (isTauriRuntime()) {
+		const { invoke } = await import("@tauri-apps/api/core");
+		const response = await invoke<{
+			version: string;
+			notes?: string;
+			pubDate?: string;
+			platforms: Record<string, { url: string; signature: string }>;
+		}>("fetch_updater_manifest", {
+			request: { url: DESKTOP_UPDATER_ENDPOINT },
+		});
+
+		return {
+			version: response.version,
+			notes: response.notes,
+			pub_date: response.pubDate,
+			platforms: response.platforms,
+		};
+	}
+
 	const response = await fetch(DESKTOP_UPDATER_ENDPOINT, {
 		headers: { Accept: "application/json" },
 	});
@@ -240,12 +330,47 @@ export async function fetchUpdaterManifestForDebug() {
 		throw new Error(`Manifest fetch failed (${response.status})`);
 	}
 
-	return response.json() as Promise<{
-		version: string;
-		notes?: string;
-		pub_date?: string;
-		platforms?: Record<string, { url: string; signature: string }>;
-	}>;
+	return response.json() as Promise<UpdaterManifestDebugInfo>;
+}
+
+function archiveNameFromUrl(url: string) {
+	try {
+		return decodeURIComponent(new URL(url).pathname.split("/").pop() ?? "");
+	} catch {
+		return url.split("/").pop() ?? url;
+	}
+}
+
+export function getUpdaterBundleMismatchHint(options: {
+	appInfo: DesktopAppInfo | null;
+	manifest?: UpdaterManifestDebugInfo | null;
+	platformKey?: string;
+}) {
+	if (!options.appInfo || !options.manifest?.platforms) {
+		return null;
+	}
+
+	const platformKey =
+		options.platformKey ??
+		(options.appInfo.platform === "macos"
+			? `darwin-${options.appInfo.arch}`
+			: null);
+
+	if (!platformKey) {
+		return null;
+	}
+
+	const platformArtifact = options.manifest.platforms[platformKey];
+	if (!platformArtifact?.url) {
+		return `No updater artifact found for ${platformKey} in the release manifest.`;
+	}
+
+	const remoteArchive = archiveNameFromUrl(platformArtifact.url);
+	if (remoteArchive === options.appInfo.expectedUpdaterArchive) {
+		return null;
+	}
+
+	return `Installed app expects ${options.appInfo.expectedUpdaterArchive}, but the release ships ${remoteArchive}. Auto-update cannot replace the app bundle until the release artifact name matches.`;
 }
 
 export function formatDesktopUpdateDebugReport(options: {
@@ -268,6 +393,8 @@ export function formatDesktopUpdateDebugReport(options: {
 	if (options.appInfo) {
 		lines.push(
 			`version: ${options.appInfo.version}`,
+			`appName: ${options.appInfo.appName}`,
+			`expectedUpdaterArchive: ${options.appInfo.expectedUpdaterArchive}`,
 			`platform: ${options.appInfo.platform}`,
 			`arch: ${options.appInfo.arch}`,
 			`osVersion: ${options.appInfo.osVersion}`,
@@ -289,11 +416,19 @@ export function formatDesktopUpdateDebugReport(options: {
 	}
 
 	if (options.manifest) {
+		const platformEntries = Object.entries(options.manifest.platforms ?? {});
 		lines.push(
 			`manifest.version: ${options.manifest.version}`,
 			`manifest.pub_date: ${options.manifest.pub_date ?? ""}`,
-			`manifest.platforms: ${Object.keys(options.manifest.platforms ?? {}).join(", ")}`,
+			`manifest.platforms: ${platformEntries.map(([key]) => key).join(", ")}`,
 		);
+
+		for (const [platformKey, artifact] of platformEntries) {
+			lines.push(
+				`manifest.${platformKey}.archive: ${archiveNameFromUrl(artifact.url)}`,
+				`manifest.${platformKey}.url: ${artifact.url}`,
+			);
+		}
 	}
 
 	if (options.manifestError) {

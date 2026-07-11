@@ -156,6 +156,8 @@
 					"endpoint": "Update endpoint",
 					"manifestVersion": "Remote version",
 					"manifestPlatforms": "Remote platforms",
+					"expectedArchive": "Expected updater archive",
+					"remoteArchive": "Remote updater archive",
 					"unavailable": "Unavailable",
 					"fetchManifest": "Fetch release manifest",
 					"copy": "Copy debug report",

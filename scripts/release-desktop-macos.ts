@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
@@ -172,36 +172,57 @@ function detectPlatformKey(fileName: string) {
 	return process.arch === "arm64" ? "darwin-aarch64" : "darwin-x86_64";
 }
 
-function findMacUpdaterArtifacts() {
+function cleanMacBundleDir() {
+	const macBundleDir = join(bundleRoot, "macos");
+	if (!existsSync(macBundleDir)) {
+		return;
+	}
+
+	console.log(`Cleaning stale macOS bundle artifacts in ${macBundleDir}...`);
+	rmSync(macBundleDir, { recursive: true, force: true });
+}
+
+function findMacUpdaterArtifacts(productName: string) {
 	const macBundleDir = join(bundleRoot, "macos");
 	if (!existsSync(macBundleDir)) {
 		throw new Error(`Missing macOS bundle directory: ${macBundleDir}`);
 	}
 
+	const expectedArchive = `${productName}.app.tar.gz`;
 	const files = readdirSync(macBundleDir);
-	const updaterArchives = files.filter(
-		(file) => file.endsWith(".app.tar.gz") && !file.endsWith(".sig"),
+	const staleArchives = files.filter(
+		(file) => file.endsWith(".app.tar.gz") && file !== expectedArchive,
 	);
 
-	if (updaterArchives.length === 0) {
+	if (staleArchives.length > 0) {
 		throw new Error(
-			`No updater archive found in ${macBundleDir}. Ensure createUpdaterArtifacts is enabled.`,
+			`Found stale updater archives in ${macBundleDir}: ${staleArchives.join(", ")}. ` +
+				`Expected only ${expectedArchive}. Re-run the release build after cleaning the bundle directory.`,
 		);
 	}
 
-	return updaterArchives.map((archiveName) => {
-		const signaturePath = join(macBundleDir, `${archiveName}.sig`);
-		if (!existsSync(signaturePath)) {
-			throw new Error(`Missing signature file for ${archiveName}`);
-		}
+	const archiveName = files.find((file) => file === expectedArchive);
+	if (!archiveName) {
+		const discovered = files.filter((file) => file.endsWith(".app.tar.gz"));
+		throw new Error(
+			`Expected updater archive ${expectedArchive} not found in ${macBundleDir}. ` +
+				`Found: ${discovered.join(", ") || "none"}.`,
+		);
+	}
 
-		return {
+	const signaturePath = join(macBundleDir, `${archiveName}.sig`);
+	if (!existsSync(signaturePath)) {
+		throw new Error(`Missing signature file for ${archiveName}`);
+	}
+
+	return [
+		{
 			archiveName,
 			archivePath: join(macBundleDir, archiveName),
 			signature: readFileSync(signaturePath, "utf8").trim(),
 			platformKey: detectPlatformKey(archiveName),
-		};
-	});
+		},
+	];
 }
 
 function findDmgArtifact() {
@@ -285,6 +306,8 @@ function main() {
 
 	console.log(`Building CV Tailor ${version} for macOS...`);
 
+	cleanMacBundleDir();
+
 	run("pnpm", ["run", "desktop:build"], {
 		env: {
 			CI: "true",
@@ -292,7 +315,7 @@ function main() {
 		},
 	});
 
-	const updaterArtifacts = findMacUpdaterArtifacts();
+	const updaterArtifacts = findMacUpdaterArtifacts(config.productName);
 	const dmgPath = findDmgArtifact();
 	const latestJson = buildLatestJson(
 		version,

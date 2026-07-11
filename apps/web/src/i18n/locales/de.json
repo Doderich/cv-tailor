@@ -156,6 +156,8 @@
 					"endpoint": "Update-Endpunkt",
 					"manifestVersion": "Remote-Version",
 					"manifestPlatforms": "Remote-Plattformen",
+					"expectedArchive": "Erwartetes Update-Archiv",
+					"remoteArchive": "Remote-Update-Archiv",
 					"unavailable": "Nicht verfügbar",
 					"fetchManifest": "Release-Manifest laden",
 					"copy": "Debug-Bericht kopieren",

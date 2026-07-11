@@ -18,8 +18,10 @@ import {
 	fetchUpdaterManifestForDebug,
 	formatDesktopUpdateDebugReport,
 	getLastDesktopUpdateCheck,
+	getUpdaterBundleMismatchHint,
 	loadDesktopAppInfo,
 	subscribeDesktopUpdateChecks,
+	type UpdaterManifestDebugInfo,
 } from "@/lib/desktop-updater";
 import { formatLocalizedDate } from "@/lib/i18n-labels";
 
@@ -55,19 +57,76 @@ export function DesktopUpdatesPanel() {
 	);
 	const [isChecking, setIsChecking] = useState(false);
 	const [isLoadingDebug, setIsLoadingDebug] = useState(false);
-	const [manifestVersion, setManifestVersion] = useState<string | null>(null);
-	const [manifestPlatforms, setManifestPlatforms] = useState<string | null>(null);
+	const [manifest, setManifest] = useState<UpdaterManifestDebugInfo | null>(null);
 	const [manifestError, setManifestError] = useState<string | null>(null);
 	const [copyState, setCopyState] = useState<"idle" | "copied" | "error">(
 		"idle",
 	);
 
 	useEffect(() => {
-		void loadDesktopAppInfo().then(setAppInfo);
-		return subscribeDesktopUpdateChecks(setLastCheck);
+		let cancelled = false;
+
+		async function init() {
+			const info = await loadDesktopAppInfo();
+			if (cancelled) {
+				return;
+			}
+
+			setAppInfo(info);
+
+			if (!info) {
+				return;
+			}
+
+			setIsLoadingDebug(true);
+			setManifestError(null);
+
+			try {
+				const nextManifest = await fetchUpdaterManifestForDebug();
+				if (!cancelled) {
+					setManifest(nextManifest);
+				}
+			} catch (error) {
+				if (!cancelled) {
+					setManifest(null);
+					setManifestError(
+						error instanceof Error
+							? error.message
+							: "Manifest fetch failed.",
+					);
+				}
+			} finally {
+				if (!cancelled) {
+					setIsLoadingDebug(false);
+				}
+			}
+		}
+
+		void init();
+		const unsubscribe = subscribeDesktopUpdateChecks(setLastCheck);
+
+		return () => {
+			cancelled = true;
+			unsubscribe();
+		};
 	}, []);
 
 	const status = isChecking ? "checking" : (lastCheck?.status ?? "idle");
+	const platformKey =
+		appInfo?.platform === "macos" ? `darwin-${appInfo.arch}` : null;
+	const remoteArchive =
+		platformKey && manifest?.platforms?.[platformKey]?.url
+			? decodeURIComponent(
+					new URL(manifest.platforms[platformKey].url).pathname
+						.split("/")
+						.pop() ?? "",
+				)
+			: null;
+	const bundleMismatchHint = getUpdaterBundleMismatchHint({
+		appInfo,
+		manifest,
+		platformKey: platformKey ?? undefined,
+	});
 
 	async function handleCheck(allowDevCheck = false) {
 		setIsChecking(true);
@@ -87,14 +146,10 @@ export function DesktopUpdatesPanel() {
 		setManifestError(null);
 
 		try {
-			const manifest = await fetchUpdaterManifestForDebug();
-			setManifestVersion(manifest.version);
-			setManifestPlatforms(
-				Object.keys(manifest.platforms ?? {}).join(", ") || "—",
-			);
+			const nextManifest = await fetchUpdaterManifestForDebug();
+			setManifest(nextManifest);
 		} catch (error) {
-			setManifestVersion(null);
-			setManifestPlatforms(null);
+			setManifest(null);
 			setManifestError(
 				error instanceof Error ? error.message : "Manifest fetch failed.",
 			);
@@ -107,19 +162,7 @@ export function DesktopUpdatesPanel() {
 		const report = formatDesktopUpdateDebugReport({
 			appInfo,
 			lastCheck,
-			manifest: manifestVersion
-				? {
-						version: manifestVersion,
-						platforms: manifestPlatforms
-							? Object.fromEntries(
-									manifestPlatforms
-										.split(", ")
-										.filter(Boolean)
-										.map((key) => [key, { url: "", signature: "" }]),
-								)
-							: undefined,
-					}
-				: null,
+			manifest,
 			manifestError: manifestError ?? undefined,
 		});
 
@@ -295,14 +338,30 @@ export function DesktopUpdatesPanel() {
 							value={DESKTOP_UPDATER_ENDPOINT}
 						/>
 						<DebugRow
+							label={t("settings.data.updates.debug.expectedArchive")}
+							value={appInfo?.expectedUpdaterArchive ?? "—"}
+						/>
+						<DebugRow
+							label={t("settings.data.updates.debug.remoteArchive")}
+							value={remoteArchive ?? "—"}
+						/>
+						<DebugRow
 							label={t("settings.data.updates.debug.manifestVersion")}
-							value={manifestVersion ?? "—"}
+							value={manifest?.version ?? "—"}
 						/>
 						<DebugRow
 							label={t("settings.data.updates.debug.manifestPlatforms")}
-							value={manifestPlatforms ?? "—"}
+							value={
+								Object.keys(manifest?.platforms ?? {}).join(", ") || "—"
+							}
 						/>
 					</div>
+
+					{bundleMismatchHint ? (
+						<p className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-destructive text-sm">
+							{bundleMismatchHint}
+						</p>
+					) : null}
 
 					{manifestError ? (
 						<p className="text-destructive text-sm">{manifestError}</p>

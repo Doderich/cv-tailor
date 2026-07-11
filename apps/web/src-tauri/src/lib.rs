@@ -6,6 +6,7 @@ mod file_import;
 #[cfg(desktop)]
 mod menu;
 mod pdf_export;
+mod updater_debug;
 mod web_fetch;
 
 use axum::{
@@ -146,7 +147,8 @@ pub fn run() {
             commands::save_data_snapshot,
             commands::read_data_snapshot,
             commands::delete_data_snapshot,
-            commands::download_data_snapshot
+            commands::download_data_snapshot,
+            commands::fetch_updater_manifest
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

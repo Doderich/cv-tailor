@@ -9,6 +9,9 @@ use crate::{
     errors::AppError,
     file_import::{self, ExtractProfileFileTextRequest, ExtractProfileFileTextResponse},
     pdf_export::{self, ExportPdfRequest, ExportPdfResponse},
+    updater_debug::{
+        self, FetchUpdaterManifestRequest, FetchUpdaterManifestResponse,
+    },
     web_fetch::{self, FetchUrlTextRequest, FetchUrlTextResponse},
 };
 
@@ -97,4 +100,11 @@ pub fn download_data_snapshot(
     request: DataSnapshotIdRequest,
 ) -> Result<DownloadDataSnapshotResponse, AppError> {
     data_snapshots::download_data_snapshot(&app, &request.id)
+}
+
+#[tauri::command]
+pub async fn fetch_updater_manifest(
+    request: FetchUpdaterManifestRequest,
+) -> Result<FetchUpdaterManifestResponse, AppError> {
+    updater_debug::fetch_updater_manifest(request).await
 }
