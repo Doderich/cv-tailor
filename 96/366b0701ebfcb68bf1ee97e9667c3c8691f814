@@ -1,0 +1,62 @@
+apps/web/src/lib/desktop-updater.ts
+  s_d105ea4860c9a6::t_29eb916664c215 1-54
+apps/web/src/hooks/use-app-menu-shortcuts.ts
+  s_d105ea4860c9a6::t_c8f647fd5d2554 17-18
+  s_d105ea4860c9a6::t_4f7742928d29b4 68-70
+  s_d105ea4860c9a6::t_a85bef31dc624d 7
+README.md
+  s_d105ea4860c9a6::t_3f8724f6d65d3e 147-148
+  s_d105ea4860c9a6::t_5afb106f855f08 41-68
+package.json
+  s_d105ea4860c9a6::t_b38e21b323e43a 21-22
+apps/web/src/components/settings/settings-sections.tsx
+  s_d105ea4860c9a6::t_1b4972ba44bdf0 231-232,235-258
+.gitignore
+  s_d105ea4860c9a6::t_de1dbe5168ceef 56-58
+apps/web/src-tauri/tauri.conf.json
+  s_d105ea4860c9a6::t_629eac14926784 5
+  s_d105ea4860c9a6::t_a0c34f8d55d0f6 39-44
+  s_d105ea4860c9a6::t_e4a9b3761a66df 38,45-46,51-55
+scripts/setup-desktop-signing.ts
+  s_d105ea4860c9a6::t_7f06aa913f4712 1-69
+apps/web/src/components/app-shell.tsx
+  s_d105ea4860c9a6::t_5f0ab81c9567f8 32
+  s_d105ea4860c9a6::t_33fbbd1c833841 437
+apps/web/src/hooks/use-desktop-updater.ts
+  s_d105ea4860c9a6::t_2ee81dff802a23 1-20
+scripts/release-desktop-macos.ts
+  s_d105ea4860c9a6::t_40cb9e8a48ad1a 9
+  s_d105ea4860c9a6::t_3d3f352ed1cb70 1-8,10-288
+apps/web/src-tauri/src/menu.rs
+  s_d105ea4860c9a6::t_15a53ebb26c095 44-45
+  s_d105ea4860c9a6::t_b15505e2480938 98,111-112
+  s_d105ea4860c9a6::t_a62f7be8dc7821 24-25
+apps/web/package.json
+  s_d105ea4860c9a6::t_e768793e85a472 15-17
+apps/web/src-tauri/capabilities/desktop.json
+  s_d105ea4860c9a6::t_a271006bf1e1d0 12-13
+  s_d105ea4860c9a6::t_aafd3376e204ae 9-11
+  s_d105ea4860c9a6::t_fb20036b0c27cb 14-15
+apps/web/src-tauri/Cargo.lock
+  s_d105ea4860c9a6::t_5e3e43bd9e31fd 107,109,114-122,802-812,1125-1134,2069-2098,2360-2365,2670,2686-2697,2810-2823,3382,3388-3390,3395,3522,3529-3540,3550-3576,3968-3977,4439,4478-4488,4512,4646-4655,4677-4709,4720,4743,5595-5603,5888-5896,5945,5952-5968,6005-6010,6029-6034,6053-6058,6065-6070,6089-6094,6113-6118,6137-6142,6161-6166,6231,6287-6296,6400-6411
+apps/web/src-tauri/Cargo.toml
+  s_d105ea4860c9a6::t_bd1ea40b32d0dc 33-36
+apps/web/src-tauri/src/lib.rs
+  s_d105ea4860c9a6::t_815f2b4e458809 116-117
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "96366b0701ebfcb68bf1ee97e9667c3c8691f814",
+  "prompts": {},
+  "sessions": {
+    "s_d105ea4860c9a6": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "de1df863-9e46-4134-9e68-eae7b951d711",
+        "model": "composer-2.5"
+      },
+      "human_author": "Malte Budig <malte.budig@gmx.net>"
+    }
+  }
+}
