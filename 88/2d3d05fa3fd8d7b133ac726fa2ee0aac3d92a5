@@ -1,0 +1,99 @@
+LICENSE
+  s_1c65e3294fdd33::t_3c5483f3a5ed7e 1-21
+README.md
+  s_1c65e3294fdd33::t_29e81d1ab8b18c 7-8
+SECURITY.md
+  s_1c65e3294fdd33::t_09f473e170479b 1-54
+apps/web/index.html
+  s_1c65e3294fdd33::t_f438bfbcbe2a4f 8-10
+apps/web/package.json
+  s_1c65e3294fdd33::t_ee5bb4a1077996 13
+apps/web/scripts/tauri-dev.mjs
+  s_1c65e3294fdd33::t_b3f95cabe3b62c 1-65
+apps/web/src-tauri/.cargo/config.toml
+  s_1c65e3294fdd33::t_5be385f4eebf28 1-5
+apps/web/src-tauri/Cargo.lock
+  s_1c65e3294fdd33::t_07cea31ad1810f 717-737
+apps/web/src-tauri/Cargo.toml
+  s_1c65e3294fdd33::t_89a544ec12720d 2-7,14
+apps/web/src-tauri/Info.plist
+  s_1c65e3294fdd33::t_8a0649a887b296 1-10
+apps/web/src-tauri/build.rs
+  s_1c65e3294fdd33::t_e599186580ddfb 2-35
+apps/web/src-tauri/icons/android/mipmap-anydpi-v26/ic_launcher.xml
+  s_1c65e3294fdd33::t_0d54765a567317 1-5
+apps/web/src-tauri/icons/android/values/ic_launcher_background.xml
+  s_1c65e3294fdd33::t_09c75b8fb6774c 1-4
+apps/web/src-tauri/scripts/macos-dev-runner.sh
+  s_1c65e3294fdd33::t_9e1048a8c501d6 1-14
+apps/web/src-tauri/src/lib.rs
+  s_1c65e3294fdd33::t_f35f37edbe1f0f 40
+apps/web/src-tauri/src/main.rs
+  s_1c65e3294fdd33::t_0f8dde82b0f777 5
+apps/web/src-tauri/src/menu.rs
+  s_1c65e3294fdd33::t_ffc90233b72cc5 30-34
+apps/web/src-tauri/src/web_fetch.rs
+  s_1c65e3294fdd33::t_45cc1871299688 1,26-85,161-162,220-251
+apps/web/src-tauri/tauri.conf.json
+  s_1c65e3294fdd33::t_82d55cc50b273f 3-5,34-101,120-123,135-154
+apps/web/src/components/app-shell.tsx
+  s_1c65e3294fdd33::t_03fa5066d79b95 26,98,154
+apps/web/src/components/application-step-tab-bar.tsx
+  s_1c65e3294fdd33::t_6464fd9459bdd0 64
+apps/web/src/components/application-workspace.tsx
+  s_1c65e3294fdd33::t_21fd66bf7e5569 1-9,352,367,442,618-620,660-662
+apps/web/src/components/cv/insights.tsx
+  s_1c65e3294fdd33::t_27d1fbf978c627 18
+apps/web/src/components/cv/profile-editor.tsx
+  s_1c65e3294fdd33::t_d410ba330a93bd 389,467,539
+apps/web/src/components/cv/profile-importer.tsx
+  s_1c65e3294fdd33::t_2f60c3e4c755a6 8,415-417,554-556,592-594
+apps/web/src/components/cv/profile-manager.tsx
+  s_1c65e3294fdd33::t_c7676d5f3c3d36 1-5
+apps/web/src/components/data-backup-panel.tsx
+  s_1c65e3294fdd33::t_58fcb6b3a7e45b 142
+apps/web/src/components/language-picker.tsx
+  s_1c65e3294fdd33::t_46fdd55ed070d3 38-42
+apps/web/src/components/settings/settings-sections.tsx
+  s_1c65e3294fdd33::t_b0c6517127e4c3 3,196-198,202-204,208-210,214-216,220-222,261-263,272-274
+apps/web/src/i18n/index.ts
+  s_1c65e3294fdd33::t_ec811e7cc08de3 13-15
+apps/web/src/lib/application-steps.ts
+  s_1c65e3294fdd33::t_3f9e2244a414aa 13-17,19-23
+apps/web/src/lib/cv-app-context.tsx
+  s_1c65e3294fdd33::t_0db110a828c7ac 65-66,239,1243-1245,1336,1366-1368,1906
+apps/web/src/lib/db-bootstrap.tsx
+  s_1c65e3294fdd33::t_69e5ef77cb8c27 29
+apps/web/src/routes/__root.tsx
+  s_1c65e3294fdd33::t_bac72e37a9713a 26,30-31,39-42
+package.json
+  s_1c65e3294fdd33::t_9e250b98639ea0 28,41
+packages/db/src/seed.ts
+  s_1c65e3294fdd33::t_61fbe9bd343980 90-91
+pnpm-lock.yaml
+  s_1c65e3294fdd33::t_f13d5ecd6d5a80 69-71,951-1087,3727-3730,4772-4867,7475-7505
+scripts/desktop-version.ts
+  s_1c65e3294fdd33::t_7fdad8be8c4832 97
+scripts/generate-app-icon.mjs
+  s_1c65e3294fdd33::t_30a703692e7927 1-36
+scripts/generate-dmg-background.mjs
+  s_1c65e3294fdd33::t_31d52b2e8b3c15 1-64
+scripts/release-desktop-macos.ts
+  s_1c65e3294fdd33::t_748ec10fc44fba 360
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "882d3d05fa3fd8d7b133ac726fa2ee0aac3d92a5",
+  "prompts": {},
+  "sessions": {
+    "s_1c65e3294fdd33": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "66106e12-e439-45b8-b66f-971f63da7e92",
+        "model": "unknown"
+      },
+      "human_author": "Malte Budig <malte.budig@gmx.net>"
+    }
+  }
+}
