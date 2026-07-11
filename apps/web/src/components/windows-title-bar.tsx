@@ -1,4 +1,5 @@
 import { cn } from "@cv-tailor/ui/lib/utils";
+import { interactiveTransition } from "@cv-tailor/ui/lib/interactive-styles";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { Minus, Square, X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
@@ -29,8 +30,10 @@ export function WindowsTitleBar() {
 		getCurrentWindow().close();
 	}, []);
 
-	const buttonClass =
-		"inline-flex h-8 w-12 items-center justify-center transition-colors hover:bg-muted";
+	const buttonClass = cn(
+		"inline-flex h-8 w-12 items-center justify-center hover:bg-muted active:scale-95",
+		interactiveTransition,
+	);
 
 	return (
 		<div className="ml-auto flex shrink-0">

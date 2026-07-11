@@ -1,4 +1,5 @@
 import { cn } from "@cv-tailor/ui/lib/utils";
+import { interactiveCard } from "@cv-tailor/ui/lib/interactive-styles";
 import { Check } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
@@ -57,7 +58,8 @@ function FontCard({
 			onClick={onSelect}
 			aria-pressed={selected}
 			className={cn(
-				"group relative grid gap-2.5 rounded-xl border bg-card p-3 text-left transition-all hover:border-ring/60 hover:shadow-sm",
+				"group relative grid gap-2.5 rounded-xl border bg-card p-3 text-left",
+				interactiveCard,
 				selected ? "border-primary ring-2 ring-primary/30" : "border-border",
 			)}
 		>

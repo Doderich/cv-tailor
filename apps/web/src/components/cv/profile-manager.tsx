@@ -13,6 +13,10 @@ import {
 	SelectValue,
 } from "@cv-tailor/ui/components/select";
 import { cn } from "@cv-tailor/ui/lib/utils";
+import {
+	interactiveCard,
+	interactiveListItem,
+} from "@cv-tailor/ui/lib/interactive-styles";
 import { Check, Plus, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -49,7 +53,8 @@ function ProfileCard({
 	return (
 		<div
 			className={cn(
-				"grid gap-3 rounded-xl border bg-card p-3 transition-all",
+				"grid gap-3 rounded-xl border bg-card p-3",
+				interactiveCard,
 				active ? "border-primary ring-2 ring-primary/30" : "border-border",
 			)}
 		>
@@ -57,7 +62,7 @@ function ProfileCard({
 				<button
 					type="button"
 					onClick={onSelect}
-					className="grid flex-1 gap-1 text-left"
+					className={cn("grid flex-1 gap-1 text-left", interactiveListItem)}
 				>
 					<span className="font-medium text-sm">{name}</span>
 					<span className="text-muted-foreground text-xs">
@@ -109,10 +114,15 @@ function ProfileCard({
 							}
 						}}
 					>
-						<SelectTrigger aria-label={t("profile.manager.languageAriaLabel")}>
+						<SelectTrigger
+							aria-label={t("profile.manager.languageAriaLabel")}
+							className="w-full max-w-xs"
+						>
 							<SelectValue
 								placeholder={t("profile.manager.languagePlaceholder")}
-							/>
+							>
+								{cvLanguageLabel(language)}
+							</SelectValue>
 						</SelectTrigger>
 						<SelectContent>
 							{cvLanguages.map((option) => (
@@ -231,12 +241,14 @@ export function ProfileManager() {
 						}}
 					>
 						<SelectTrigger
-							className="w-full sm:w-36"
+							className="w-full max-w-xs sm:w-36"
 							aria-label={t("profile.manager.newLanguageAriaLabel")}
 						>
 							<SelectValue
 								placeholder={t("profile.manager.languagePlaceholder")}
-							/>
+							>
+								{cvLanguageLabel(newLanguage)}
+							</SelectValue>
 						</SelectTrigger>
 						<SelectContent>
 							{cvLanguages.map((option) => (

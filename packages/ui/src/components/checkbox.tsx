@@ -2,6 +2,10 @@
 
 import { Checkbox as CheckboxPrimitive } from "@base-ui/react/checkbox";
 import { cn } from "@cv-tailor/ui/lib/utils";
+import {
+	interactiveCheckbox,
+	interactiveTransition,
+} from "@cv-tailor/ui/lib/interactive-styles";
 import { CheckIcon } from "lucide-react";
 
 function Checkbox({ className, ...props }: CheckboxPrimitive.Root.Props) {
@@ -9,14 +13,14 @@ function Checkbox({ className, ...props }: CheckboxPrimitive.Root.Props) {
 		<CheckboxPrimitive.Root
 			data-slot="checkbox"
 			className={cn(
-				"peer relative flex size-5 shrink-0 items-center justify-center rounded-none border border-input outline-none transition-colors after:absolute after:-inset-x-3 after:-inset-y-2 focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 group-has-disabled/field:opacity-50 aria-invalid:border-destructive aria-invalid:ring-1 aria-invalid:ring-destructive/20 aria-invalid:aria-checked:border-primary data-checked:border-primary data-checked:bg-primary data-checked:text-primary-foreground dark:bg-input/30 dark:data-checked:bg-primary dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40",
+				`peer relative flex size-5 shrink-0 items-center justify-center rounded-none border border-input outline-none ${interactiveTransition} ${interactiveCheckbox} after:absolute after:-inset-x-3 after:-inset-y-2 focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/45 disabled:cursor-not-allowed disabled:opacity-50 group-has-disabled/field:opacity-50 aria-invalid:border-destructive aria-invalid:ring-1 aria-invalid:ring-destructive/20 aria-invalid:aria-checked:border-primary data-checked:border-primary data-checked:bg-primary data-checked:text-primary-foreground dark:bg-input/30 dark:data-checked:bg-primary dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40`,
 				className,
 			)}
 			{...props}
 		>
 			<CheckboxPrimitive.Indicator
 				data-slot="checkbox-indicator"
-				className="grid place-content-center text-current transition-none [&>svg]:size-4"
+				className="grid place-content-center text-current transition-transform duration-150 ease-[cubic-bezier(0.32,0.72,0,1)] [&>svg]:size-4"
 			>
 				<CheckIcon />
 			</CheckboxPrimitive.Indicator>

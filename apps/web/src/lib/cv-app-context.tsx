@@ -59,9 +59,16 @@ import {
 import { toast } from "sonner";
 import i18n from "@/i18n";
 import {
-	exportAllData as exportBackup,
 	importAllData as importBackup,
 } from "@/lib/data-backup";
+import {
+	createDataSnapshot as persistDataSnapshot,
+	deleteDataSnapshot as removeDataSnapshot,
+	downloadDataSnapshot as saveDataSnapshotToFile,
+	listDataSnapshots,
+	readDataSnapshot,
+	type DataSnapshotMeta,
+} from "@/lib/data-snapshots";
 import { useDb } from "@/lib/db-provider";
 import { createDebouncedCallback } from "@/lib/debounce";
 import { translateCvLanguage } from "@/lib/i18n-labels";
@@ -149,7 +156,17 @@ interface CvAppContextValue {
 	exportPdf: () => Promise<void>;
 	exportAllData: () => Promise<void>;
 	importAllData: (file: File, mode: "replace" | "merge") => Promise<void>;
-	isExportingData: boolean;
+	dataSnapshots: DataSnapshotMeta[];
+	isLoadingDataSnapshots: boolean;
+	isCreatingDataSnapshot: boolean;
+	refreshDataSnapshots: () => Promise<void>;
+	createDataSnapshot: (name?: string) => Promise<void>;
+	restoreDataSnapshot: (
+		id: string,
+		mode: "replace" | "merge",
+	) => Promise<void>;
+	downloadDataSnapshot: (id: string) => Promise<void>;
+	deleteDataSnapshot: (id: string) => Promise<void>;
 	isImportingData: boolean;
 	profileRevision: number;
 	replaceProfile: (profile: BaseProfile) => void;
@@ -341,8 +358,10 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 	const [isReviewingJobOffer, setIsReviewingJobOffer] = useState(false);
 	const [isAnalyzingProfileMatch, setIsAnalyzingProfileMatch] = useState(false);
 	const [isExportingPdf, setIsExportingPdf] = useState(false);
-	const [isExportingData, setIsExportingData] = useState(false);
 	const [isImportingData, setIsImportingData] = useState(false);
+	const [dataSnapshots, setDataSnapshots] = useState<DataSnapshotMeta[]>([]);
+	const [isLoadingDataSnapshots, setIsLoadingDataSnapshots] = useState(false);
+	const [isCreatingDataSnapshot, setIsCreatingDataSnapshot] = useState(false);
 	const [generationError, setGenerationError] = useState<string>();
 	const [jobReviewError, setJobReviewError] = useState<string>();
 	const [profileMatchError, setProfileMatchError] = useState<string>();
@@ -462,6 +481,10 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 		() => ({ ...(settings?.aiToolPaths ?? {}) }),
 		[settings?.aiToolPaths],
 	);
+
+	useEffect(() => {
+		void refreshDataSnapshots();
+	}, []);
 
 	useEffect(() => {
 		if (!profileSnapshot) {
@@ -1404,22 +1427,102 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 	}
 
 	async function exportAllData() {
-		setIsExportingData(true);
+		await createDataSnapshot();
+	}
+
+	async function refreshDataSnapshots() {
+		setIsLoadingDataSnapshots(true);
 		try {
-			const summary = await exportBackup(db);
-			toast.success(i18n.t("app.toast.backupExported"), {
+			setDataSnapshots(await listDataSnapshots());
+		} catch (error) {
+			toast.error(i18n.t("app.toast.snapshotLoadFailed"), {
+				description: getErrorMessage(error),
+			});
+		} finally {
+			setIsLoadingDataSnapshots(false);
+		}
+	}
+
+	async function createDataSnapshot(name?: string) {
+		setIsCreatingDataSnapshot(true);
+		try {
+			const snapshot = await persistDataSnapshot(db, { name });
+			setDataSnapshots((current) => [
+				snapshot,
+				...current.filter((entry) => entry.id !== snapshot.id),
+			]);
+			toast.success(i18n.t("app.toast.snapshotCreated"), {
 				description: i18n.t("app.toast.backupSummary", {
-					profiles: summary.profiles,
-					applications: summary.applications,
-					cvRuns: summary.cvRuns,
+					profiles: snapshot.profiles,
+					applications: snapshot.applications,
+					cvRuns: snapshot.cvRuns,
 				}),
+			});
+		} catch (error) {
+			toast.error(i18n.t("app.toast.snapshotCreateFailed"), {
+				description: getErrorMessage(error),
+			});
+		} finally {
+			setIsCreatingDataSnapshot(false);
+		}
+	}
+
+	async function restoreDataSnapshot(id: string, mode: "replace" | "merge") {
+		setIsImportingData(true);
+		try {
+			const snapshot = await readDataSnapshot(id);
+			const summary = await importBackup(db, snapshot.content, mode);
+			setProfileRevision((current) => current + 1);
+			toast.success(
+				mode === "replace"
+					? i18n.t("app.toast.backupRestored")
+					: i18n.t("app.toast.backupMerged"),
+				{
+					description: i18n.t("app.toast.backupSummary", {
+						profiles: summary.profiles,
+						applications: summary.applications,
+						cvRuns: summary.cvRuns,
+					}),
+				},
+			);
+		} catch (error) {
+			toast.error(i18n.t("app.toast.importFailed"), {
+				description: getErrorMessage(error),
+			});
+			throw error;
+		} finally {
+			setIsImportingData(false);
+		}
+	}
+
+	async function downloadDataSnapshot(id: string) {
+		try {
+			const response = await saveDataSnapshotToFile(id);
+			if (!response.saved) {
+				return;
+			}
+
+			toast.success(i18n.t("app.toast.snapshotDownloaded"), {
+				description: response.path ?? undefined,
 			});
 		} catch (error) {
 			toast.error(i18n.t("app.toast.exportFailed"), {
 				description: getErrorMessage(error),
 			});
-		} finally {
-			setIsExportingData(false);
+		}
+	}
+
+	async function deleteDataSnapshot(id: string) {
+		try {
+			await removeDataSnapshot(id);
+			setDataSnapshots((current) =>
+				current.filter((snapshot) => snapshot.id !== id),
+			);
+			toast.success(i18n.t("app.toast.snapshotDeleted"));
+		} catch (error) {
+			toast.error(i18n.t("app.toast.snapshotDeleteFailed"), {
+				description: getErrorMessage(error),
+			});
 		}
 	}
 
@@ -1812,7 +1915,6 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 			isReviewingJobOffer,
 			isAnalyzingProfileMatch,
 			isExportingPdf,
-			isExportingData,
 			isImportingData,
 			generationError,
 			jobReviewError,
@@ -1842,6 +1944,14 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 			exportPdf,
 			exportAllData,
 			importAllData,
+			dataSnapshots,
+			isLoadingDataSnapshots,
+			isCreatingDataSnapshot,
+			refreshDataSnapshots,
+			createDataSnapshot,
+			restoreDataSnapshot,
+			downloadDataSnapshot,
+			deleteDataSnapshot,
 			profileRevision,
 			replaceProfile,
 			updateProfile,
@@ -1878,8 +1988,10 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 			isReviewingJobOffer,
 			isAnalyzingProfileMatch,
 			isExportingPdf,
-			isExportingData,
 			isImportingData,
+			dataSnapshots,
+			isLoadingDataSnapshots,
+			isCreatingDataSnapshot,
 			generationError,
 			jobReviewError,
 			profileMatchError,

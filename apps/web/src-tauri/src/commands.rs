@@ -2,6 +2,10 @@ use tauri::AppHandle;
 
 use crate::{
     ai::{self, AiRunRequest, AiRunResponse, AiToolPaths, AiToolStatus},
+    data_snapshots::{
+        self, DataSnapshotContentResponse, DataSnapshotIdRequest, DataSnapshotMeta,
+        DownloadDataSnapshotResponse, SaveDataSnapshotRequest,
+    },
     errors::AppError,
     file_import::{self, ExtractProfileFileTextRequest, ExtractProfileFileTextResponse},
     pdf_export::{self, ExportPdfRequest, ExportPdfResponse},
@@ -43,4 +47,41 @@ pub fn export_generated_cv_pdf(
     request: ExportPdfRequest,
 ) -> Result<ExportPdfResponse, AppError> {
     pdf_export::export_generated_cv_pdf(&app, request)
+}
+
+#[tauri::command]
+pub fn list_data_snapshots(app: AppHandle) -> Result<Vec<DataSnapshotMeta>, AppError> {
+    data_snapshots::list_data_snapshots(&app)
+}
+
+#[tauri::command]
+pub fn save_data_snapshot(
+    app: AppHandle,
+    request: SaveDataSnapshotRequest,
+) -> Result<DataSnapshotMeta, AppError> {
+    data_snapshots::save_data_snapshot(&app, request)
+}
+
+#[tauri::command]
+pub fn read_data_snapshot(
+    app: AppHandle,
+    request: DataSnapshotIdRequest,
+) -> Result<DataSnapshotContentResponse, AppError> {
+    data_snapshots::read_data_snapshot(&app, &request.id)
+}
+
+#[tauri::command]
+pub fn delete_data_snapshot(
+    app: AppHandle,
+    request: DataSnapshotIdRequest,
+) -> Result<(), AppError> {
+    data_snapshots::delete_data_snapshot(&app, &request.id)
+}
+
+#[tauri::command]
+pub fn download_data_snapshot(
+    app: AppHandle,
+    request: DataSnapshotIdRequest,
+) -> Result<DownloadDataSnapshotResponse, AppError> {
+    data_snapshots::download_data_snapshot(&app, &request.id)
 }

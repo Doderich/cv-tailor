@@ -19,6 +19,7 @@ import {
 } from "@cv-tailor/ui/components/select";
 import { Textarea } from "@cv-tailor/ui/components/textarea";
 import { cn } from "@cv-tailor/ui/lib/utils";
+import { interactiveSegment } from "@cv-tailor/ui/lib/interactive-styles";
 import { useNavigate } from "@tanstack/react-router";
 import {
 	ArrowLeft,
@@ -177,7 +178,7 @@ function LanguagePicker({
 	const cvLanguageLabel = useCvLanguageLabel();
 
 	return (
-		<div className="inline-flex rounded-lg border bg-card p-1">
+		<div className="inline-flex w-fit shrink-0 rounded-lg border bg-card p-1">
 			{cvLanguages.map((language) => {
 				const active = value === language;
 				return (
@@ -186,7 +187,8 @@ function LanguagePicker({
 						type="button"
 						onClick={() => onChange(language)}
 						className={cn(
-							"inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 font-medium text-sm transition-colors",
+							"inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 font-medium text-sm",
+							interactiveSegment,
 							active
 								? "bg-primary text-primary-foreground"
 								: "text-muted-foreground hover:bg-muted",
@@ -301,7 +303,8 @@ function PasteStep({
 							type="button"
 							onClick={() => setImportMode("paste")}
 							className={cn(
-								"inline-flex items-center gap-1.5 rounded-sm px-3 py-1.5 text-sm transition-colors",
+								"inline-flex items-center gap-1.5 rounded-sm px-3 py-1.5 text-sm",
+								interactiveSegment,
 								importMode === "paste"
 									? "bg-primary text-primary-foreground"
 									: "text-muted-foreground hover:bg-muted",
@@ -314,7 +317,8 @@ function PasteStep({
 							type="button"
 							onClick={() => setImportMode("url")}
 							className={cn(
-								"inline-flex items-center gap-1.5 rounded-sm px-3 py-1.5 text-sm transition-colors",
+								"inline-flex items-center gap-1.5 rounded-sm px-3 py-1.5 text-sm",
+								interactiveSegment,
 								importMode === "url"
 									? "bg-primary text-primary-foreground"
 									: "text-muted-foreground hover:bg-muted",
@@ -747,20 +751,12 @@ function TailorStep({
 
 	return (
 		<div className="grid gap-4">
-			<div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-card p-4">
-				<div className="grid gap-2">
-					<p className="font-medium text-sm">
-						{t("application.generate.title")}
-					</p>
-					<p className="text-muted-foreground text-xs">
-						{t("application.generate.subtitle")}
-					</p>
-					<LanguagePicker
-						value={selectedLanguage}
-						onChange={onLanguageChange}
-					/>
-				</div>
-				<div className="flex items-center gap-2">
+			<div className="flex flex-col gap-3 rounded-xl border bg-card p-4 sm:flex-row sm:items-center sm:justify-between">
+				<LanguagePicker
+					value={selectedLanguage}
+					onChange={onLanguageChange}
+				/>
+				<div className="flex flex-wrap items-center gap-2">
 					<Button variant="ghost" onClick={onBack}>
 						<ArrowLeft /> {t("common.back")}
 					</Button>
@@ -786,12 +782,8 @@ function TailorStep({
 							<WandSparkles />
 						)}
 						{hasRunForLanguage && run?.source !== "draft"
-							? t("application.generate.regenerate", {
-									language: cvLanguageLabel(selectedLanguage),
-								})
-							: t("application.generate.generate", {
-									language: cvLanguageLabel(selectedLanguage),
-								})}
+							? t("application.generate.regenerate")
+							: t("application.generate.generate")}
 					</Button>
 				</div>
 			</div>

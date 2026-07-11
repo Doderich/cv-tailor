@@ -5,11 +5,20 @@ import "./i18n";
 import Loader from "./components/loader";
 import { routeTree } from "./routeTree.gen";
 
+function supportsViewTransitions() {
+	return (
+		typeof document !== "undefined" &&
+		"startViewTransition" in document &&
+		typeof document.startViewTransition === "function"
+	);
+}
+
 const router = createRouter({
 	routeTree,
 	defaultPreload: "intent",
 	scrollRestoration: true,
 	defaultPendingComponent: () => <Loader />,
+	defaultViewTransition: supportsViewTransitions(),
 	context: {},
 });
 

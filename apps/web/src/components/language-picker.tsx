@@ -40,7 +40,7 @@ export function LanguagePicker() {
 				size="sm"
 				aria-label={t("settings.appearance.language")}
 			>
-				<SelectValue />
+				<SelectValue>{uiLanguageLabels[value]}</SelectValue>
 			</SelectTrigger>
 			<SelectContent>
 				{supportedUiLanguages.map((language) => (

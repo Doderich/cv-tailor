@@ -12,6 +12,7 @@ import {
 	CardTitle,
 } from "@cv-tailor/ui/components/card";
 import { cn } from "@cv-tailor/ui/lib/utils";
+import { interactiveCard } from "@cv-tailor/ui/lib/interactive-styles";
 import { CheckCircle2, ExternalLink, TriangleAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { formatLocalizedDate } from "@/lib/i18n-labels";
@@ -341,7 +342,8 @@ export function HistoryRunCard({
 				}
 			}}
 			className={cn(
-				"cursor-pointer transition-colors hover:bg-muted/60",
+				"cursor-pointer hover:bg-muted/60",
+				interactiveCard,
 				active && "ring-2 ring-primary",
 			)}
 		>

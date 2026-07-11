@@ -1,5 +1,6 @@
 mod ai;
 mod commands;
+mod data_snapshots;
 mod errors;
 mod file_import;
 #[cfg(desktop)]
@@ -115,6 +116,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_os::init())
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(local_api_state)
         .plugin(tauri_plugin_sql::Builder::default().build())
@@ -138,7 +140,12 @@ pub fn run() {
             commands::run_ai_tool,
             commands::fetch_url_text,
             commands::extract_profile_file_text,
-            commands::export_generated_cv_pdf
+            commands::export_generated_cv_pdf,
+            commands::list_data_snapshots,
+            commands::save_data_snapshot,
+            commands::read_data_snapshot,
+            commands::delete_data_snapshot,
+            commands::download_data_snapshot
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

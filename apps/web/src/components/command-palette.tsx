@@ -1,4 +1,8 @@
 import { cn } from "@cv-tailor/ui/lib/utils";
+import {
+	interactiveMenuItem,
+	interactiveTransition,
+} from "@cv-tailor/ui/lib/interactive-styles";
 import { useNavigate } from "@tanstack/react-router";
 import {
 	FileText,
@@ -347,7 +351,9 @@ export function CommandPalette() {
 																onMouseMove={() => setActiveIndex(index)}
 																onClick={() => item.run()}
 																className={cn(
-																	"flex w-full items-center gap-2.5 rounded-md px-2 py-2 text-left text-sm transition-colors",
+																	"flex w-full items-center gap-2.5 rounded-md px-2 py-2 text-left text-sm",
+																	interactiveTransition,
+																	interactiveMenuItem,
 																	active
 																		? "bg-accent text-accent-foreground"
 																		: "text-foreground",

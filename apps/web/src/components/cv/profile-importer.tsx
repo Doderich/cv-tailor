@@ -29,6 +29,10 @@ import {
 } from "@cv-tailor/ui/components/select";
 import { Textarea } from "@cv-tailor/ui/components/textarea";
 import { cn } from "@cv-tailor/ui/lib/utils";
+import {
+	interactiveCard,
+	interactiveSegment,
+} from "@cv-tailor/ui/lib/interactive-styles";
 import { FileSearch, Loader2, Paperclip, X } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -95,7 +99,8 @@ function TargetModeButton({
 			type="button"
 			onClick={onClick}
 			className={cn(
-				"rounded-md border px-3 py-2 text-left text-sm transition-colors",
+				"rounded-md border px-3 py-2 text-left text-sm",
+				interactiveSegment,
 				active
 					? "border-primary bg-primary text-primary-foreground"
 					: "border-border text-muted-foreground hover:bg-muted",
@@ -413,11 +418,14 @@ export function ProfileImporter({
 							}}
 						>
 							<SelectTrigger
+								className="w-full max-w-xs"
 								aria-label={t("profile.importer.languageAriaLabel")}
 							>
 								<SelectValue
 									placeholder={t("profile.importer.languagePlaceholder")}
-								/>
+								>
+									{cvLanguageLabel(targetLanguage)}
+								</SelectValue>
 							</SelectTrigger>
 							<SelectContent>
 								{cvLanguages.map((option) => (
@@ -620,7 +628,8 @@ export function ProfileImporter({
 										type="button"
 										onClick={() => switchProfile(item.id)}
 										className={cn(
-											"grid gap-1 rounded-lg border p-2 text-left text-xs transition-colors",
+											"grid gap-1 rounded-lg border p-2 text-left text-xs",
+											interactiveCard,
 											active
 												? "border-primary bg-primary/5"
 												: "hover:bg-muted/50",

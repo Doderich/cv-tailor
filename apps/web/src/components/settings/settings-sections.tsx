@@ -9,6 +9,7 @@ import {
 	SelectValue,
 } from "@cv-tailor/ui/components/select";
 import { cn } from "@cv-tailor/ui/lib/utils";
+import { interactiveSegment } from "@cv-tailor/ui/lib/interactive-styles";
 import { Monitor, Moon, RefreshCw, Sun } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
@@ -72,8 +73,7 @@ function ThemeToggleGroup() {
 
 const segmentedContainerClass =
 	"inline-flex w-fit rounded-md border bg-card p-0.5";
-const segmentedButtonClass =
-	"rounded-sm px-2.5 py-1 text-sm font-medium transition-colors";
+const segmentedButtonClass = `rounded-sm px-2.5 py-1 font-medium text-sm ${interactiveSegment}`;
 
 const toolOptionIds: AiToolId[] = ["auto", "claude", "codex", "cursor"];
 const aiProviderIds: AiProviderId[] = ["claude", "codex", "cursor"];
@@ -132,7 +132,9 @@ function TextSizeSelect() {
 			}}
 		>
 			<SelectTrigger className="max-w-xs" size="sm">
-				<SelectValue placeholder={t("settings.appearance.selectTextSize")} />
+				<SelectValue placeholder={t("settings.appearance.selectTextSize")}>
+					{t(`settings.textSize.${textSize}`)}
+				</SelectValue>
 			</SelectTrigger>
 			<SelectContent>
 				{textSizeOptions.map((option) => (

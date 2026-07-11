@@ -9,6 +9,7 @@ import {
 import { Input } from "@cv-tailor/ui/components/input";
 import { ScrollArea } from "@cv-tailor/ui/components/scroll-area";
 import { cn } from "@cv-tailor/ui/lib/utils";
+import { interactiveListItem } from "@cv-tailor/ui/lib/interactive-styles";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import {
 	Archive,
@@ -138,7 +139,8 @@ function ApplicationRailItem({
 	return (
 		<div
 			className={cn(
-				"group relative rounded-lg transition-colors",
+				"group relative rounded-lg",
+				interactiveListItem,
 				active
 					? "bg-sidebar-accent text-sidebar-accent-foreground"
 					: "hover:bg-sidebar-accent/60",
@@ -297,7 +299,7 @@ function ApplicationRailContent({
 					</Button>
 				</div>
 			) : null}
-			<div className="flex min-h-0 flex-1 flex-col gap-3 px-3 pt-3 pb-3">
+			<div className="flex min-h-0 flex-1 flex-col gap-3 px-3 pt-3">
 				<div className="relative min-w-0">
 					<Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
 					<Input
@@ -343,7 +345,10 @@ function ApplicationRailContent({
 								<button
 									type="button"
 									onClick={() => setShowArchived((value) => !value)}
-									className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-muted-foreground text-sm hover:bg-sidebar-accent/60"
+									className={cn(
+										"flex w-full items-center gap-2 rounded-md px-2 py-2 text-muted-foreground text-sm hover:bg-sidebar-accent/60",
+										interactiveListItem,
+									)}
 								>
 									<ChevronRight
 										className={cn(
@@ -386,28 +391,28 @@ function ApplicationRailContent({
 						) : null}
 					</div>
 				</ScrollArea>
+			</div>
 
-				<div className="border-sidebar-border border-t p-3">
-					<Button
-						variant={pathname.startsWith("/settings") ? "secondary" : "ghost"}
-						className="w-full justify-start"
-						onClick={() => {
-							void navigate({ to: "/settings" });
-							onNavigate?.();
-						}}
-					>
-						<Settings /> {t("shell.settings")}
-						{isMac ? (
-							<kbd className="ml-auto rounded border bg-muted px-1.5 py-0.5 font-medium text-[10px] text-muted-foreground">
-								⌘,
-							</kbd>
-						) : isWindows ? (
-							<kbd className="ml-auto rounded border bg-muted px-1.5 py-0.5 font-medium text-[10px] text-muted-foreground">
-								Ctrl+,
-							</kbd>
-						) : null}
-					</Button>
-				</div>
+			<div className="shrink-0 border-sidebar-border border-t px-3 py-3">
+				<Button
+					variant={pathname.startsWith("/settings") ? "secondary" : "ghost"}
+					className="w-full justify-start"
+					onClick={() => {
+						void navigate({ to: "/settings" });
+						onNavigate?.();
+					}}
+				>
+					<Settings /> {t("shell.settings")}
+					{isMac ? (
+						<kbd className="ml-auto rounded border bg-muted px-1.5 py-0.5 font-medium text-[10px] text-muted-foreground">
+							⌘,
+						</kbd>
+					) : isWindows ? (
+						<kbd className="ml-auto rounded border bg-muted px-1.5 py-0.5 font-medium text-[10px] text-muted-foreground">
+							Ctrl+,
+						</kbd>
+					) : null}
+				</Button>
 			</div>
 		</div>
 	);
