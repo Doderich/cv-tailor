@@ -7,6 +7,7 @@ import {
 	hasMeaningfulProfileContent,
 	type JobOffer,
 	jobOfferNeedsReview,
+	normalizeMatchAnalysis,
 	profilesHaveSameContent,
 	resolveJobSignals,
 	scoreProfileAgainstJob,
@@ -167,8 +168,22 @@ describe("scoreProfileAgainstJob", () => {
 		expect(analysis.matchedKeywords).toEqual(
 			expect.arrayContaining(["react", "typescript"]),
 		);
+		expect(analysis.goodFit.length).toBeGreaterThan(0);
 		expect(analysis.missingKeywords).not.toContain("and");
 		expect(analysis.score).toBeGreaterThan(50);
+	});
+
+	it("normalizes legacy match analysis without goodFit", () => {
+		const analysis = normalizeMatchAnalysis({
+			score: 70,
+			matchedKeywords: ["react"],
+			missingKeywords: [],
+			missingRequirements: [],
+			warnings: [],
+		});
+
+		expect(analysis.goodFit).toEqual([]);
+		expect(analysis.source).toBe("draft");
 	});
 });
 

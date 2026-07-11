@@ -12,7 +12,7 @@ import {
 	CardTitle,
 } from "@cv-tailor/ui/components/card";
 import { cn } from "@cv-tailor/ui/lib/utils";
-import { CheckCircle2, ExternalLink } from "lucide-react";
+import { CheckCircle2, ExternalLink, TriangleAlert } from "lucide-react";
 
 import type { AiToolStatus } from "@/lib/tauri-ai";
 
@@ -47,22 +47,147 @@ export function TokenList({ values }: { values: string[] }) {
 export function SmallList({
 	empty,
 	values,
+	tone = "negative",
 }: {
 	empty: string;
 	values: string[];
+	tone?: "positive" | "negative";
 }) {
 	if (values.length === 0) {
 		return <p className="text-muted-foreground text-xs">{empty}</p>;
 	}
 
 	return (
-		<ul className="grid gap-1 text-xs">
-			{values.slice(0, 6).map((value) => (
-				<li key={value} className="border-destructive border-l-2 pl-2">
+		<ul className="grid gap-1.5 text-sm">
+			{values.slice(0, 8).map((value) => (
+				<li
+					key={value}
+					className={cn(
+						"pl-2",
+						tone === "positive"
+							? "border-primary/60 border-l-2 text-foreground"
+							: "border-destructive/60 border-l-2 text-muted-foreground",
+					)}
+				>
 					{value}
 				</li>
 			))}
 		</ul>
+	);
+}
+
+export function KeywordMatchGrid({
+	keywords,
+	matchedKeywords,
+	loading = false,
+	limit = 32,
+}: {
+	keywords: string[];
+	matchedKeywords: string[];
+	loading?: boolean;
+	limit?: number;
+}) {
+	if (loading) {
+		return <p className="text-muted-foreground text-xs">Analyzing posting…</p>;
+	}
+
+	if (keywords.length === 0) {
+		return <p className="text-muted-foreground text-xs">No keywords yet.</p>;
+	}
+
+	return (
+		<div className="grid gap-3">
+			<div className="flex flex-wrap gap-1.5">
+				{keywords.slice(0, limit).map((keyword) => {
+					const matched = matchedKeywords.includes(keyword);
+					return (
+						<span
+							key={keyword}
+							className={cn(
+								"rounded-md px-2 py-0.5 text-xs",
+								matched
+									? "bg-primary/15 text-primary"
+									: "bg-muted text-muted-foreground",
+							)}
+						>
+							{keyword}
+						</span>
+					);
+				})}
+			</div>
+			<p className="text-muted-foreground text-xs">
+				Highlighted tags appear in your profile. Muted tags still need stronger
+				coverage.
+			</p>
+		</div>
+	);
+}
+
+export function MatchBulletList({
+	title,
+	icon: Icon,
+	items,
+	empty,
+	loading = false,
+	tone = "negative",
+	limit = 6,
+	embedded = false,
+}: {
+	title: string;
+	icon?: typeof CheckCircle2;
+	items: string[];
+	empty: string;
+	loading?: boolean;
+	tone?: "positive" | "negative";
+	limit?: number;
+	embedded?: boolean;
+}) {
+	return (
+		<section
+			className={cn(
+				"flex flex-col gap-3",
+				!embedded && "rounded-xl border bg-card p-4",
+			)}
+		>
+			<div className="flex items-center gap-2">
+				{Icon ? (
+					<Icon
+						className={cn(
+							"size-4 shrink-0",
+							tone === "positive" ? "text-primary" : "text-destructive",
+						)}
+					/>
+				) : null}
+				<h3 className="font-medium text-sm">{title}</h3>
+				{!loading && items.length > 0 ? (
+					<span className="ml-auto text-muted-foreground text-xs">
+						{Math.min(items.length, limit)}
+						{items.length > limit ? ` of ${items.length}` : ""}
+					</span>
+				) : null}
+			</div>
+			{loading ? (
+				<p className="text-muted-foreground text-xs">Analyzing profile fit…</p>
+			) : items.length === 0 ? (
+				<p className="text-muted-foreground text-sm">{empty}</p>
+			) : (
+				<ul className="grid gap-2.5">
+					{items.slice(0, limit).map((item) => (
+						<li
+							key={item}
+							className={cn(
+								"border-l-2 pl-3 text-sm leading-relaxed break-words",
+								tone === "positive"
+									? "border-primary/60 text-foreground"
+									: "border-destructive/60 text-muted-foreground",
+							)}
+						>
+							{item}
+						</li>
+					))}
+				</ul>
+			)}
+		</section>
 	);
 }
 
@@ -86,13 +211,28 @@ export function AnalysisPanel({
 				</div>
 				<div className="grid gap-2">
 					<h3 className="font-medium text-sm">Detected Keywords</h3>
-					<TokenList values={signals.keywords.slice(0, 18)} />
+					<KeywordMatchGrid
+						keywords={signals.keywords}
+						matchedKeywords={matchAnalysis.matchedKeywords}
+						limit={18}
+					/>
 				</div>
-				<div className="grid gap-2">
-					<h3 className="font-medium text-sm">Missing Requirements</h3>
-					<SmallList
-						values={matchAnalysis.missingRequirements}
+				<div className="grid gap-3 md:grid-cols-2">
+					<MatchBulletList
+						title="Good fit"
+						icon={CheckCircle2}
+						items={matchAnalysis.goodFit ?? []}
+						empty="No clear strengths detected yet."
+						tone="positive"
+						embedded
+					/>
+					<MatchBulletList
+						title="Gaps to address"
+						icon={TriangleAlert}
+						items={matchAnalysis.missingRequirements}
 						empty="No clear gaps detected."
+						tone="negative"
+						embedded
 					/>
 				</div>
 			</CardContent>

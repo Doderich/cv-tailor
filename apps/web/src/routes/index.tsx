@@ -15,12 +15,14 @@ import { createFileRoute } from "@tanstack/react-router";
 import {
 	ArrowLeft,
 	ArrowRight,
+	CheckCircle2,
 	FileText,
 	Languages,
 	Link2,
 	Loader2,
 	Printer,
 	Sparkles,
+	TriangleAlert,
 	WandSparkles,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -30,7 +32,11 @@ import { PageHeader } from "@/components/app-shell";
 import { ArrayLinesField } from "@/components/array-lines-field";
 import { CvPreview } from "@/components/cv/cv-preview";
 import { GeneratedCvEditor } from "@/components/cv/generated-cv-editor";
-import { HistoryRunCard } from "@/components/cv/insights";
+import {
+	HistoryRunCard,
+	KeywordMatchGrid,
+	MatchBulletList,
+} from "@/components/cv/insights";
 import { ScoreBadge } from "@/components/cv/score-badge";
 import { viewMeta } from "@/lib/application-views";
 import {
@@ -401,7 +407,24 @@ function PasteStep({
 	const [importMode, setImportMode] = useState<"paste" | "url">("paste");
 	const [sourceUrl, setSourceUrl] = useState(links[0] ?? "");
 	const [isFetching, setIsFetching] = useState(false);
+	const [draft, setDraft] = useState({
+		title,
+		company,
+		position,
+		links,
+		rawText,
+	});
 	const canImportUrl = isTauriRuntime();
+
+	useEffect(() => {
+		setDraft({ title, company, position, links, rawText });
+	}, [title, company, position, links, rawText]);
+
+	function updateDraft(patch: Partial<typeof draft>) {
+		const next = { ...draft, ...patch };
+		setDraft(next);
+		onChange(patch);
+	}
 
 	async function handleImportFromUrl() {
 		const urls = parseSourceUrls(sourceUrl);
@@ -423,6 +446,7 @@ function PasteStep({
 				text: response.text,
 				url: response.url,
 			});
+			updateDraft(extracted);
 			onChange(extracted);
 			toast.success("Job posting imported from link");
 		} catch (error) {
@@ -435,42 +459,51 @@ function PasteStep({
 	}
 
 	return (
-		<div className="grid max-w-3xl gap-4">
-			<div className="grid gap-4 rounded-xl border bg-card p-5">
-				<div className="inline-flex w-fit rounded-md border bg-background p-0.5">
-					<button
-						type="button"
-						onClick={() => setImportMode("paste")}
-						className={cn(
-							"inline-flex items-center gap-1.5 rounded-sm px-3 py-1.5 text-sm transition-colors",
-							importMode === "paste"
-								? "bg-primary text-primary-foreground"
-								: "text-muted-foreground hover:bg-muted",
-						)}
-					>
-						<FileText className="size-3.5" />
-						Paste text
-					</button>
-					<button
-						type="button"
-						onClick={() => setImportMode("url")}
-						className={cn(
-							"inline-flex items-center gap-1.5 rounded-sm px-3 py-1.5 text-sm transition-colors",
-							importMode === "url"
-								? "bg-primary text-primary-foreground"
-								: "text-muted-foreground hover:bg-muted",
-						)}
-					>
-						<Link2 className="size-3.5" />
-						From link
-					</button>
+		<div className="grid w-full gap-5">
+			<div className="grid gap-5 rounded-xl border bg-card p-5">
+				<div className="flex flex-wrap items-center justify-between gap-3">
+					<div>
+						<h3 className="font-medium text-sm">Job posting</h3>
+						<p className="text-muted-foreground text-xs">
+							Paste the offer or import it from a public link.
+						</p>
+					</div>
+					<div className="inline-flex rounded-md border bg-background p-0.5">
+						<button
+							type="button"
+							onClick={() => setImportMode("paste")}
+							className={cn(
+								"inline-flex items-center gap-1.5 rounded-sm px-3 py-1.5 text-sm transition-colors",
+								importMode === "paste"
+									? "bg-primary text-primary-foreground"
+									: "text-muted-foreground hover:bg-muted",
+							)}
+						>
+							<FileText className="size-3.5" />
+							Paste text
+						</button>
+						<button
+							type="button"
+							onClick={() => setImportMode("url")}
+							className={cn(
+								"inline-flex items-center gap-1.5 rounded-sm px-3 py-1.5 text-sm transition-colors",
+								importMode === "url"
+									? "bg-primary text-primary-foreground"
+									: "text-muted-foreground hover:bg-muted",
+							)}
+						>
+							<Link2 className="size-3.5" />
+							From link
+						</button>
+					</div>
 				</div>
 
 				{importMode === "url" ? (
-					<div className="grid gap-3">
-						<div className="grid gap-3">
-							<Label>Job posting URL</Label>
+					<div className="grid gap-3 rounded-lg border bg-muted/20 p-4">
+						<div className="grid gap-2">
+							<Label htmlFor="job-posting-url">Job posting URL</Label>
 							<Input
+								id="job-posting-url"
 								value={sourceUrl}
 								onChange={(event) => setSourceUrl(event.target.value)}
 								placeholder="https://www.stepstone.de/stellenangebote--..."
@@ -497,61 +530,81 @@ function PasteStep({
 					</div>
 				) : null}
 
-				<div className="grid gap-3 sm:grid-cols-2">
-					<div className="grid gap-3">
-						<Label>Job title</Label>
+				<div className="grid gap-4">
+					<div className="grid gap-2">
+						<Label htmlFor="job-title">Job title</Label>
 						<Input
-							value={title}
-							onChange={(event) => onChange({ title: event.target.value })}
+							id="job-title"
+							value={draft.title}
+							onChange={(event) =>
+								updateDraft({ title: event.target.value })
+							}
 							placeholder="Senior Frontend Engineer"
 						/>
 					</div>
-					<div className="grid gap-3">
-						<Label>Company</Label>
-						<Input
-							value={company}
-							onChange={(event) => onChange({ company: event.target.value })}
-							placeholder="Acme Inc."
+
+					<div className="grid gap-4 sm:grid-cols-2">
+						<div className="grid gap-2">
+							<Label htmlFor="job-company">Company</Label>
+							<Input
+								id="job-company"
+								value={draft.company}
+								onChange={(event) =>
+									updateDraft({ company: event.target.value })
+								}
+								placeholder="Acme Inc."
+							/>
+						</div>
+						<div className="grid gap-2">
+							<Label htmlFor="job-position-type">Position type</Label>
+							<Select
+								value={draft.position}
+								onValueChange={(value) => {
+									if (value) {
+										updateDraft({ position: value as JobPosition });
+									}
+								}}
+							>
+								<SelectTrigger
+									id="job-position-type"
+									aria-label="Position type"
+								>
+									<SelectValue placeholder="Select position type">
+										{jobPositionLabel(draft.position)}
+									</SelectValue>
+								</SelectTrigger>
+								<SelectContent>
+									{jobPositions.map((option) => (
+										<SelectItem key={option} value={option}>
+											{jobPositionLabel(option)}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						</div>
+					</div>
+
+					<ArrayLinesField
+						label="Posting links"
+						values={draft.links}
+						onChange={(nextLinks) => updateDraft({ links: nextLinks })}
+						placeholder="https://www.stepstone.de/..."
+						rows={2}
+					/>
+
+					<div className="grid gap-2">
+						<Label htmlFor="job-description">Job description</Label>
+						<Textarea
+							id="job-description"
+							value={draft.rawText}
+							onChange={(event) =>
+								updateDraft({ rawText: event.target.value })
+							}
+							placeholder="Paste the full job offer text here."
+							rows={16}
+							className="min-h-56"
 						/>
 					</div>
-				</div>
-				<div className="grid gap-3">
-					<Label>Position type</Label>
-					<Select
-						value={position}
-						onValueChange={(value) => {
-							if (value) {
-								onChange({ position: value as JobPosition });
-							}
-						}}
-					>
-						<SelectTrigger aria-label="Position type">
-							<SelectValue placeholder="Select position type" />
-						</SelectTrigger>
-						<SelectContent>
-							{jobPositions.map((option) => (
-								<SelectItem key={option} value={option}>
-									{jobPositionLabel(option)}
-								</SelectItem>
-							))}
-						</SelectContent>
-					</Select>
-				</div>
-				<ArrayLinesField
-					label="Posting links"
-					values={links}
-					onChange={(nextLinks) => onChange({ links: nextLinks })}
-					placeholder="https://www.stepstone.de/..."
-					rows={3}
-				/>
-				<div className="grid gap-3">
-					<Label>Job description</Label>
-					<Textarea
-						value={rawText}
-						onChange={(event) => onChange({ rawText: event.target.value })}
-						placeholder="Paste the full job offer text here."
-						rows={16}
-					/>
 				</div>
 			</div>
 			<div className="flex justify-end">
@@ -576,15 +629,21 @@ function ReviewStep({
 }) {
 	const {
 		reviewActiveJobOffer,
+		analyzeActiveProfileMatch,
 		isReviewingJobOffer,
+		isAnalyzingProfileMatch,
 		jobReviewError,
+		profileMatchError,
 		rawJobReviewOutput,
+		rawProfileMatchOutput,
 		canUseSelectedAi,
 	} = useCvApp();
 	const needsReview = jobOfferNeedsReview(application.jobOffer);
 	const review = application.jobOffer.review;
 	const autoReviewKey = `${application.id}:${application.jobOffer.rawText.trim()}`;
 	const lastAutoReviewKeyRef = useRef<string | null>(null);
+	const lastAutoMatchKeyRef = useRef<string | null>(null);
+	const autoMatchKey = `${application.id}:${run?.id ?? "none"}:${run?.matchAnalysis.source ?? "draft"}:${application.jobOffer.review?.reviewedAt ?? "none"}`;
 
 	useEffect(() => {
 		if (!needsReview || !canUseSelectedAi || isReviewingJobOffer) {
@@ -603,6 +662,31 @@ function ReviewStep({
 		reviewActiveJobOffer,
 	]);
 
+	useEffect(() => {
+		if (needsReview || isReviewingJobOffer || isAnalyzingProfileMatch) {
+			return;
+		}
+		if (!canUseSelectedAi || !run) {
+			return;
+		}
+		if (run.matchAnalysis.source === "ai") {
+			return;
+		}
+		if (lastAutoMatchKeyRef.current === autoMatchKey) {
+			return;
+		}
+		lastAutoMatchKeyRef.current = autoMatchKey;
+		void analyzeActiveProfileMatch();
+	}, [
+		autoMatchKey,
+		needsReview,
+		isReviewingJobOffer,
+		isAnalyzingProfileMatch,
+		canUseSelectedAi,
+		run,
+		analyzeActiveProfileMatch,
+	]);
+
 	if (!run) {
 		return (
 			<div className="rounded-xl border bg-card p-6 text-muted-foreground text-sm">
@@ -612,36 +696,60 @@ function ReviewStep({
 	}
 
 	const { matchAnalysis, signals } = run;
-	const isAnalyzing = isReviewingJobOffer || (needsReview && canUseSelectedAi);
+	const isAnalyzing =
+		isReviewingJobOffer ||
+		isAnalyzingProfileMatch ||
+		(needsReview && canUseSelectedAi);
 
 	return (
-		<div className="grid max-w-4xl gap-4">
+		<div className="grid w-full gap-5">
 			<div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-card p-4">
 				<div className="grid gap-1">
 					<h3 className="font-medium text-sm">Job analysis</h3>
 					<p className="text-muted-foreground text-xs">
-						{isAnalyzing
+						{isReviewingJobOffer
 							? "AI is reviewing the posting and extracting meaningful keywords."
-							: review
-								? `Reviewed with ${review.reviewTool}.`
-								: canUseSelectedAi
-									? "Waiting for AI review."
-									: "AI review unavailable. Install a desktop AI tool to analyze this posting."}
+							: isAnalyzingProfileMatch
+								? "AI is evaluating how well your profile matches this role."
+								: isAnalyzing
+									? "Preparing job analysis…"
+									: review
+										? `Reviewed with ${review.reviewTool}. Match evaluated${matchAnalysis.evaluatorTool ? ` with ${matchAnalysis.evaluatorTool}` : matchAnalysis.source === "draft" ? " with keyword heuristics" : ""}.`
+										: canUseSelectedAi
+											? "Waiting for AI review."
+											: "AI review unavailable. Install a desktop AI tool to analyze this posting."}
 					</p>
 				</div>
-				<Button
-					variant="outline"
-					size="sm"
-					onClick={() => void reviewActiveJobOffer({ force: true })}
-					disabled={isReviewingJobOffer || !canUseSelectedAi}
-				>
-					{isReviewingJobOffer ? (
-						<Loader2 className="animate-spin" />
-					) : (
-						<Sparkles />
-					)}
-					Re-analyze
-				</Button>
+				<div className="flex flex-wrap gap-2">
+					<Button
+						variant="outline"
+						size="sm"
+						onClick={() => void analyzeActiveProfileMatch({ force: true })}
+						disabled={
+							isAnalyzingProfileMatch || isReviewingJobOffer || !canUseSelectedAi
+						}
+					>
+						{isAnalyzingProfileMatch ? (
+							<Loader2 className="animate-spin" />
+						) : (
+							<Sparkles />
+						)}
+						Re-match profile
+					</Button>
+					<Button
+						variant="outline"
+						size="sm"
+						onClick={() => void reviewActiveJobOffer({ force: true })}
+						disabled={isReviewingJobOffer || !canUseSelectedAi}
+					>
+						{isReviewingJobOffer ? (
+							<Loader2 className="animate-spin" />
+						) : (
+							<Sparkles />
+						)}
+						Re-analyze job
+					</Button>
+				</div>
 			</div>
 
 			{review?.summary ? (
@@ -663,6 +771,18 @@ function ReviewStep({
 				</pre>
 			) : null}
 
+			{profileMatchError ? (
+				<div className="rounded-xl border border-destructive/40 bg-destructive/5 p-4 text-destructive text-sm">
+					{profileMatchError}
+				</div>
+			) : null}
+
+			{rawProfileMatchOutput ? (
+				<pre className="max-h-48 overflow-auto rounded-xl border bg-muted/40 p-3 text-xs">
+					{rawProfileMatchOutput}
+				</pre>
+			) : null}
+
 			<div className="grid gap-3 sm:grid-cols-3">
 				<Metric
 					label="Profile match"
@@ -678,59 +798,37 @@ function ReviewStep({
 				/>
 			</div>
 
-			<div className="grid gap-3 lg:grid-cols-2">
-				<div className="grid gap-2 rounded-xl border bg-card p-4">
-					<h3 className="font-medium text-sm">Detected keywords</h3>
-					{isAnalyzing ? (
-						<p className="text-muted-foreground text-xs">Analyzing posting…</p>
-					) : signals.keywords.length === 0 ? (
-						<p className="text-muted-foreground text-xs">No keywords yet.</p>
-					) : (
-						<div className="flex flex-wrap gap-1.5">
-							{signals.keywords.slice(0, 24).map((keyword) => {
-								const matched = matchAnalysis.matchedKeywords.includes(keyword);
-								return (
-									<span
-										key={keyword}
-										className={cn(
-											"rounded-md px-2 py-0.5 text-xs",
-											matched
-												? "bg-primary/15 text-primary"
-												: "bg-muted text-muted-foreground",
-										)}
-									>
-										{keyword}
-									</span>
-								);
-							})}
-						</div>
-					)}
-				</div>
+			<section className="rounded-xl border bg-card p-4">
+				<h3 className="mb-3 font-medium text-sm">Detected keywords</h3>
+				<KeywordMatchGrid
+					keywords={signals.keywords}
+					matchedKeywords={matchAnalysis.matchedKeywords}
+					loading={isAnalyzing}
+				/>
+			</section>
 
-				<div className="grid gap-2 rounded-xl border bg-card p-4">
-					<h3 className="font-medium text-sm">Gaps to address</h3>
-					{isAnalyzing ? (
-						<p className="text-muted-foreground text-xs">Analyzing posting…</p>
-					) : matchAnalysis.missingRequirements.length === 0 ? (
-						<p className="text-muted-foreground text-xs">
-							No clear gaps detected.
-						</p>
-					) : (
-						<ul className="grid gap-1.5 text-sm">
-							{matchAnalysis.missingRequirements.slice(0, 8).map((item) => (
-								<li
-									key={item}
-									className="border-destructive/60 border-l-2 pl-2 text-muted-foreground"
-								>
-									{item}
-								</li>
-							))}
-						</ul>
-					)}
-				</div>
+			<div className="grid items-start gap-3 lg:grid-cols-2">
+				<MatchBulletList
+					title="Good fit"
+					icon={CheckCircle2}
+					items={matchAnalysis.goodFit ?? []}
+					empty="No clear strengths detected yet. Re-match your profile after updating it."
+					loading={isAnalyzing}
+					tone="positive"
+					limit={6}
+				/>
+				<MatchBulletList
+					title="Gaps to address"
+					icon={TriangleAlert}
+					items={matchAnalysis.missingRequirements}
+					empty="No clear gaps detected."
+					loading={isAnalyzing}
+					tone="negative"
+					limit={6}
+				/>
 			</div>
 
-			<div className="flex justify-between">
+			<div className="flex justify-between pt-1">
 				<Button variant="ghost" onClick={onBack}>
 					<ArrowLeft /> Back
 				</Button>

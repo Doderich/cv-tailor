@@ -7,6 +7,7 @@ import {
 	type JobSignals,
 	jobSignalsSchema,
 	type MatchAnalysis,
+	normalizeMatchAnalysis,
 	type TailoredCv,
 	tailoredCvSchema,
 } from "@cv-tailor/core";
@@ -81,6 +82,12 @@ export type GeneratedProfileOutput = BaseProfile;
 export interface ReviewJobPostingInput {
 	jobOffer: JobOffer;
 	rawText: string;
+}
+
+export interface EvaluateProfileMatchInput {
+	profile: BaseProfile;
+	jobOffer: JobOffer;
+	signals: JobSignals;
 }
 
 export interface JobPostingReviewOutput {
@@ -237,6 +244,56 @@ export const jobPostingReviewOutputJsonSchema = {
 	},
 } as const;
 
+export const matchAnalysisOutputJsonSchema = {
+	type: "object",
+	additionalProperties: false,
+	required: [
+		"score",
+		"matchedKeywords",
+		"missingKeywords",
+		"missingRequirements",
+		"goodFit",
+		"warnings",
+	],
+	properties: {
+		score: {
+			type: "number",
+			description:
+				"Overall profile-to-job fit from 0 to 100 based on factual evidence in the profile.",
+		},
+		matchedKeywords: {
+			type: "array",
+			items: { type: "string" },
+			description:
+				"Job keywords, technologies, or soft skills that the profile clearly supports.",
+		},
+		missingKeywords: {
+			type: "array",
+			items: { type: "string" },
+			description:
+				"Important job keywords, technologies, or soft skills not clearly supported by the profile.",
+		},
+		missingRequirements: {
+			type: "array",
+			items: { type: "string" },
+			description:
+				"Must-have requirements from the posting that cannot be factually supported by the profile.",
+		},
+		goodFit: {
+			type: "array",
+			items: { type: "string" },
+			description:
+				"3-6 concise, evidence-based reasons why the profile is a strong fit for the role. Reference concrete profile facts, not generic praise.",
+		},
+		warnings: {
+			type: "array",
+			items: { type: "string" },
+			description:
+				"Short caveats such as transferable skills, borderline seniority, or partial coverage.",
+		},
+	},
+} as const;
+
 const experienceItemJsonSchema = {
 	type: "object",
 	additionalProperties: false,
@@ -387,8 +444,46 @@ export function buildTailorCvPrompt(input: TailorCvInput): string {
 		"Extracted job signals JSON:",
 		JSON.stringify(input.signals, null, 2),
 		"",
-		"Current deterministic match analysis JSON:",
+		"Current profile match analysis JSON:",
 		JSON.stringify(input.matchAnalysis, null, 2),
+	].join("\n");
+}
+
+export function buildEvaluateProfileMatchPrompt(
+	input: EvaluateProfileMatchInput,
+): string {
+	return [
+		"You are evaluating how well a candidate profile matches a specific job posting.",
+		"",
+		"Task constraints:",
+		"- This is a factual fit assessment, not a coding task.",
+		"- Do not explore repositories, files, directories, or the internet.",
+		"- Use only the JSON inputs provided in this prompt.",
+		"- Your entire response must be one JSON object matching the output schema.",
+		"",
+		"Evaluation rules:",
+		"- Judge semantically, not by naive keyword overlap.",
+		"- Treat close equivalents as matches when clearly supported, e.g. Vitest for Jest, GCP for basic cloud experience when AWS fundamentals are requested, Next.js experience when Next.js is required.",
+		"- Count startup ownership, end-to-end delivery, architecture participation, and production deployment when evidenced in the profile even if the posting uses different wording.",
+		"- Use years of experience only when they can be inferred from profile dates and scope. Do not inflate experience.",
+		"- missingRequirements must contain only must-have criteria that are genuinely unsupported or only weakly evidenced.",
+		"- goodFit must list the strongest factual reasons this profile aligns with the role, including matched requirements, responsibilities, technologies, and working style when evidenced.",
+		"- missingKeywords should focus on meaningful gaps from the extracted job signals, not filler words.",
+		"- warnings should note borderline cases, transferable skills, or seniority mismatches.",
+		"- score: 0-100 overall fit based on requirements coverage, relevant experience depth, and role alignment.",
+		"- Return JSON only matching the output schema. Do not include Markdown, prose, or code fences.",
+		"",
+		"Output schema:",
+		JSON.stringify(matchAnalysisOutputJsonSchema, null, 2),
+		"",
+		"Base profile JSON:",
+		JSON.stringify(input.profile, null, 2),
+		"",
+		"Job offer JSON:",
+		JSON.stringify(input.jobOffer, null, 2),
+		"",
+		"Extracted job signals JSON:",
+		JSON.stringify(input.signals, null, 2),
 	].join("\n");
 }
 
@@ -576,6 +671,20 @@ function looksLikeJobPostingReview(value: unknown) {
 	return "signals" in record && "summary" in record;
 }
 
+function looksLikeMatchAnalysis(value: unknown) {
+	if (!value || typeof value !== "object") {
+		return false;
+	}
+
+	const record = value as Record<string, unknown>;
+	return (
+		"score" in record &&
+		"matchedKeywords" in record &&
+		"missingKeywords" in record &&
+		"missingRequirements" in record
+	);
+}
+
 function parseCliJsonLike(
 	stdout: string,
 	looksLikeExpectedOutput: (value: unknown) => boolean,
@@ -617,4 +726,39 @@ export function parseCliJobPostingReviewOutput(
 		signals: jobSignalsSchema.parse(record.signals),
 		summary: typeof record.summary === "string" ? record.summary : "",
 	};
+}
+
+export function parseCliMatchAnalysisOutput(stdout: string): MatchAnalysis {
+	const parsed = parseCliJsonLike(stdout, looksLikeMatchAnalysis);
+	const record = parsed as Record<string, unknown>;
+	return normalizeMatchAnalysis({
+		score:
+			typeof record.score === "number"
+				? Math.max(0, Math.min(100, Math.round(record.score)))
+				: 0,
+		matchedKeywords: Array.isArray(record.matchedKeywords)
+			? record.matchedKeywords.filter(
+					(item): item is string => typeof item === "string",
+				)
+			: [],
+		missingKeywords: Array.isArray(record.missingKeywords)
+			? record.missingKeywords.filter(
+					(item): item is string => typeof item === "string",
+				)
+			: [],
+		missingRequirements: Array.isArray(record.missingRequirements)
+			? record.missingRequirements.filter(
+					(item): item is string => typeof item === "string",
+				)
+			: [],
+		goodFit: Array.isArray(record.goodFit)
+			? record.goodFit.filter((item): item is string => typeof item === "string")
+			: [],
+		warnings: Array.isArray(record.warnings)
+			? record.warnings.filter(
+					(item): item is string => typeof item === "string",
+				)
+			: [],
+		source: "ai",
+	});
 }
