@@ -563,7 +563,12 @@ export function resolveCachedProfileMatch(
 		return undefined;
 	}
 
-	return normalizeMatchAnalysis(application.profileMatch?.matchAnalysis);
+	const matchAnalysis = application.profileMatch?.matchAnalysis;
+	if (!matchAnalysis) {
+		return undefined;
+	}
+
+	return normalizeMatchAnalysis(matchAnalysis);
 }
 
 export function normalizeApplication(application: Application): Application {

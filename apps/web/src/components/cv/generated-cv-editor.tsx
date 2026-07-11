@@ -9,6 +9,7 @@ import { Label } from "@cv-tailor/ui/components/label";
 import { Textarea } from "@cv-tailor/ui/components/textarea";
 import { RotateCcw } from "lucide-react";
 import type { ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 
 import { ArrayLinesTextarea } from "@/components/array-lines-field";
 
@@ -72,10 +73,12 @@ export function GeneratedCvEditor({
 	run,
 	onChange,
 }: GeneratedCvEditorProps) {
+	const { t } = useTranslation();
+
 	if (!run) {
 		return (
 			<div className="grid min-h-72 place-items-center rounded-xl border border-dashed p-6 text-center text-muted-foreground text-sm">
-				Generate or reopen a CV to edit the tailored output.
+				{t("cv.editor.empty")}
 			</div>
 		);
 	}
@@ -98,8 +101,8 @@ export function GeneratedCvEditor({
 
 	return (
 		<div className="grid gap-4">
-			<EditorSection title="Summary & skills">
-				<Field label="Tailored summary">
+			<EditorSection title={t("cv.editor.summarySkills")}>
+				<Field label={t("cv.editor.summary")}>
 					<Textarea
 						value={cv.summary}
 						onChange={(event) => updateCv({ summary: event.target.value })}
@@ -107,14 +110,14 @@ export function GeneratedCvEditor({
 					/>
 				</Field>
 				<ArrayField
-					label="Tailored skills (one per line)"
+					label={t("cv.editor.skills")}
 					values={cv.skills}
 					onChange={(skills) => updateCv({ skills })}
 				/>
 			</EditorSection>
 
 			<EditorSection
-				title="Experience bullets"
+				title={t("cv.editor.experience")}
 				action={
 					<Button
 						size="sm"
@@ -128,7 +131,7 @@ export function GeneratedCvEditor({
 							})
 						}
 					>
-						<RotateCcw /> Reset to source
+						<RotateCcw /> {t("cv.editor.resetSource")}
 					</Button>
 				}
 			>
@@ -140,9 +143,15 @@ export function GeneratedCvEditor({
 						return (
 							<ArrayField
 								key={item.experienceId}
-								label={`${source?.title || "Experience"}${
-									source?.company ? ` · ${source.company}` : ""
-								}`}
+								label={
+									source?.company
+										? t("cv.editor.experienceLabel", {
+												title:
+													source.title || t("cv.editor.experienceFallback"),
+												company: source.company,
+											})
+										: source?.title || t("cv.editor.experienceFallback")
+								}
 								values={item.bullets}
 								onChange={(bullets) =>
 									updateExperienceBullets(item.experienceId, bullets)
@@ -155,7 +164,7 @@ export function GeneratedCvEditor({
 
 			{cv.projects.length > 0 ? (
 				<EditorSection
-					title="Project bullets"
+					title={t("cv.editor.projects")}
 					action={
 						<Button
 							size="sm"
@@ -169,7 +178,7 @@ export function GeneratedCvEditor({
 								})
 							}
 						>
-							<RotateCcw /> Reset to source
+							<RotateCcw /> {t("cv.editor.resetSource")}
 						</Button>
 					}
 				>
@@ -181,7 +190,7 @@ export function GeneratedCvEditor({
 							return (
 								<ArrayField
 									key={item.projectId}
-									label={source?.name || "Project"}
+									label={source?.name || t("cv.editor.projectFallback")}
 									values={item.bullets}
 									onChange={(bullets) =>
 										updateProjectBullets(item.projectId, bullets)
@@ -193,14 +202,14 @@ export function GeneratedCvEditor({
 				</EditorSection>
 			) : null}
 
-			<EditorSection title="Review notes">
+			<EditorSection title={t("cv.editor.reviewNotes")}>
 				<ArrayField
-					label="Missing requirements"
+					label={t("cv.editor.missingRequirements")}
 					values={cv.missingRequirements}
 					onChange={(missingRequirements) => updateCv({ missingRequirements })}
 				/>
 				<ArrayField
-					label="Reviewer warnings"
+					label={t("cv.editor.warnings")}
 					values={cv.warnings}
 					onChange={(warnings) => updateCv({ warnings })}
 				/>

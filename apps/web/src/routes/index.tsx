@@ -3,6 +3,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Sparkles, WandSparkles } from "lucide-react";
 import { motion, useReducedMotion } from "motion/react";
 import { useEffect } from "react";
+import { useTranslation } from "react-i18next";
 
 import { applicationStepPath } from "@/lib/application-route";
 import { useCvApp } from "@/lib/cv-app-context";
@@ -49,6 +50,7 @@ function HomeRoute() {
 
 function EmptyWorkspace({ onCreate }: { onCreate: () => void }) {
 	const reduced = useReducedMotion();
+	const { t } = useTranslation();
 
 	return (
 		<div className="grid min-h-[70vh] place-items-center p-6">
@@ -71,15 +73,14 @@ function EmptyWorkspace({ onCreate }: { onCreate: () => void }) {
 				</motion.div>
 				<div className="grid gap-1.5">
 					<h2 className="font-semibold text-xl tracking-tight">
-						Start a new application
+						{t("home.title")}
 					</h2>
 					<p className="text-muted-foreground text-sm">
-						Paste a job offer, review how well your profile matches, then tailor
-						and export focused CVs in English or German.
+						{t("home.description")}
 					</p>
 				</div>
 				<Button size="lg" onClick={onCreate}>
-					<WandSparkles /> New application
+					<WandSparkles /> {t("home.newApplication")}
 				</Button>
 			</motion.div>
 		</div>

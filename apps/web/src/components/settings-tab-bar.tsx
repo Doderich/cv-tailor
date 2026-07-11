@@ -1,6 +1,7 @@
 import { Tabs, TabsList, TabsTrigger } from "@cv-tailor/ui/components/tabs";
 import { cn } from "@cv-tailor/ui/lib/utils";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
+import { useTranslation } from "react-i18next";
 
 import { settingsStepPath } from "@/lib/settings-route";
 import {
@@ -10,6 +11,7 @@ import {
 } from "@/lib/settings-steps";
 
 export function SettingsTabBar({ className }: { className?: string }) {
+	const { t } = useTranslation();
 	const navigate = useNavigate();
 	const currentStep = useRouterState({
 		select: (state) => parseSettingsStep(state.location.pathname),
@@ -32,7 +34,7 @@ export function SettingsTabBar({ className }: { className?: string }) {
 							}
 						}}
 					>
-						{step.label}
+						{t(step.translationKey)}
 					</TabsTrigger>
 				))}
 			</TabsList>

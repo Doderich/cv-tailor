@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { type ReactNode, useCallback, useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { AnimatedPage } from "@/components/animated-page";
 import { ApplicationStepTabBar } from "@/components/application-step-tab-bar";
@@ -59,6 +60,8 @@ function SidebarToggle({
 	onToggleCollapse: () => void;
 	collapsed: boolean;
 }) {
+	const { t } = useTranslation();
+
 	return (
 		<>
 			<Button
@@ -66,7 +69,7 @@ function SidebarToggle({
 				size="icon-sm"
 				className="lg:hidden"
 				onClick={onOpenRail}
-				title="Open applications"
+				title={t("shell.openApplications")}
 			>
 				<PanelLeft />
 			</Button>
@@ -75,7 +78,7 @@ function SidebarToggle({
 				size="icon-sm"
 				className="hidden shrink-0 lg:inline-flex"
 				onClick={onToggleCollapse}
-				title={collapsed ? "Show sidebar" : "Hide sidebar"}
+				title={collapsed ? t("shell.showSidebar") : t("shell.hideSidebar")}
 			>
 				{collapsed ? <PanelLeft /> : <PanelLeftClose />}
 			</Button>
@@ -100,6 +103,7 @@ function ApplicationRailItem({
 	onArchiveToggle: () => void;
 	onDelete: () => void;
 }) {
+	const { t } = useTranslation();
 	const archived = Boolean(application.archived);
 
 	return (
@@ -121,8 +125,8 @@ function ApplicationRailItem({
 				</span>
 				<span className="flex items-center gap-1.5">
 					{application.isDraft ? (
-						<span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-muted-foreground text-xs">
-							Draft
+						<span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+							{t("common.draft")}
 						</span>
 					) : application.previewScore !== undefined ? (
 						<ScoreBadge score={application.previewScore} />
@@ -140,7 +144,7 @@ function ApplicationRailItem({
 							<Button
 								variant="ghost"
 								size="icon-xs"
-								title="More"
+								title={t("common.more")}
 								onClick={(event) => event.stopPropagation()}
 							/>
 						}
@@ -151,17 +155,17 @@ function ApplicationRailItem({
 						<DropdownMenuItem onClick={onArchiveToggle}>
 							{archived ? (
 								<>
-									<ArchiveRestore /> Unarchive
+									<ArchiveRestore /> {t("shell.unarchive")}
 								</>
 							) : (
 								<>
-									<Archive /> Archive
+									<Archive /> {t("shell.archive")}
 								</>
 							)}
 						</DropdownMenuItem>
 						<DropdownMenuSeparator />
 						<DropdownMenuItem variant="destructive" onClick={onDelete}>
-							<Trash2 /> Delete
+							<Trash2 /> {t("shell.delete")}
 						</DropdownMenuItem>
 					</DropdownMenuContent>
 				</DropdownMenu>
@@ -171,6 +175,7 @@ function ApplicationRailItem({
 }
 
 function ApplicationRail({ onNavigate }: { onNavigate?: () => void }) {
+	const { t } = useTranslation();
 	const {
 		activeApplications,
 		archivedApplications,
@@ -220,11 +225,11 @@ function ApplicationRail({ onNavigate }: { onNavigate?: () => void }) {
 		if (application.id === activeApplicationId) {
 			void navigate({ to: "/" });
 		}
-		toast("Application deleted", {
+		toast(t("shell.applicationDeleted"), {
 			description: applicationTitle(application),
 			action: snapshot
 				? {
-						label: "Undo",
+						label: t("common.undo"),
 						onClick: () => restoreApplication(snapshot),
 					}
 				: undefined,
@@ -239,13 +244,13 @@ function ApplicationRail({ onNavigate }: { onNavigate?: () => void }) {
 					<Input
 						value={query}
 						onChange={(event) => setQuery(event.target.value)}
-						placeholder="Search applications"
+						placeholder={t("shell.searchApplications")}
 						className="h-9 w-full bg-sidebar pl-9"
 					/>
 				</div>
 
 				<Button className="w-full justify-center" onClick={handleCreate}>
-					<Plus /> New application
+					<Plus /> {t("shell.newApplication")}
 				</Button>
 
 				<ScrollArea className="-mx-1 min-h-0 flex-1">
@@ -253,8 +258,8 @@ function ApplicationRail({ onNavigate }: { onNavigate?: () => void }) {
 						{visibleActive.length === 0 ? (
 							<p className="px-2 py-6 text-center text-muted-foreground text-sm">
 								{activeApplications.length === 0
-									? "No applications yet. Create your first to get started."
-									: "No matches."}
+									? t("shell.noApplications")
+									: t("shell.noMatches")}
 							</p>
 						) : (
 							<ul className="grid gap-1">
@@ -287,7 +292,7 @@ function ApplicationRail({ onNavigate }: { onNavigate?: () => void }) {
 											showArchived && "rotate-90",
 										)}
 									/>
-									Archived ({visibleArchived.length})
+									{t("shell.archived", { count: visibleArchived.length })}
 								</button>
 								<AnimatePresence initial={false}>
 									{showArchived ? (
@@ -332,7 +337,7 @@ function ApplicationRail({ onNavigate }: { onNavigate?: () => void }) {
 							onNavigate?.();
 						}}
 					>
-						<Settings /> Settings
+						<Settings /> {t("shell.settings")}
 						{isDesktop ? (
 							<kbd className="ml-auto rounded border bg-muted px-1.5 py-0.5 font-medium text-[10px] text-muted-foreground">
 								⌘,
@@ -445,6 +450,7 @@ function RouteTopBar({
 }
 
 export function AppShell() {
+	const { t } = useTranslation();
 	const [railOpen, setRailOpen] = useState(false);
 	const [collapsed, setCollapsed] = useState(false);
 	const [width, setWidth] = useState(defaultSidebarWidth);
@@ -542,7 +548,7 @@ export function AppShell() {
 						<div
 							onPointerDown={startResize}
 							className="absolute top-0 right-0 z-10 hidden h-full w-1.5 cursor-col-resize hover:bg-primary/30 lg:block"
-							title="Drag to resize"
+							title={t("shell.dragToResize")}
 						/>
 					</div>
 				</motion.aside>
@@ -559,7 +565,7 @@ export function AppShell() {
 						>
 							<button
 								type="button"
-								aria-label="Close menu"
+								aria-label={t("shell.closeMenu")}
 								className="absolute inset-0 bg-foreground/40"
 								onClick={() => setRailOpen(false)}
 							/>
