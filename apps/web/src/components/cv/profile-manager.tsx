@@ -1,9 +1,4 @@
-import {
-	type CvLanguage,
-	cvLanguageLabel,
-	cvLanguages,
-	type ProfileRecord,
-} from "@cv-tailor/core";
+import { cvLanguages, type CvLanguage, type ProfileRecord } from "@cv-tailor/core";
 import { Button } from "@cv-tailor/ui/components/button";
 import { Input } from "@cv-tailor/ui/components/input";
 import {
@@ -16,24 +11,10 @@ import {
 import { cn } from "@cv-tailor/ui/lib/utils";
 import { Check, Plus, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import { useCvApp } from "@/lib/cv-app-context";
-
-function profilePreview(record: ProfileRecord) {
-	if (record.contact.name.trim()) {
-		return record.contact.name.trim();
-	}
-
-	if (record.summary.trim()) {
-		return record.summary.trim();
-	}
-
-	if (record.headline.trim()) {
-		return record.headline.trim();
-	}
-
-	return "No content yet";
-}
+import { formatLocalizedDate, useCvLanguageLabel } from "@/lib/i18n-labels";
 
 function ProfileCard({
 	name,
@@ -58,6 +39,9 @@ function ProfileCard({
 	onNameChange: (name: string) => void;
 	onLanguageChange: (language: CvLanguage) => void;
 }) {
+	const { t } = useTranslation();
+	const cvLanguageLabel = useCvLanguageLabel();
+
 	return (
 		<div
 			className={cn(
@@ -73,13 +57,17 @@ function ProfileCard({
 				>
 					<span className="font-medium text-sm">{name}</span>
 					<span className="text-muted-foreground text-xs">
-						{cvLanguageLabel(language)} CV
+						{t("profile.manager.cvLanguageSuffix", {
+							language: cvLanguageLabel(language),
+						})}
 					</span>
 					<span className="truncate text-muted-foreground text-xs">
 						{preview}
 					</span>
 					<span className="text-[11px] text-muted-foreground">
-						Updated {new Date(updatedAt).toLocaleString()}
+						{t("profile.manager.updated", {
+							date: formatLocalizedDate(updatedAt),
+						})}
 					</span>
 				</button>
 				<div className="flex items-center gap-1">
@@ -94,7 +82,7 @@ function ProfileCard({
 							variant="ghost"
 							size="icon-sm"
 							onClick={onDelete}
-							aria-label={`Delete ${name}`}
+							aria-label={t("profile.manager.delete", { name })}
 						>
 							<Trash2 className="size-3.5" />
 						</Button>
@@ -106,8 +94,8 @@ function ProfileCard({
 					<Input
 						value={name}
 						onChange={(event) => onNameChange(event.target.value)}
-						placeholder="Profile name"
-						aria-label="Profile name"
+						placeholder={t("profile.manager.namePlaceholder")}
+						aria-label={t("profile.manager.nameAriaLabel")}
 					/>
 					<Select
 						value={language}
@@ -117,8 +105,10 @@ function ProfileCard({
 							}
 						}}
 					>
-						<SelectTrigger aria-label="CV language">
-							<SelectValue placeholder="Language" />
+						<SelectTrigger aria-label={t("profile.manager.languageAriaLabel")}>
+							<SelectValue
+								placeholder={t("profile.manager.languagePlaceholder")}
+							/>
 						</SelectTrigger>
 						<SelectContent>
 							{cvLanguages.map((option) => (
@@ -135,6 +125,8 @@ function ProfileCard({
 }
 
 export function ProfileManager() {
+	const { t } = useTranslation();
+	const cvLanguageLabel = useCvLanguageLabel();
 	const {
 		profiles,
 		profileRecord,
@@ -154,6 +146,22 @@ export function ProfileManager() {
 		[profiles],
 	);
 
+	function profilePreview(record: ProfileRecord) {
+		if (record.contact.name.trim()) {
+			return record.contact.name.trim();
+		}
+
+		if (record.summary.trim()) {
+			return record.summary.trim();
+		}
+
+		if (record.headline.trim()) {
+			return record.headline.trim();
+		}
+
+		return t("profile.manager.noContent");
+	}
+
 	function handleCreate() {
 		const name = newName.trim() || cvLanguageLabel(newLanguage);
 		createProfile(name, newLanguage);
@@ -166,9 +174,11 @@ export function ProfileManager() {
 		<div className="grid gap-3">
 			<div className="flex items-center justify-between gap-2">
 				<div className="grid gap-1">
-					<span className="font-medium text-base">Your profiles</span>
+					<span className="font-medium text-base">
+						{t("profile.manager.title")}
+					</span>
 					<span className="text-muted-foreground text-xs">
-						{profiles.length} saved · click a profile to open it
+						{t("profile.manager.subtitle", { count: profiles.length })}
 					</span>
 				</div>
 				<Button
@@ -178,7 +188,7 @@ export function ProfileManager() {
 					onClick={() => setIsAdding((current) => !current)}
 				>
 					<Plus />
-					Add empty profile
+					{t("profile.manager.addEmpty")}
 				</Button>
 			</div>
 			<div className="grid gap-2 sm:grid-cols-2">
@@ -205,8 +215,8 @@ export function ProfileManager() {
 					<Input
 						value={newName}
 						onChange={(event) => setNewName(event.target.value)}
-						placeholder="Profile name (optional)"
-						aria-label="New profile name"
+						placeholder={t("profile.manager.newNamePlaceholder")}
+						aria-label={t("profile.manager.newNameAriaLabel")}
 					/>
 					<Select
 						value={newLanguage}
@@ -218,9 +228,11 @@ export function ProfileManager() {
 					>
 						<SelectTrigger
 							className="w-full sm:w-36"
-							aria-label="New profile language"
+							aria-label={t("profile.manager.newLanguageAriaLabel")}
 						>
-							<SelectValue placeholder="Language" />
+							<SelectValue
+								placeholder={t("profile.manager.languagePlaceholder")}
+							/>
 						</SelectTrigger>
 						<SelectContent>
 							{cvLanguages.map((option) => (
@@ -232,7 +244,7 @@ export function ProfileManager() {
 					</Select>
 					<div className="flex gap-2">
 						<Button type="button" size="sm" onClick={handleCreate}>
-							Create
+							{t("common.create")}
 						</Button>
 						<Button
 							type="button"
@@ -240,7 +252,7 @@ export function ProfileManager() {
 							size="sm"
 							onClick={() => setIsAdding(false)}
 						>
-							Cancel
+							{t("common.cancel")}
 						</Button>
 					</div>
 				</div>

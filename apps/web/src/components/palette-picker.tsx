@@ -1,5 +1,6 @@
 import { cn } from "@cv-tailor/ui/lib/utils";
 import { Check } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import {
 	type PaletteOption,
 	type PaletteSwatch,
@@ -40,14 +41,16 @@ function PaletteCard({
 	isDark,
 	selected,
 	onSelect,
+	name,
+	description,
 }: {
 	option: PaletteOption;
 	isDark: boolean;
 	selected: boolean;
 	onSelect: () => void;
+	name: string;
+	description: string;
 }) {
-	const swatch = isDark ? option.dark : option.light;
-
 	return (
 		<button
 			type="button"
@@ -58,25 +61,24 @@ function PaletteCard({
 				selected ? "border-primary ring-2 ring-primary/30" : "border-border",
 			)}
 		>
-			<SwatchPreview swatch={swatch} />
+			<SwatchPreview swatch={isDark ? option.dark : option.light} />
 			<div className="grid gap-0.5">
 				<div className="flex items-center justify-between gap-2">
-					<span className="font-medium text-sm">{option.name}</span>
+					<span className="font-medium text-sm">{name}</span>
 					{selected ? (
 						<span className="grid size-5 place-items-center rounded-full bg-primary text-primary-foreground">
 							<Check className="size-3" />
 						</span>
 					) : null}
 				</div>
-				<span className="text-muted-foreground text-xs">
-					{option.description}
-				</span>
+				<span className="text-muted-foreground text-xs">{description}</span>
 			</div>
 		</button>
 	);
 }
 
 export function PalettePicker() {
+	const { t } = useTranslation();
 	const { palette, setPalette, palettes } = usePalette();
 	const { resolvedTheme } = useTheme();
 	const isDark = resolvedTheme === "dark";
@@ -90,6 +92,8 @@ export function PalettePicker() {
 					isDark={isDark}
 					selected={palette === option.id}
 					onSelect={() => setPalette(option.id)}
+					name={t(`palette.${option.id}.name`)}
+					description={t(`palette.${option.id}.description`)}
 				/>
 			))}
 		</div>
