@@ -27,6 +27,11 @@ pub fn install(app: &App) -> tauri::Result<()> {
     let about = AboutMetadata {
         name: Some("CV Tailor".into()),
         version: Some(app.package_info().version.to_string()),
+        copyright: Some("Copyright © 2026 Malte Budig".into()),
+        credits: Some(
+            "Tailor CVs to job applications with local-first privacy.\n\nhttps://github.com/Doderich/cv-tailor"
+                .into(),
+        ),
         ..Default::default()
     };
 

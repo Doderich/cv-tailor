@@ -35,7 +35,11 @@ export function LanguagePicker() {
 				window.localStorage.setItem(uiLanguageStorageKey, next);
 			}}
 		>
-			<SelectTrigger className="max-w-xs" size="sm" aria-label={t("settings.appearance.language")}>
+			<SelectTrigger
+				className="max-w-xs"
+				size="sm"
+				aria-label={t("settings.appearance.language")}
+			>
 				<SelectValue />
 			</SelectTrigger>
 			<SelectContent>

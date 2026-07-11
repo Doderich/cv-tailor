@@ -10,7 +10,9 @@ export type UiLanguage = (typeof supportedUiLanguages)[number];
 
 export const uiLanguageStorageKey = "cv-tailor-ui-language";
 
-export function isUiLanguage(value: string | null | undefined): value is UiLanguage {
+export function isUiLanguage(
+	value: string | null | undefined,
+): value is UiLanguage {
 	return supportedUiLanguages.includes(value as UiLanguage);
 }
 

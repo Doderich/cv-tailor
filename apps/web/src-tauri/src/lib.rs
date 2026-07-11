@@ -37,7 +37,7 @@ struct NativeStatus {
 fn status_payload(runtime: &'static str, local_api_url: &str) -> NativeStatus {
     NativeStatus {
         status: "ok",
-        app_name: "cv-tailor",
+        app_name: "CV Tailor",
         runtime,
         pid: std::process::id(),
         local_api_url: local_api_url.to_string(),

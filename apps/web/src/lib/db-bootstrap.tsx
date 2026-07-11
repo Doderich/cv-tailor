@@ -26,9 +26,7 @@ export function DbBootstrap({ children }: { children: ReactNode }) {
 			.catch((cause: unknown) => {
 				if (active) {
 					setError(
-						cause instanceof Error
-							? cause.message
-							: i18n.t("db.errorFallback"),
+						cause instanceof Error ? cause.message : i18n.t("db.errorFallback"),
 					);
 				}
 			});

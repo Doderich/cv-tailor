@@ -139,11 +139,7 @@ export function DataBackupPanel() {
 					onClick={() => fileInputRef.current?.click()}
 					disabled={isExportingData || isImportingData}
 				>
-					{isImportingData ? (
-						<Loader2 className="animate-spin" />
-					) : (
-						<Upload />
-					)}
+					{isImportingData ? <Loader2 className="animate-spin" /> : <Upload />}
 					{t("backup.import")}
 				</Button>
 				<input

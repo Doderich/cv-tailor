@@ -58,12 +58,12 @@ import {
 } from "react";
 import { toast } from "sonner";
 import i18n from "@/i18n";
-import { useDb } from "@/lib/db-provider";
-import { createDebouncedCallback } from "@/lib/debounce";
 import {
 	exportAllData as exportBackup,
 	importAllData as importBackup,
 } from "@/lib/data-backup";
+import { useDb } from "@/lib/db-provider";
+import { createDebouncedCallback } from "@/lib/debounce";
 import { translateCvLanguage } from "@/lib/i18n-labels";
 import {
 	type AiToolPaths,
@@ -236,8 +236,7 @@ export { claudeModelOptions, codexModelOptions, cursorModelOptions };
 
 export function applicationTitle(application: Pick<Application, "jobOffer">) {
 	return (
-		application.jobOffer.title.trim() ||
-		i18n.t("app.application.untitledRole")
+		application.jobOffer.title.trim() || i18n.t("app.application.untitledRole")
 	);
 }
 
@@ -1241,7 +1240,9 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 					? i18n.t("app.error.jobReviewLoginHint", { message })
 					: message,
 			);
-			toast.error(i18n.t("app.toast.jobReviewFailed"), { description: message });
+			toast.error(i18n.t("app.toast.jobReviewFailed"), {
+				description: message,
+			});
 		} finally {
 			setIsReviewingJobOffer(false);
 		}
@@ -1332,10 +1333,7 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 				applicationId: application.id,
 				profileId: profileRecord.id,
 				language,
-				label: runLabel(
-					language,
-					existingRunsForLanguage.length + 1,
-				),
+				label: runLabel(language, existingRunsForLanguage.length + 1),
 				cv: parsedCv,
 				signals,
 				matchAnalysis: analysis,
@@ -1365,7 +1363,9 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 		} catch (error) {
 			const message = getErrorMessage(error);
 			setGenerationError(message);
-			toast.error(i18n.t("app.toast.generationFailed"), { description: message });
+			toast.error(i18n.t("app.toast.generationFailed"), {
+				description: message,
+			});
 		} finally {
 			setIsGenerating(false);
 		}
@@ -1903,4 +1903,4 @@ export function useCvApp() {
 	return context;
 }
 
-export { translateCvLanguage as cvLanguageLabel, cvLanguages };
+export { cvLanguages, translateCvLanguage as cvLanguageLabel };

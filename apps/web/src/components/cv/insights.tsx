@@ -14,9 +14,8 @@ import {
 import { cn } from "@cv-tailor/ui/lib/utils";
 import { CheckCircle2, ExternalLink, TriangleAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
-
-import type { AiToolStatus } from "@/lib/tauri-ai";
 import { formatLocalizedDate } from "@/lib/i18n-labels";
+import type { AiToolStatus } from "@/lib/tauri-ai";
 
 export function Metric({ label, value }: { label: string; value: string }) {
 	return (

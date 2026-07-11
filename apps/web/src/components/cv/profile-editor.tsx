@@ -386,7 +386,7 @@ export function ProfileEditor({
 			</div>
 
 			<div className="flex items-center justify-between">
-				<h3 className="font-medium text-sm font-heading">
+				<h3 className="font-heading font-medium text-sm">
 					{t("profile.editor.experience.section")}
 				</h3>
 				<Button
@@ -464,7 +464,7 @@ export function ProfileEditor({
 			</div>
 
 			<div className="flex items-center justify-between">
-				<h3 className="font-medium text-sm font-heading">
+				<h3 className="font-heading font-medium text-sm">
 					{t("profile.editor.projects.section")}
 				</h3>
 				<Button
@@ -536,7 +536,7 @@ export function ProfileEditor({
 			</div>
 
 			<div className="flex items-center justify-between">
-				<h3 className="font-medium text-sm font-heading">
+				<h3 className="font-heading font-medium text-sm">
 					{t("profile.editor.education.section")}
 				</h3>
 				<Button

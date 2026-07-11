@@ -5,11 +5,11 @@ import {
 	parseCliGeneratedProfileOutput,
 } from "@cv-tailor/ai";
 import {
+	type CvLanguage,
 	cvLanguages,
 	hasMeaningfulProfileContent,
 	normalizeBaseProfile,
 	summarizeProfileContent,
-	type CvLanguage,
 } from "@cv-tailor/core";
 import { Button } from "@cv-tailor/ui/components/button";
 import {
@@ -412,7 +412,9 @@ export function ProfileImporter({
 								}
 							}}
 						>
-							<SelectTrigger aria-label={t("profile.importer.languageAriaLabel")}>
+							<SelectTrigger
+								aria-label={t("profile.importer.languageAriaLabel")}
+							>
 								<SelectValue
 									placeholder={t("profile.importer.languagePlaceholder")}
 								/>
@@ -549,7 +551,9 @@ export function ProfileImporter({
 					</div>
 				) : generationLog.length > 0 ? (
 					<div className="grid gap-2 rounded-lg border p-3">
-						<p className="font-medium text-xs">{t("profile.importer.lastLog")}</p>
+						<p className="font-medium text-xs">
+							{t("profile.importer.lastLog")}
+						</p>
 						<pre className="max-h-48 overflow-auto text-xs leading-relaxed">
 							{generationLog.join("\n")}
 						</pre>
@@ -585,7 +589,9 @@ export function ProfileImporter({
 				) : null}
 				{rawOutput ? (
 					<div className="grid gap-2">
-						<p className="font-medium text-xs">{t("profile.importer.rawResponse")}</p>
+						<p className="font-medium text-xs">
+							{t("profile.importer.rawResponse")}
+						</p>
 						<pre className="max-h-60 overflow-auto border p-2 text-xs">
 							{rawOutput}
 						</pre>

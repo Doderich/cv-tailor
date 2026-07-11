@@ -1,4 +1,12 @@
-import { buildJobOfferFromFetchedPage, type Application, type CvLanguage, type CvRun, type JobPosition, jobOfferNeedsReview, jobPositions } from "@cv-tailor/core";
+import {
+	type Application,
+	buildJobOfferFromFetchedPage,
+	type CvLanguage,
+	type CvRun,
+	type JobPosition,
+	jobOfferNeedsReview,
+	jobPositions,
+} from "@cv-tailor/core";
 import { Button } from "@cv-tailor/ui/components/button";
 import { Input } from "@cv-tailor/ui/components/input";
 import { Label } from "@cv-tailor/ui/components/label";
@@ -341,11 +349,7 @@ function PasteStep({
 								onClick={() => void handleImportFromUrl()}
 								disabled={isFetching || !canImportUrl}
 							>
-								{isFetching ? (
-									<Loader2 className="animate-spin" />
-								) : (
-									<Link2 />
-								)}
+								{isFetching ? <Loader2 className="animate-spin" /> : <Link2 />}
 								{t("application.jobDetails.url.importButton")}
 							</Button>
 						</div>
@@ -360,9 +364,7 @@ function PasteStep({
 						<Input
 							id="job-title"
 							value={draft.title}
-							onChange={(event) =>
-								updateDraft({ title: event.target.value })
-							}
+							onChange={(event) => updateDraft({ title: event.target.value })}
 							placeholder={t(
 								"application.jobDetails.field.jobTitle.placeholder",
 							)}
@@ -437,9 +439,7 @@ function PasteStep({
 						<Textarea
 							id="job-description"
 							value={draft.rawText}
-							onChange={(event) =>
-								updateDraft({ rawText: event.target.value })
-							}
+							onChange={(event) => updateDraft({ rawText: event.target.value })}
 							placeholder={t(
 								"application.jobDetails.field.description.placeholder",
 							)}
@@ -615,7 +615,9 @@ function ReviewStepContent({
 					<h3 className="mb-2 font-medium text-sm">
 						{t("application.review.roleSummary")}
 					</h3>
-					<p className="text-muted-foreground leading-relaxed">{review.summary}</p>
+					<p className="text-muted-foreground leading-relaxed">
+						{review.summary}
+					</p>
 				</div>
 			) : null}
 
@@ -655,7 +657,9 @@ function ReviewStepContent({
 				<Metric
 					label={t("application.review.metric.keywords")}
 					value={
-						isAnalyzing ? t("common.loading") : signals.keywords.length.toString()
+						isAnalyzing
+							? t("common.loading")
+							: signals.keywords.length.toString()
 					}
 				/>
 			</div>
