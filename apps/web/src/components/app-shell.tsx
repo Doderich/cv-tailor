@@ -351,35 +351,25 @@ function ShellHeader({
 	return (
 		<header
 			className={cn(
-				center ? "grid grid-cols-[1fr_auto_1fr]" : "flex",
-				"shrink-0 items-center border-b bg-background/95 backdrop-blur",
+				"relative flex shrink-0 items-center border-b bg-background/95 backdrop-blur",
 				shellHeaderHeight,
+				isDesktop && macTitlebarInsetLeft,
 			)}
 			{...dragRegion}
 		>
-			<div className="flex w-full min-w-0 items-center gap-0.5 px-2">
-				{isDesktop ? (
-					<div className={macTitlebarInsetLeft} {...dragRegion} aria-hidden />
-				) : null}
+			<div className="relative z-10 flex shrink-0 items-center px-2">
 				<SidebarToggle
 					onOpenRail={onOpenRail}
 					onToggleCollapse={onToggleCollapse}
 					collapsed={collapsed}
 				/>
-				{center ? (
-					<div className="min-w-0 flex-1" {...dragRegion} aria-hidden />
-				) : null}
 			</div>
 
 			{center ? (
-				<div className="flex min-w-0 justify-center px-2">{center}</div>
+				<div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+					<div className="pointer-events-auto px-2">{center}</div>
+				</div>
 			) : null}
-
-			<div
-				className={cn(center ? "min-w-0" : "min-w-4 flex-1")}
-				{...dragRegion}
-				aria-hidden
-			/>
 		</header>
 	);
 }
