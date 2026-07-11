@@ -14,7 +14,8 @@
 		"desktop:run": "cargo run --manifest-path src-tauri/Cargo.toml --no-default-features",
 		"desktop:build": "tauri build",
 		"desktop:setup-signing": "tsx ../../scripts/setup-desktop-signing.ts",
-		"desktop:release": "tsx ../../scripts/release-desktop-macos.ts"
+		"desktop:release": "tsx ../../scripts/release-desktop-macos.ts",
+		"desktop:release:windows": "tsx ../../scripts/release-desktop-windows.ts"
 	},
 	"dependencies": {
 		"@cv-tailor/ai": "workspace:*",

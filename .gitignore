@@ -56,3 +56,6 @@ temp
 
 # Tauri updater signing keys (private)
 .tauri/
+
+# Local Windows SSH build config (machine-specific)
+scripts/windows-build.local/

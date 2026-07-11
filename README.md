@@ -159,15 +159,47 @@ pnpm run desktop:release -- --dry-run   # build only, no GitHub publish
 
 > **Public repo required for auto-update.** The updater fetches release assets without authentication. Private repos need a public CDN or bucket for update files instead.
 
-### Windows builds
+### Windows release (remote build over SSH)
 
-Build on a Windows machine with Rust and the Tauri prerequisites installed:
+Build and publish from your Mac/Linux machine by connecting to a Windows PC over SSH.
+
+One-time setup on the **Windows machine**:
+
+1. Enable [OpenSSH Server](https://learn.microsoft.com/en-us/windows-server/administration/openssh/openssh_install_firstuse)
+2. Install Git, Node.js 20+, pnpm 10+, Rust stable, and [Tauri Windows prerequisites](https://v2.tauri.app/start/prerequisites/#windows)
+3. Clone the repo (example: `C:\Users\you\cv-tailor`)
+4. Generate signing keys: `pnpm run desktop:setup-signing`
+
+One-time setup on your **local machine**:
 
 ```bash
-cd apps/web && pnpm run desktop:build
+gh auth login
+pnpm run desktop:windows:setup
 ```
 
-Upload the Windows artifacts to the same GitHub release and merge the Windows entry into `latest.json`.
+Then edit `scripts/windows-build.local/config.sh` with your Windows SSH host, user, and repo path. That folder is gitignored.
+
+| Command | Description |
+| --- | --- |
+| `pnpm run desktop:windows:connect` | SSH into the Windows repo folder |
+| `pnpm run desktop:windows:build` | Remote build only (`--dry-run`, no GitHub publish) |
+| `pnpm run desktop:windows:release` | Build on Windows + publish to GitHub Releases |
+
+Publish a Windows release:
+
+```bash
+pnpm run desktop:windows:release -- --notes "Windows release notes"
+```
+
+The script pulls the latest code on Windows, syncs the bumped version files, builds the NSIS installer remotely, downloads the artifacts, merges `windows-x86_64` into `latest.json`, and uploads everything to GitHub Releases.
+
+If macOS was already released for the same version, reuse that version:
+
+```bash
+pnpm run desktop:windows:release -- --no-bump --notes "Adds Windows build"
+```
+
+Flags match the macOS release script (`--version`, `--bump`, `--dry-run`, etc.). You can also call `pnpm run desktop:release:windows` directly with env vars or `--host` / `--user` / `--remote-path` flags.
 
 ---
 
@@ -217,6 +249,9 @@ cv-tailor/
 └── scripts/
     ├── setup-desktop-signing.ts
     ├── release-desktop-macos.ts
+    ├── release-desktop-windows.ts
+    ├── windows-remote-build.ps1
+    ├── windows-build.local.example/   # template for local SSH config
     └── sync-vercel-env.ts
 ```
 
@@ -245,6 +280,11 @@ cv-tailor/
 | `cd apps/web && pnpm run desktop:build` | Build macOS `.dmg` + app bundle |
 | `pnpm run desktop:setup-signing` | Generate updater signing keys (one-time) |
 | `pnpm run desktop:release` | Build + publish signed macOS release |
+| `pnpm run desktop:windows:setup` | Create gitignored local SSH config from template |
+| `pnpm run desktop:windows:connect` | SSH into the Windows repo folder |
+| `pnpm run desktop:windows:build` | Remote Windows build only (no GitHub publish) |
+| `pnpm run desktop:windows:release` | Remote Windows build + GitHub publish |
+| `pnpm run desktop:release:windows` | Same as release, with env vars / CLI flags |
 
 ### Web deployment (optional)
 

@@ -20,6 +20,11 @@
 		"deploy:check": "vercel deploy --dry",
 		"desktop:setup-signing": "tsx scripts/setup-desktop-signing.ts",
 		"desktop:release": "tsx scripts/release-desktop-macos.ts",
+		"desktop:release:windows": "tsx scripts/release-desktop-windows.ts",
+		"desktop:windows:setup": "bash scripts/setup-windows-build-local.sh",
+		"desktop:windows:connect": "bash scripts/windows-build.local/connect.sh",
+		"desktop:windows:build": "bash scripts/windows-build.local/build.sh",
+		"desktop:windows:release": "bash scripts/windows-build.local/release.sh",
 		"check": "biome check --write .",
 		"test": "vitest run"
 	},
