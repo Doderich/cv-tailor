@@ -1,0 +1,37 @@
+scripts/release-desktop-windows-local.ts
+  s_8be3ec8959c8da::t_911b33f563486b 1-217
+scripts/desktop-windows.mjs
+  s_8be3ec8959c8da::t_8059af872680ce 1-113
+scripts/release-desktop-windows.ts
+  s_8be3ec8959c8da::t_9952a9d996ec63 33-38
+  s_8be3ec8959c8da::t_888d76280180ad 2
+  s_8be3ec8959c8da::t_1a25194b37a0e1 388
+README.md
+  s_8be3ec8959c8da::t_e7468adf203b60 292-297
+  s_8be3ec8959c8da::t_f1876fc3e49a22 164,166-181,190,202-203,211
+package.json
+  s_8be3ec8959c8da::t_7449d6f8ee2cb6 24-28
+apps/web/package.json
+  s_8be3ec8959c8da::t_719ed0a37b8ba6 18-20
+scripts/windows-release-artifacts.ts
+  s_8be3ec8959c8da::t_4ec095146f6f2d 1-104
+scripts/windows-remote-build.ps1
+  s_8be3ec8959c8da::t_c59e93b372072d 2,10-12
+  s_8be3ec8959c8da::t_377281cd652788 13
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "66eae088c2d3e893960ddfffea00805081c497fb",
+  "prompts": {},
+  "sessions": {
+    "s_8be3ec8959c8da": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "ca52c269-3eb9-4927-b85a-ae74c9955dc2",
+        "model": "composer-2.5"
+      },
+      "human_author": "Malte Budig <malte.budig@gmx.net>"
+    }
+  }
+}
