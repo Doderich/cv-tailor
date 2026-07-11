@@ -108,7 +108,8 @@ async function readProfileSourceFile(file: File): Promise<ProfileFileSource> {
 			return {
 				name: file.name,
 				text: "",
-				error: "PDF import requires the desktop app. Paste the resume text instead.",
+				error:
+					"PDF import requires the desktop app. Paste the resume text instead.",
 			};
 		}
 
@@ -163,9 +164,7 @@ export function mergeProfileFileSources(
 	for (const file of incoming) {
 		const key = file.name.toLowerCase();
 		if (seen.has(key)) {
-			const index = next.findIndex(
-				(item) => item.name.toLowerCase() === key,
-			);
+			const index = next.findIndex((item) => item.name.toLowerCase() === key);
 			if (index >= 0) {
 				next[index] = file;
 			}

@@ -22,12 +22,14 @@ import {
 	Settings,
 	Trash2,
 } from "lucide-react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { type ReactNode, useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { CommandPalette } from "@/components/command-palette";
+import { AnimatedPage } from "@/components/animated-page";
 import { ApplicationStepTabBar } from "@/components/application-step-tab-bar";
-import { SettingsTabBar } from "@/components/settings-tab-bar";
+import { CommandPalette } from "@/components/command-palette";
 import { ScoreBadge } from "@/components/cv/score-badge";
+import { SettingsTabBar } from "@/components/settings-tab-bar";
 import { useAppMenuShortcuts } from "@/hooks/use-app-menu-shortcuts";
 import { applicationStepPath } from "@/lib/application-route";
 import type { ApplicationListItem } from "@/lib/cv-app-context";
@@ -36,6 +38,7 @@ import {
 	applicationTitle,
 	useCvApp,
 } from "@/lib/cv-app-context";
+import { transitionForReduced, transitions } from "@/lib/motion";
 import { isTauriRuntime } from "@/lib/tauri-ai";
 
 const isDesktop = isTauriRuntime();
@@ -118,7 +121,7 @@ function ApplicationRailItem({
 				</span>
 				<span className="flex items-center gap-1.5">
 					{application.isDraft ? (
-						<span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+						<span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-muted-foreground text-xs">
 							Draft
 						</span>
 					) : application.previewScore !== undefined ? (
@@ -178,6 +181,7 @@ function ApplicationRail({ onNavigate }: { onNavigate?: () => void }) {
 		openApplication,
 	} = useCvApp();
 	const navigate = useNavigate();
+	const reduced = useReducedMotion();
 	const pathname = useRouterState({
 		select: (state) => state.location.pathname,
 	});
@@ -229,11 +233,7 @@ function ApplicationRail({ onNavigate }: { onNavigate?: () => void }) {
 
 	return (
 		<div className="flex min-h-0 flex-1 flex-col">
-			<div
-				className={cn(
-					"flex min-h-0 flex-1 flex-col gap-3 px-3 pt-3 pb-3",
-				)}
-			>
+			<div className={cn("flex min-h-0 flex-1 flex-col gap-3 px-3 pt-3 pb-3")}>
 				<div className="relative min-w-0">
 					<Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
 					<Input
@@ -244,90 +244,102 @@ function ApplicationRail({ onNavigate }: { onNavigate?: () => void }) {
 					/>
 				</div>
 
-			<Button className="w-full justify-center" onClick={handleCreate}>
-				<Plus /> New application
-			</Button>
-
-			<ScrollArea className="-mx-1 min-h-0 flex-1">
-				<div className="px-1">
-					{visibleActive.length === 0 ? (
-						<p className="px-2 py-6 text-center text-muted-foreground text-sm">
-							{activeApplications.length === 0
-								? "No applications yet. Create your first to get started."
-								: "No matches."}
-						</p>
-					) : (
-						<ul className="grid gap-1">
-							{visibleActive.map((application) => (
-								<li key={application.id}>
-									<ApplicationRailItem
-										application={application}
-										active={application.id === activeApplicationId}
-										onOpen={() => handleOpen(application.id)}
-										onArchiveToggle={() =>
-											archiveApplication(application.id, true)
-										}
-										onDelete={() => handleDelete(application)}
-									/>
-								</li>
-							))}
-						</ul>
-					)}
-
-					{visibleArchived.length > 0 ? (
-						<div className="mt-3">
-							<button
-								type="button"
-								onClick={() => setShowArchived((value) => !value)}
-								className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-muted-foreground text-sm hover:bg-sidebar-accent/60"
-							>
-								<ChevronRight
-									className={cn(
-										"size-3.5 transition-transform",
-										showArchived && "rotate-90",
-									)}
-								/>
-								Archived ({visibleArchived.length})
-							</button>
-							{showArchived ? (
-								<ul className="mt-1 grid gap-1">
-									{visibleArchived.map((application) => (
-										<li key={application.id}>
-											<ApplicationRailItem
-												application={application}
-												active={application.id === activeApplicationId}
-												onOpen={() => handleOpen(application.id)}
-												onArchiveToggle={() =>
-													archiveApplication(application.id, false)
-												}
-												onDelete={() => handleDelete(application)}
-											/>
-										</li>
-									))}
-								</ul>
-							) : null}
-						</div>
-					) : null}
-				</div>
-			</ScrollArea>
-
-			<div className="border-sidebar-border border-t p-3">
-				<Button
-					variant={pathname.startsWith("/settings") ? "secondary" : "ghost"}
-					className="w-full justify-start"
-					onClick={() => {
-						void navigate({ to: "/settings" });
-						onNavigate?.();
-					}}
-				>
-					<Settings /> Settings
-					{isDesktop ? (
-						<kbd className="ml-auto rounded border bg-muted px-1.5 py-0.5 font-medium text-[10px] text-muted-foreground">
-							⌘,
-						</kbd>
-					) : null}
+				<Button className="w-full justify-center" onClick={handleCreate}>
+					<Plus /> New application
 				</Button>
-			</div>
+
+				<ScrollArea className="-mx-1 min-h-0 flex-1">
+					<div className="px-1">
+						{visibleActive.length === 0 ? (
+							<p className="px-2 py-6 text-center text-muted-foreground text-sm">
+								{activeApplications.length === 0
+									? "No applications yet. Create your first to get started."
+									: "No matches."}
+							</p>
+						) : (
+							<ul className="grid gap-1">
+								{visibleActive.map((application) => (
+									<li key={application.id}>
+										<ApplicationRailItem
+											application={application}
+											active={application.id === activeApplicationId}
+											onOpen={() => handleOpen(application.id)}
+											onArchiveToggle={() =>
+												archiveApplication(application.id, true)
+											}
+											onDelete={() => handleDelete(application)}
+										/>
+									</li>
+								))}
+							</ul>
+						)}
+
+						{visibleArchived.length > 0 ? (
+							<div className="mt-3">
+								<button
+									type="button"
+									onClick={() => setShowArchived((value) => !value)}
+									className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-muted-foreground text-sm hover:bg-sidebar-accent/60"
+								>
+									<ChevronRight
+										className={cn(
+											"size-3.5 transition-transform",
+											showArchived && "rotate-90",
+										)}
+									/>
+									Archived ({visibleArchived.length})
+								</button>
+								<AnimatePresence initial={false}>
+									{showArchived ? (
+										<motion.ul
+											key="archived-list"
+											initial={{ height: 0, opacity: 0 }}
+											animate={{ height: "auto", opacity: 1 }}
+											exit={{ height: 0, opacity: 0 }}
+											transition={transitionForReduced(
+												reduced,
+												transitions.fast,
+											)}
+											className="mt-1 grid gap-1 overflow-hidden"
+										>
+											{visibleArchived.map((application) => (
+												<li key={application.id}>
+													<ApplicationRailItem
+														application={application}
+														active={application.id === activeApplicationId}
+														onOpen={() => handleOpen(application.id)}
+														onArchiveToggle={() =>
+															archiveApplication(application.id, false)
+														}
+														onDelete={() => handleDelete(application)}
+													/>
+												</li>
+											))}
+										</motion.ul>
+									) : null}
+								</AnimatePresence>
+							</div>
+						) : null}
+					</div>
+				</ScrollArea>
+
+				<div className="border-sidebar-border border-t p-3">
+					<Button
+						variant={pathname.startsWith("/settings") ? "secondary" : "ghost"}
+						className="w-full justify-start"
+						onClick={() => {
+							void navigate({ to: "/settings" });
+							onNavigate?.();
+						}}
+					>
+						<Settings /> Settings
+						{isDesktop ? (
+							<kbd className="ml-auto rounded border bg-muted px-1.5 py-0.5 font-medium text-[10px] text-muted-foreground">
+								⌘,
+							</kbd>
+						) : null}
+					</Button>
+				</div>
 			</div>
 		</div>
 	);
@@ -432,10 +444,11 @@ function RouteTopBar({
 	);
 }
 
-export function AppShell({ children }: { children: ReactNode }) {
+export function AppShell() {
 	const [railOpen, setRailOpen] = useState(false);
 	const [collapsed, setCollapsed] = useState(false);
 	const [width, setWidth] = useState(defaultSidebarWidth);
+	const reduced = useReducedMotion();
 	useAppMenuShortcuts();
 	const pathname = useRouterState({
 		select: (state) => state.location.pathname,
@@ -516,45 +529,64 @@ export function AppShell({ children }: { children: ReactNode }) {
 					collapsed={collapsed}
 				/>
 			)}
-			<div
-				className={cn(
-					"grid min-h-0 flex-1 grid-cols-1 [grid-template-rows:minmax(0,1fr)]",
-					collapsed
-						? "lg:grid-cols-1"
-						: "lg:[grid-template-columns:var(--rail-w)_minmax(0,1fr)]",
-				)}
-			>
-				<aside
-					className={cn(
-						"relative hidden flex-col border-r bg-sidebar text-sidebar-foreground lg:flex lg:h-full",
-						collapsed ? "lg:hidden" : "lg:flex",
-					)}
+			<div className="flex min-h-0 flex-1">
+				<motion.aside
+					initial={false}
+					animate={{ width: collapsed ? 0 : width }}
+					transition={transitionForReduced(reduced, transitions.sidebar)}
+					className="relative hidden shrink-0 flex-col overflow-hidden border-r bg-sidebar text-sidebar-foreground lg:flex lg:h-full"
+					style={{ pointerEvents: collapsed ? "none" : undefined }}
 				>
-					<ApplicationRail />
-					<div
-						onPointerDown={startResize}
-						className="absolute top-0 right-0 z-10 hidden h-full w-1.5 cursor-col-resize hover:bg-primary/30 lg:block"
-						title="Drag to resize"
-					/>
-				</aside>
-
-				{railOpen ? (
-					<div className="fixed inset-0 z-40 lg:hidden">
-						<button
-							type="button"
-							aria-label="Close menu"
-							className="absolute inset-0 bg-foreground/40"
-							onClick={() => setRailOpen(false)}
+					<div className="flex h-full min-w-[var(--rail-w)] flex-col">
+						<ApplicationRail />
+						<div
+							onPointerDown={startResize}
+							className="absolute top-0 right-0 z-10 hidden h-full w-1.5 cursor-col-resize hover:bg-primary/30 lg:block"
+							title="Drag to resize"
 						/>
-						<div className="absolute inset-y-0 left-0 w-72 border-r bg-sidebar text-sidebar-foreground shadow-xl">
-							<ApplicationRail onNavigate={() => setRailOpen(false)} />
-						</div>
 					</div>
-				) : null}
+				</motion.aside>
 
-				<ScrollArea className="min-h-0 flex-1">
-					<main>{children}</main>
-				</ScrollArea>
+				<AnimatePresence>
+					{railOpen ? (
+						<motion.div
+							key="mobile-rail"
+							initial={{ opacity: 0 }}
+							animate={{ opacity: 1 }}
+							exit={{ opacity: 0 }}
+							transition={transitionForReduced(reduced, transitions.fast)}
+							className="fixed inset-0 z-40 lg:hidden"
+						>
+							<button
+								type="button"
+								aria-label="Close menu"
+								className="absolute inset-0 bg-foreground/40"
+								onClick={() => setRailOpen(false)}
+							/>
+							<motion.div
+								initial={{ x: "-100%" }}
+								animate={{ x: 0 }}
+								exit={{ x: "-100%" }}
+								transition={transitionForReduced(reduced, transitions.drawer)}
+								className="absolute inset-y-0 left-0 flex w-72 flex-col border-r bg-sidebar text-sidebar-foreground shadow-xl"
+							>
+								<ApplicationRail onNavigate={() => setRailOpen(false)} />
+							</motion.div>
+						</motion.div>
+					) : null}
+				</AnimatePresence>
+
+				<motion.div
+					layout
+					transition={transitionForReduced(reduced, transitions.sidebar)}
+					className="min-h-0 min-w-0 flex-1"
+				>
+					<ScrollArea className="h-full">
+						<main>
+							<AnimatedPage />
+						</main>
+					</ScrollArea>
+				</motion.div>
 			</div>
 			<CommandPalette />
 		</div>
@@ -580,7 +612,7 @@ export function PageHeader({
 						{eyebrow}
 					</p>
 				) : null}
-				<h1 className="text-balance font-semibold text-3xl tracking-tight font-heading">
+				<h1 className="text-balance font-heading font-semibold text-3xl tracking-tight">
 					{title}
 				</h1>
 				{meta ? (

@@ -1,10 +1,10 @@
 import {
+	aiOutputSchema,
+	applicationSchema,
+	appSettingsSchema,
+	cvRunSchema,
 	normalizeProfileRecord,
 	profileRecordSchema,
-	applicationSchema,
-	cvRunSchema,
-	aiOutputSchema,
-	appSettingsSchema,
 } from "@cv-tailor/core";
 import { z } from "zod";
 
@@ -27,7 +27,9 @@ export const cvTailorBackupSchema = z.object({
 export type CvTailorBackup = z.infer<typeof cvTailorBackupSchema>;
 export type BackupImportMode = "replace" | "merge";
 
-export function createBackupSnapshot(collections: DbCollections): CvTailorBackup {
+export function createBackupSnapshot(
+	collections: DbCollections,
+): CvTailorBackup {
 	const settings = collections.settings.get("settings");
 	if (!settings) {
 		throw new Error("Settings record is missing.");
@@ -103,19 +105,16 @@ function validateBackupReferences(backup: CvTailorBackup) {
 		);
 	}
 
-	if (
-		backup.settings.activeRunId &&
-		!runIds.has(backup.settings.activeRunId)
-	) {
+	if (backup.settings.activeRunId && !runIds.has(backup.settings.activeRunId)) {
 		throw new Error(
 			`Settings reference missing active CV run "${backup.settings.activeRunId}".`,
 		);
 	}
 }
 
-async function awaitPersisted(
-	transaction: { isPersisted: { promise: Promise<unknown> } },
-) {
+async function awaitPersisted(transaction: {
+	isPersisted: { promise: Promise<unknown> };
+}) {
 	await transaction.isPersisted.promise;
 }
 
@@ -137,7 +136,10 @@ async function clearAllData(collections: DbCollections) {
 	}
 }
 
-async function insertBackupData(collections: DbCollections, backup: CvTailorBackup) {
+async function insertBackupData(
+	collections: DbCollections,
+	backup: CvTailorBackup,
+) {
 	for (const profile of backup.profiles) {
 		await awaitPersisted(
 			collections.profiles.insert(normalizeProfileRecord(profile)),

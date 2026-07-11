@@ -1,10 +1,12 @@
 import { Button } from "@cv-tailor/ui/components/button";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Sparkles, WandSparkles } from "lucide-react";
+import { motion, useReducedMotion } from "motion/react";
 import { useEffect } from "react";
 
 import { applicationStepPath } from "@/lib/application-route";
 import { useCvApp } from "@/lib/cv-app-context";
+import { transitionForReduced, transitions } from "@/lib/motion";
 
 export const Route = createFileRoute("/")({
 	component: HomeRoute,
@@ -46,12 +48,27 @@ function HomeRoute() {
 }
 
 function EmptyWorkspace({ onCreate }: { onCreate: () => void }) {
+	const reduced = useReducedMotion();
+
 	return (
 		<div className="grid min-h-[70vh] place-items-center p-6">
-			<div className="grid max-w-md justify-items-center gap-4 text-center">
-				<div className="grid size-14 place-items-center rounded-2xl bg-primary/10 text-primary">
+			<motion.div
+				initial={reduced ? false : { opacity: 0, y: 12 }}
+				animate={{ opacity: 1, y: 0 }}
+				transition={transitionForReduced(reduced, transitions.normal)}
+				className="grid max-w-md justify-items-center gap-4 text-center"
+			>
+				<motion.div
+					initial={reduced ? false : { opacity: 0, scale: 0.9 }}
+					animate={{ opacity: 1, scale: 1 }}
+					transition={transitionForReduced(reduced, {
+						...transitions.spring,
+						delay: 0.05,
+					})}
+					className="grid size-14 place-items-center rounded-2xl bg-primary/10 text-primary"
+				>
 					<Sparkles className="size-6" />
-				</div>
+				</motion.div>
 				<div className="grid gap-1.5">
 					<h2 className="font-semibold text-xl tracking-tight">
 						Start a new application
@@ -64,7 +81,7 @@ function EmptyWorkspace({ onCreate }: { onCreate: () => void }) {
 				<Button size="lg" onClick={onCreate}>
 					<WandSparkles /> New application
 				</Button>
-			</div>
+			</motion.div>
 		</div>
 	);
 }

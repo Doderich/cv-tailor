@@ -1,12 +1,11 @@
+import type { DbHandle } from "@cv-tailor/db";
 import {
-	createBackupSnapshot,
 	type BackupImportMode,
+	createBackupSnapshot,
 	importBackup,
 	parseBackupFile,
 	summarizeBackup,
 } from "@cv-tailor/db";
-
-import type { DbHandle } from "@cv-tailor/db";
 
 export function backupFilename(now = new Date()) {
 	const date = now.toISOString().slice(0, 10);

@@ -1,4 +1,8 @@
-import { getRouteApi, useNavigate, useRouterState } from "@tanstack/react-router";
+import {
+	getRouteApi,
+	useNavigate,
+	useRouterState,
+} from "@tanstack/react-router";
 import { useEffect } from "react";
 
 import {
@@ -30,11 +34,8 @@ export function applicationPath(
 }
 
 export function useApplicationAnalysisState(): AnalysisState {
-	const {
-		isReviewingJobOffer,
-		isAnalyzingProfileMatch,
-		canUseSelectedAi,
-	} = useCvApp();
+	const { isReviewingJobOffer, isAnalyzingProfileMatch, canUseSelectedAi } =
+		useCvApp();
 
 	return {
 		isReviewingJobOffer,
@@ -46,12 +47,7 @@ export function useApplicationAnalysisState(): AnalysisState {
 export function useApplicationRouteContext() {
 	const { id } = applicationRouteApi.useParams();
 	const navigate = useNavigate();
-	const {
-		applications,
-		activeRun,
-		openApplication,
-		...appState
-	} = useCvApp();
+	const { applications, activeRun, openApplication, ...appState } = useCvApp();
 	const analysisState = useApplicationAnalysisState();
 	const application = applications.find((item) => item.id === id);
 	const currentStep = useRouterState({

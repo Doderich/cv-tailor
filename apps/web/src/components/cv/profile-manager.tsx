@@ -1,7 +1,7 @@
 import {
+	type CvLanguage,
 	cvLanguageLabel,
 	cvLanguages,
-	type CvLanguage,
 	type ProfileRecord,
 } from "@cv-tailor/core";
 import { Button } from "@cv-tailor/ui/components/button";
@@ -155,8 +155,7 @@ export function ProfileManager() {
 	);
 
 	function handleCreate() {
-		const name =
-			newName.trim() || cvLanguageLabel(newLanguage);
+		const name = newName.trim() || cvLanguageLabel(newLanguage);
 		createProfile(name, newLanguage);
 		setNewName("");
 		setNewLanguage("en");
@@ -194,9 +193,7 @@ export function ProfileManager() {
 						canDelete={profiles.length > 1}
 						onSelect={() => switchProfile(item.id)}
 						onDelete={() => deleteProfile(item.id)}
-						onNameChange={(name) =>
-							updateProfileMeta(item.id, { name })
-						}
+						onNameChange={(name) => updateProfileMeta(item.id, { name })}
 						onLanguageChange={(language) =>
 							updateProfileMeta(item.id, { language })
 						}
@@ -219,7 +216,10 @@ export function ProfileManager() {
 							}
 						}}
 					>
-						<SelectTrigger className="w-full sm:w-36" aria-label="New profile language">
+						<SelectTrigger
+							className="w-full sm:w-36"
+							aria-label="New profile language"
+						>
 							<SelectValue placeholder="Language" />
 						</SelectTrigger>
 						<SelectContent>

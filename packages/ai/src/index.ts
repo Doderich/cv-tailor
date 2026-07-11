@@ -752,7 +752,9 @@ export function parseCliMatchAnalysisOutput(stdout: string): MatchAnalysis {
 				)
 			: [],
 		goodFit: Array.isArray(record.goodFit)
-			? record.goodFit.filter((item): item is string => typeof item === "string")
+			? record.goodFit.filter(
+					(item): item is string => typeof item === "string",
+				)
 			: [],
 		warnings: Array.isArray(record.warnings)
 			? record.warnings.filter(

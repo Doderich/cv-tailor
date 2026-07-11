@@ -1,8 +1,4 @@
-import {
-	Tabs,
-	TabsList,
-	TabsTrigger,
-} from "@cv-tailor/ui/components/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@cv-tailor/ui/components/tabs";
 import { cn } from "@cv-tailor/ui/lib/utils";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 
@@ -63,16 +59,10 @@ export function ApplicationStepTabBar({
 							key={step.id}
 							value={step.id}
 							disabled={!unlocked}
-							title={
-								unlocked
-									? undefined
-									: "Complete the previous step first"
-							}
+							title={unlocked ? undefined : "Complete the previous step first"}
 							onClick={() => {
 								if (unlocked && step.id !== value) {
-									void navigate(
-										applicationStepPath(applicationId, step.id),
-									);
+									void navigate(applicationStepPath(applicationId, step.id));
 								}
 							}}
 						>

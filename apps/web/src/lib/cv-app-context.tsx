@@ -18,6 +18,7 @@ import {
 } from "@cv-tailor/ai";
 import {
 	type Application,
+	type AppSettings,
 	type BaseProfile,
 	type CvLanguage,
 	type CvRun,
@@ -36,16 +37,15 @@ import {
 	type MatchAnalysis,
 	normalizeBaseProfile,
 	normalizeCvRun,
-	normalizeProfileRecord,
 	normalizeMatchAnalysis,
+	normalizeProfileRecord,
+	type ProfileRecord,
 	profileMatchNeedsEvaluation,
 	profilesHaveSameContent,
-	type ProfileRecord,
 	resolveCachedProfileMatch,
 	resolveJobSignals,
 	scoreProfileAgainstJob,
 	type TailoredCv,
-	type AppSettings,
 } from "@cv-tailor/core";
 import { useLiveQuery } from "@tanstack/react-db";
 import {
@@ -58,10 +58,12 @@ import {
 	useState,
 } from "react";
 import { toast } from "sonner";
-
+import {
+	exportAllData as exportBackup,
+	importAllData as importBackup,
+} from "@/lib/data-backup";
 import { useDb } from "@/lib/db-provider";
 import { createDebouncedCallback } from "@/lib/debounce";
-import { exportAllData as exportBackup, importAllData as importBackup } from "@/lib/data-backup";
 import {
 	type AiToolStatus,
 	detectAiTools,
@@ -140,10 +142,7 @@ interface CvAppContextValue {
 	switchActiveRun: (runId: string) => void;
 	exportPdf: () => Promise<void>;
 	exportAllData: () => Promise<void>;
-	importAllData: (
-		file: File,
-		mode: "replace" | "merge",
-	) => Promise<void>;
+	importAllData: (file: File, mode: "replace" | "merge") => Promise<void>;
 	isExportingData: boolean;
 	isImportingData: boolean;
 	profileRevision: number;
@@ -330,7 +329,9 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 	const [rawJobReviewOutput, setRawJobReviewOutput] = useState<string>();
 	const [rawProfileMatchOutput, setRawProfileMatchOutput] = useState<string>();
 	const [profileRevision, setProfileRevision] = useState(0);
-	const [profileSnapshot, setProfileSnapshot] = useState<BaseProfile | undefined>();
+	const [profileSnapshot, setProfileSnapshot] = useState<
+		BaseProfile | undefined
+	>();
 	const profileSnapshotUpdatedAtRef = useRef<string | undefined>(undefined);
 	const deletedSnapshots = useRef(
 		new Map<string, DeletedApplicationSnapshot>(),
@@ -537,9 +538,9 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 		);
 	}
 
-	async function awaitPersisted(
-		transaction: { isPersisted: { promise: Promise<unknown> } },
-	) {
+	async function awaitPersisted(transaction: {
+		isPersisted: { promise: Promise<unknown> };
+	}) {
 		await transaction.isPersisted.promise;
 	}
 
@@ -902,11 +903,7 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 		}
 
 		if (!toolIsReady(selectedToolRef.current, aiStatusesRef.current)) {
-			updateApplicationRunsMatchAnalysis(
-				applicationId,
-				signals,
-				draftAnalysis,
-			);
+			updateApplicationRunsMatchAnalysis(applicationId, signals, draftAnalysis);
 			return;
 		}
 
@@ -941,11 +938,7 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 			}
 			const message = getErrorMessage(error);
 			setProfileMatchError(message);
-			updateApplicationRunsMatchAnalysis(
-				applicationId,
-				signals,
-				draftAnalysis,
-			);
+			updateApplicationRunsMatchAnalysis(applicationId, signals, draftAnalysis);
 		} finally {
 			if (profileMatchRequestRef.current === requestId) {
 				setIsAnalyzingProfileMatch(false);
@@ -995,7 +988,8 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 			...application.jobOffer,
 			...patch,
 			links: patch.links ?? application.jobOffer.links ?? [],
-			position: patch.position ?? application.jobOffer.position ?? "unspecified",
+			position:
+				patch.position ?? application.jobOffer.position ?? "unspecified",
 			review,
 			signals: review
 				? review.signals
@@ -1131,7 +1125,10 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 					models: aiModels,
 				},
 			);
-			let parsedReview: { signals: JobPostingReview["signals"]; summary: string };
+			let parsedReview: {
+				signals: JobPostingReview["signals"];
+				summary: string;
+			};
 			try {
 				parsedReview = parseCliJobPostingReviewOutput(response.stdout);
 			} catch (parseError) {
@@ -1356,21 +1353,15 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 		}
 	}
 
-	async function importAllData(
-		file: File,
-		mode: "replace" | "merge",
-	) {
+	async function importAllData(file: File, mode: "replace" | "merge") {
 		setIsImportingData(true);
 		try {
 			const content = await file.text();
 			const summary = await importBackup(db, content, mode);
 			setProfileRevision((current) => current + 1);
-			toast.success(
-				mode === "replace" ? "Backup restored" : "Backup merged",
-				{
-					description: `${summary.profiles} profiles, ${summary.applications} applications, ${summary.cvRuns} CV versions.`,
-				},
-			);
+			toast.success(mode === "replace" ? "Backup restored" : "Backup merged", {
+				description: `${summary.profiles} profiles, ${summary.applications} applications, ${summary.cvRuns} CV versions.`,
+			});
 		} catch (error) {
 			toast.error("Import failed", {
 				description: getErrorMessage(error),
@@ -1701,7 +1692,11 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 		}
 
 		void analyzeProfileMatchForApplication(application.id);
-	}, [profileRevision, activeApplication?.id, activeApplication?.jobOffer.review?.reviewedAt]);
+	}, [
+		profileRevision,
+		activeApplication?.id,
+		activeApplication?.jobOffer.review?.reviewedAt,
+	]);
 
 	useEffect(() => {
 		return () => {

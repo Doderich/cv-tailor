@@ -295,7 +295,9 @@ describe("job posting review prompt and parser", () => {
 
 	it("parses fenced job review JSON", () => {
 		const stdout = `\`\`\`json\n${JSON.stringify(validJobReviewOutput)}\n\`\`\``;
-		expect(parseCliJobPostingReviewOutput(stdout)).toEqual(validJobReviewOutput);
+		expect(parseCliJobPostingReviewOutput(stdout)).toEqual(
+			validJobReviewOutput,
+		);
 	});
 });
 
@@ -320,7 +322,9 @@ describe("profile match evaluation prompt and parser", () => {
 			signals: promptInput.signals,
 		});
 
-		expect(prompt).toContain("Judge semantically, not by naive keyword overlap.");
+		expect(prompt).toContain(
+			"Judge semantically, not by naive keyword overlap.",
+		);
 		expect(prompt).toContain("goodFit must list the strongest factual reasons");
 		expect(prompt).toContain("Base profile JSON:");
 		expect(prompt).toContain("Extracted job signals JSON:");

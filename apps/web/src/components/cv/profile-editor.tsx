@@ -19,9 +19,8 @@ import { Textarea } from "@cv-tailor/ui/components/textarea";
 import { Plus, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-
-import { getErrorMessage } from "@/lib/cv-app-context";
 import { ArrayLinesField } from "@/components/array-lines-field";
+import { getErrorMessage } from "@/lib/cv-app-context";
 
 interface ProfileEditorProps {
 	profile: BaseProfile;
@@ -287,9 +286,7 @@ export function ProfileEditor({
 		setIsDirty(true);
 		setDraft((current) => {
 			const base = isDirty ? current : normalizeDraft(profileRef.current);
-			const projects = (base.projects ?? []).filter(
-				(entry) => entry.id !== id,
-			);
+			const projects = (base.projects ?? []).filter((entry) => entry.id !== id);
 			persistPatch({ projects });
 			return { ...base, projects };
 		});
@@ -387,7 +384,7 @@ export function ProfileEditor({
 			</div>
 
 			<div className="flex items-center justify-between">
-				<h3 className="font-medium text-sm font-heading">Experience</h3>
+				<h3 className="font-heading font-medium text-sm">Experience</h3>
 				<Button
 					type="button"
 					size="sm"
@@ -461,7 +458,7 @@ export function ProfileEditor({
 			</div>
 
 			<div className="flex items-center justify-between">
-				<h3 className="font-medium text-sm font-heading">Projects</h3>
+				<h3 className="font-heading font-medium text-sm">Projects</h3>
 				<Button
 					type="button"
 					size="sm"
@@ -529,7 +526,7 @@ export function ProfileEditor({
 			</div>
 
 			<div className="flex items-center justify-between">
-				<h3 className="font-medium text-sm font-heading">Education</h3>
+				<h3 className="font-heading font-medium text-sm">Education</h3>
 				<Button
 					type="button"
 					size="sm"

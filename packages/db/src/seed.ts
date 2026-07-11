@@ -130,7 +130,8 @@ export async function seedDefaults(collections: DbCollections) {
 			if (needsAiSettings) {
 				const defaults = createDefaultAppSettings(settings.activeProfileId);
 				collections.settings.update("settings", (draft) => {
-					draft.selectedAiTool = draft.selectedAiTool ?? defaults.selectedAiTool;
+					draft.selectedAiTool =
+						draft.selectedAiTool ?? defaults.selectedAiTool;
 					draft.aiModels = {
 						...defaults.aiModels,
 						...draft.aiModels,

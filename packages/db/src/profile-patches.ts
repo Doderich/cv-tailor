@@ -56,12 +56,7 @@ const malteGermanProfilePatch: Partial<BaseProfile> = {
 			bullets: [
 				"Entwicklung einer Webanwendung zur digitalen Planung und Abrechnung von Lehrverpflichtungen an Hochschulen",
 			],
-			technologies: [
-				"React",
-				"Tanstack Router",
-				"Tanstack Query",
-				"ShadcnUI",
-			],
+			technologies: ["React", "Tanstack Router", "Tanstack Query", "ShadcnUI"],
 		},
 		{
 			id: "project-2",
@@ -73,13 +68,7 @@ const malteGermanProfilePatch: Partial<BaseProfile> = {
 			bullets: [
 				"TypeScript/Turborepo-Monorepo mit pnpm Workspaces, Vitest-Tests und produktionsnahem Deployment-Setup",
 			],
-			technologies: [
-				"TypeScript",
-				"Turborepo",
-				"Vitest",
-				"tRPC",
-				"PostgreSQL",
-			],
+			technologies: ["TypeScript", "Turborepo", "Vitest", "tRPC", "PostgreSQL"],
 		},
 	],
 };

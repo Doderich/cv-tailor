@@ -1,4 +1,13 @@
-import { buildJobOfferFromFetchedPage, type Application, type CvLanguage, type CvRun, type JobPosition, jobOfferNeedsReview, jobPositionLabel, jobPositions } from "@cv-tailor/core";
+import {
+	type Application,
+	buildJobOfferFromFetchedPage,
+	type CvLanguage,
+	type CvRun,
+	type JobPosition,
+	jobOfferNeedsReview,
+	jobPositionLabel,
+	jobPositions,
+} from "@cv-tailor/core";
 import { Button } from "@cv-tailor/ui/components/button";
 import { Input } from "@cv-tailor/ui/components/input";
 import { Label } from "@cv-tailor/ui/components/label";
@@ -31,22 +40,12 @@ import { toast } from "sonner";
 import { ArrayLinesField } from "@/components/array-lines-field";
 import { CvPreview } from "@/components/cv/cv-preview";
 import { GeneratedCvEditor } from "@/components/cv/generated-cv-editor";
-import {
-	KeywordMatchGrid,
-	MatchBulletList,
-} from "@/components/cv/insights";
+import { KeywordMatchGrid, MatchBulletList } from "@/components/cv/insights";
 import { applicationStepPath } from "@/lib/application-route";
 import { isAnalysisInProgress } from "@/lib/application-steps";
-import {
-	cvLanguageLabel,
-	cvLanguages,
-	useCvApp,
-} from "@/lib/cv-app-context";
+import { cvLanguageLabel, cvLanguages, useCvApp } from "@/lib/cv-app-context";
 import { formatSourceError, parseSourceUrls } from "@/lib/profile-source-urls";
-import {
-	fetchUrlText,
-	isTauriRuntime,
-} from "@/lib/tauri-ai";
+import { fetchUrlText, isTauriRuntime } from "@/lib/tauri-ai";
 
 function ApplicationStepShell({
 	children,
@@ -341,11 +340,7 @@ function PasteStep({
 								onClick={() => void handleImportFromUrl()}
 								disabled={isFetching || !canImportUrl}
 							>
-								{isFetching ? (
-									<Loader2 className="animate-spin" />
-								) : (
-									<Link2 />
-								)}
+								{isFetching ? <Loader2 className="animate-spin" /> : <Link2 />}
 								Import from link
 							</Button>
 						</div>
@@ -358,9 +353,7 @@ function PasteStep({
 						<Input
 							id="job-title"
 							value={draft.title}
-							onChange={(event) =>
-								updateDraft({ title: event.target.value })
-							}
+							onChange={(event) => updateDraft({ title: event.target.value })}
 							placeholder="Senior Frontend Engineer"
 						/>
 					</div>
@@ -419,9 +412,7 @@ function PasteStep({
 						<Textarea
 							id="job-description"
 							value={draft.rawText}
-							onChange={(event) =>
-								updateDraft({ rawText: event.target.value })
-							}
+							onChange={(event) => updateDraft({ rawText: event.target.value })}
 							placeholder="Paste the full job offer text here."
 							rows={16}
 							className="min-h-56"
@@ -551,7 +542,9 @@ function ReviewStepContent({
 						size="sm"
 						onClick={() => void analyzeActiveProfileMatch({ force: true })}
 						disabled={
-							isAnalyzingProfileMatch || isReviewingJobOffer || !canUseSelectedAi
+							isAnalyzingProfileMatch ||
+							isReviewingJobOffer ||
+							!canUseSelectedAi
 						}
 					>
 						{isAnalyzingProfileMatch ? (
@@ -580,7 +573,9 @@ function ReviewStepContent({
 			{review?.summary ? (
 				<div className="rounded-xl border bg-card p-4 text-sm">
 					<h3 className="mb-2 font-medium text-sm">Role summary</h3>
-					<p className="text-muted-foreground leading-relaxed">{review.summary}</p>
+					<p className="text-muted-foreground leading-relaxed">
+						{review.summary}
+					</p>
 				</div>
 			) : null}
 

@@ -2,8 +2,8 @@ import { createDefaultProfileRecord } from "@cv-tailor/core";
 import { describe, expect, it } from "vitest";
 
 import {
-	applyMalteGermanProfilePatch,
 	applyKnownProfilePatches,
+	applyMalteGermanProfilePatch,
 	MALTE_GERMAN_PROFILE_PATCH_ID,
 } from "../profile-patches";
 

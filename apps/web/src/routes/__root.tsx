@@ -2,7 +2,6 @@ import { Toaster } from "@cv-tailor/ui/components/sonner";
 import {
 	createRootRouteWithContext,
 	HeadContent,
-	Outlet,
 } from "@tanstack/react-router";
 import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
 
@@ -56,9 +55,7 @@ function RootComponent() {
 						<TextSizeProvider>
 							<DbBootstrap>
 								<CvAppProvider>
-									<AppShell>
-										<Outlet />
-									</AppShell>
+									<AppShell />
 									<PrintSurface />
 								</CvAppProvider>
 							</DbBootstrap>
