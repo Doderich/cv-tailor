@@ -113,6 +113,39 @@ Use **Settings → AI → Refresh tools** to verify availability. If no AI tool 
 
 ## Desktop app
 
+### Install from GitHub Releases
+
+> **Use at your own risk.** CV Tailor is distributed as unsigned desktop builds. They are not notarized by Apple and are not code-signed with a paid Developer ID. You are responsible for deciding whether to download, install, and run them on your machine.
+
+Download the latest release from [GitHub Releases](https://github.com/Doderich/cv-tailor/releases/latest).
+
+#### macOS
+
+1. Download the `.dmg` for your Mac (`aarch64` for Apple Silicon, or build from source on Intel).
+2. Open the DMG and drag **CV Tailor** to **Applications**.
+3. On first launch, macOS may block the app with a message like *"CV Tailor is damaged and can't be opened"* or *"can't be opened because the developer cannot be verified"*. The app is not corrupted — macOS Gatekeeper blocks unsigned downloads.
+
+**Workaround (pick one):**
+
+```bash
+xattr -cr "/Applications/CV Tailor.app"
+```
+
+Or right-click the app → **Open** → **Open** again in the dialog.
+
+After the app is installed once, **in-app auto-updates** work normally. You only need the workaround for the initial manual install.
+
+#### Windows
+
+1. Download `CV.Tailor_*_x64-setup.exe` from the same release page.
+2. Run the installer. Windows SmartScreen may warn about an unrecognized publisher — that is expected for unsigned builds.
+3. Click **More info** → **Run anyway** if SmartScreen blocks the installer.
+
+#### Verify what you downloaded
+
+- Install from the **`.dmg`** (macOS) or **`.exe`** (Windows) on the release page.
+- Do **not** use the `.tar.gz` files for manual install — those are for the built-in updater.
+
 ### Build from source (macOS)
 
 ```bash
@@ -209,6 +242,46 @@ pnpm run desktop:windows:release -- --no-bump --notes "Adds Windows build"
 ```
 
 Flags match the macOS release script (`--version`, `--bump`, `--dry-run`, etc.). For explicit SSH control from macOS, use `pnpm run desktop:windows:remote:release` with `--host` / `--user` / `--remote-path`.
+
+### Windows code signing (optional)
+
+Windows SmartScreen warnings are separate from Tauri's updater signing (`desktop:setup-signing`). To show a trusted publisher on the installer, you need an **Authenticode code signing certificate**.
+
+| Certificate | Typical cost | SmartScreen |
+| --- | --- | --- |
+| **EV (Extended Validation)** | ~$300–500/year | Reputation builds quickly; best UX |
+| **OV (Organization Validated)** | ~$200–400/year | Warnings until enough installs build reputation |
+
+Popular issuers: [SSL.com](https://www.ssl.com/), [DigiCert](https://www.digicert.com/), [Sectigo](https://sectigo.com/).
+
+**Setup (on your Windows build machine):**
+
+1. Buy a certificate and export it as `.pfx` (include private key).
+2. Import it into the Windows certificate store:
+   ```powershell
+   Import-PfxCertificate -FilePath C:\path\to\cert.pfx -CertStoreLocation Cert:\CurrentUser\My
+   ```
+3. Copy the certificate thumbprint:
+   ```powershell
+   Get-ChildItem Cert:\CurrentUser\My | Format-Table Thumbprint, Subject, NotAfter
+   ```
+4. Create `apps/web/src-tauri/tauri.windows.conf.json` from the example:
+   ```powershell
+   Copy-Item apps\web\src-tauri\tauri.windows.conf.json.example apps\web\src-tauri\tauri.windows.conf.json
+   ```
+5. Paste your thumbprint into `certificateThumbprint` (Tauri merges this file automatically on Windows builds).
+6. Rebuild and release:
+   ```powershell
+   pnpm run desktop:windows:release -- --no-bump --notes "Signed Windows build"
+   ```
+
+See [Tauri Windows code signing](https://v2.tauri.app/distribute/sign/windows/) for Azure Key Vault, `signCommand`, and other advanced setups.
+
+> **Note:** The certificate must be installed on the machine that runs `desktop:build`. A self-signed test cert only works on your own PC — it will not remove SmartScreen warnings for other users.
+
+### macOS code signing (optional)
+
+macOS Gatekeeper requires an [Apple Developer Program](https://developer.apple.com/programs/) membership (~$99/year), a **Developer ID Application** certificate, and notarization. See [Tauri macOS code signing](https://v2.tauri.app/distribute/sign/macos/).
 
 ---
 
@@ -344,6 +417,12 @@ Run `cd apps/web && pnpm run desktop:run` alongside `pnpm run dev:web`.
 
 **Desktop build fails on macOS**
 Ensure Xcode Command Line Tools are installed and Rust is up to date (`rustup update`).
+
+**Windows SmartScreen blocks the installer**
+See [Install from GitHub Releases](#install-from-github-releases): click **More info** → **Run anyway**. To remove warnings for all users, set up [Windows code signing](#windows-code-signing-optional).
+
+**macOS says the app is "damaged" or won't open**
+See [Install from GitHub Releases](#install-from-github-releases). Run `xattr -cr "/Applications/CV Tailor.app"` or use Right-click → **Open**. This is expected without Apple notarization.
 
 **Updater does not find releases**
 The repo must be public (or host `latest.json` on a public URL). Installed app version must be lower than the release version in `tauri.conf.json`.

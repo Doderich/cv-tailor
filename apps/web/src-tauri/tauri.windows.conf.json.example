@@ -1,0 +1,9 @@
+{
+  "bundle": {
+    "windows": {
+      "certificateThumbprint": "PASTE_CERT_THUMBPRINT_FROM_CERT_STORE",
+      "digestAlgorithm": "sha256",
+      "timestampUrl": "http://timestamp.digicert.com"
+    }
+  }
+}
