@@ -12,7 +12,7 @@ const publicKeyPath = `${privateKeyPath}.pub`;
 function runTauriSignerGenerate() {
 	const result = spawnSync(
 		"pnpm",
-		["tauri", "signer", "generate", "--ci", "-p", "", "-w", privateKeyPath],
+		["tauri", "signer", "generate", "--ci", "--password=", "-w", privateKeyPath],
 		{
 			cwd: webRoot,
 			stdio: "inherit",

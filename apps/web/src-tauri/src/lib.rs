@@ -114,6 +114,7 @@ pub fn run() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(local_api_state)
         .plugin(tauri_plugin_sql::Builder::default().build())

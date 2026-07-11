@@ -42,8 +42,11 @@ import {
 } from "@/lib/cv-app-context";
 import { transitionForReduced, transitions } from "@/lib/motion";
 import { isTauriRuntime } from "@/lib/tauri-ai";
+import { WindowsTitleBar } from "./windows-title-bar";
 
 const isDesktop = isTauriRuntime();
+const isWindows = isDesktop && navigator.userAgent.includes("Windows");
+const isMac = isDesktop && navigator.userAgent.includes("Mac");
 const sidebarWidthKey = "cv-tailor-sidebar-width";
 const sidebarCollapsedKey = "cv-tailor-sidebar-collapsed";
 const minSidebarWidth = 240;
@@ -279,7 +282,7 @@ function ApplicationRailContent({
 					className={cn(
 						"flex shrink-0 items-center border-sidebar-border border-b pr-2",
 						shellHeaderHeight,
-						isDesktop && sheetTitlebarInsetLeft,
+						isMac && sheetTitlebarInsetLeft,
 					)}
 					{...sheetDragRegion}
 				>
@@ -394,9 +397,13 @@ function ApplicationRailContent({
 						}}
 					>
 						<Settings /> {t("shell.settings")}
-						{isDesktop ? (
+						{isMac ? (
 							<kbd className="ml-auto rounded border bg-muted px-1.5 py-0.5 font-medium text-[10px] text-muted-foreground">
 								⌘,
+							</kbd>
+						) : isWindows ? (
+							<kbd className="ml-auto rounded border bg-muted px-1.5 py-0.5 font-medium text-[10px] text-muted-foreground">
+								Ctrl+,
 							</kbd>
 						) : null}
 					</Button>
@@ -471,7 +478,7 @@ function ShellHeader({
 			className={cn(
 				"relative flex shrink-0 items-center border-b bg-background/95 backdrop-blur",
 				shellHeaderHeight,
-				isDesktop && macTitlebarInsetLeft,
+				isMac && macTitlebarInsetLeft,
 			)}
 			{...dragRegion}
 		>
@@ -490,6 +497,8 @@ function ShellHeader({
 					<div className="pointer-events-auto px-2">{center}</div>
 				</div>
 			) : null}
+
+			{isWindows ? <WindowsTitleBar /> : null}
 		</header>
 	);
 }

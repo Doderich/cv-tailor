@@ -1,0 +1,12 @@
+{
+  "bundle": {
+    "targets": ["nsis"]
+  },
+  "app": {
+    "windows": [
+      {
+        "decorations": false
+      }
+    ]
+  }
+}

@@ -38,7 +38,7 @@ finally {
 Write-Host "Building Windows desktop bundle..."
 Push-Location $webRoot
 try {
-	pnpm run desktop:build -- --bundles nsis
+	pnpm run desktop:build
 }
 finally {
 	Pop-Location
