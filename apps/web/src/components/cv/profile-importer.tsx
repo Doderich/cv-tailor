@@ -5,9 +5,9 @@ import {
 	parseCliGeneratedProfileOutput,
 } from "@cv-tailor/ai";
 import {
+	type CvLanguage,
 	cvLanguageLabel,
 	cvLanguages,
-	type CvLanguage,
 	hasMeaningfulProfileContent,
 	normalizeBaseProfile,
 	summarizeProfileContent,
@@ -33,24 +33,20 @@ import { cn } from "@cv-tailor/ui/lib/utils";
 import { FileSearch, Loader2, Paperclip, X } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
 import { toast } from "sonner";
-
+import { resolveEffectiveAiModel, useCvApp } from "@/lib/cv-app-context";
 import {
 	mergeProfileFileSources,
 	PROFILE_SOURCE_FILE_ACCEPT,
 	type ProfileFileSource,
 	readProfileSourceFiles,
 } from "@/lib/profile-source-files";
+import { formatSourceError, parseSourceUrls } from "@/lib/profile-source-urls";
 import {
-	formatSourceError,
-	parseSourceUrls,
-} from "@/lib/profile-source-urls";
-import {
+	type AiRunProgressEvent,
 	fetchUrlText,
 	isTauriRuntime,
 	runAiToolResilient,
-	type AiRunProgressEvent,
 } from "@/lib/tauri-ai";
-import { resolveEffectiveAiModel, useCvApp } from "@/lib/cv-app-context";
 
 interface ProfileImporterProps {
 	selectedTool: AiToolId;
@@ -461,9 +457,7 @@ export function ProfileImporter({
 						accept={PROFILE_SOURCE_FILE_ACCEPT}
 						multiple
 						className="sr-only"
-						onChange={(event) =>
-							void handleFilesSelected(event.target.files)
-						}
+						onChange={(event) => void handleFilesSelected(event.target.files)}
 					/>
 					<p className="text-muted-foreground text-xs">
 						Upload resume files as text or PDF. PDF extraction works in the
@@ -485,9 +479,7 @@ export function ProfileImporter({
 													: "text-muted-foreground"
 											}
 										>
-											{file.error
-												? file.error
-												: `${file.text.length} chars`}
+											{file.error ? file.error : `${file.text.length} chars`}
 										</p>
 									</div>
 									<Button
@@ -509,7 +501,9 @@ export function ProfileImporter({
 					<Textarea
 						value={urlsText}
 						onChange={(event) => setUrlsText(event.target.value)}
-						placeholder={"https://www.linkedin.com/in/...\nhttps://example.com/about"}
+						placeholder={
+							"https://www.linkedin.com/in/...\nhttps://example.com/about"
+						}
 						rows={3}
 					/>
 				</div>

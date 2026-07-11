@@ -1,8 +1,4 @@
-import {
-	Tabs,
-	TabsList,
-	TabsTrigger,
-} from "@cv-tailor/ui/components/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@cv-tailor/ui/components/tabs";
 import { cn } from "@cv-tailor/ui/lib/utils";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 

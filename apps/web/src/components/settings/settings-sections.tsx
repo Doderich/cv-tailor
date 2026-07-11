@@ -9,15 +9,14 @@ import {
 } from "@cv-tailor/ui/components/select";
 import { cn } from "@cv-tailor/ui/lib/utils";
 import { Monitor, Moon, RefreshCw, Sun } from "lucide-react";
-
-import { DataBackupPanel } from "@/components/data-backup-panel";
 import { AiStatusPanel } from "@/components/cv/insights";
 import { ProfileEditor } from "@/components/cv/profile-editor";
 import { ProfileImporter } from "@/components/cv/profile-importer";
 import { ProfileManager } from "@/components/cv/profile-manager";
+import { DataBackupPanel } from "@/components/data-backup-panel";
 import { FontPicker } from "@/components/font-picker";
 import { PalettePicker } from "@/components/palette-picker";
-import { useTextSize, type TextSizeId } from "@/components/text-size-provider";
+import { type TextSizeId, useTextSize } from "@/components/text-size-provider";
 import { useTheme } from "@/components/theme-provider";
 import {
 	claudeModelOptions,
