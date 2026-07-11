@@ -2,6 +2,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { useEffect } from "react";
 
 import { openCommandPaletteEvent } from "@/components/command-palette";
+import { applicationStepPath } from "@/lib/application-route";
 import { useCvApp } from "@/lib/cv-app-context";
 import { isTauriRuntime } from "@/lib/tauri-ai";
 
@@ -34,7 +35,7 @@ function openCommandPalette() {
 
 export function useAppMenuShortcuts() {
 	const navigate = useNavigate();
-	const { createApplication, exportPdf } = useCvApp();
+	const { activeId, createApplication, exportPdf } = useCvApp();
 
 	useEffect(() => {
 		function runAction(action: AppMenuAction) {
@@ -42,10 +43,13 @@ export function useAppMenuShortcuts() {
 				case "settings":
 					void navigate({ to: "/settings" });
 					break;
-				case "new_application":
-					createApplication();
-					void navigate({ to: "/" });
+				case "new_application": {
+					const id = createApplication();
+					if (id) {
+						void navigate(applicationStepPath(id, "job-details"));
+					}
 					break;
+				}
 				case "command_palette":
 					openCommandPalette();
 					break;
@@ -53,7 +57,11 @@ export function useAppMenuShortcuts() {
 					void exportPdf();
 					break;
 				case "workspace":
-					void navigate({ to: "/" });
+					if (activeId) {
+						void navigate(applicationStepPath(activeId, "job-details"));
+					} else {
+						void navigate({ to: "/" });
+					}
 					break;
 			}
 		}
@@ -113,5 +121,5 @@ export function useAppMenuShortcuts() {
 			window.removeEventListener("keydown", onKeyDown);
 			unlisten?.();
 		};
-	}, [createApplication, exportPdf, navigate]);
+	}, [activeId, createApplication, exportPdf, navigate]);
 }

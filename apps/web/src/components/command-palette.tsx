@@ -17,6 +17,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { usePalette } from "@/components/palette-provider";
 import { useTheme } from "@/components/theme-provider";
+import { applicationStepPath } from "@/lib/application-route";
 import { applicationTitle, useCvApp } from "@/lib/cv-app-context";
 
 export const openCommandPaletteEvent = "cmdk:open";
@@ -83,7 +84,8 @@ export function CommandPalette() {
 
 	const items = useMemo<CommandItem[]>(() => {
 		const close = () => setOpen(false);
-		const goToWorkspace = () => void navigate({ to: "/" });
+		const goToApplication = (id: string) =>
+			void navigate(applicationStepPath(id, "job-details"));
 
 		const actions: CommandItem[] = [
 			{
@@ -93,8 +95,10 @@ export function CommandPalette() {
 				icon: Plus,
 				keywords: "create add job",
 				run: () => {
-					createApplication();
-					goToWorkspace();
+					const id = createApplication();
+					if (id) {
+						goToApplication(id);
+					}
 					close();
 				},
 			},
@@ -149,7 +153,7 @@ export function CommandPalette() {
 				hint: application.jobOffer.company.trim() || undefined,
 				run: () => {
 					openApplication(application.id);
-					goToWorkspace();
+					goToApplication(application.id);
 					close();
 				},
 			}),

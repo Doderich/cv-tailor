@@ -59,10 +59,6 @@ import {
 } from "react";
 import { toast } from "sonner";
 
-import type {
-	ApplicationView,
-	ApplicationViewType,
-} from "@/lib/application-views";
 import { useDb } from "@/lib/db-provider";
 import { createDebouncedCallback } from "@/lib/debounce";
 import { exportAllData as exportBackup, importAllData as importBackup } from "@/lib/data-backup";
@@ -95,13 +91,6 @@ export interface DeletedApplicationSnapshot {
 	runs: CvRun[];
 }
 
-interface ViewsEntry {
-	views: ApplicationView[];
-	activeViewId: string;
-}
-
-type ViewsByApp = Record<string, ViewsEntry>;
-
 interface CvAppContextValue {
 	profile: BaseProfile;
 	profileRecord: ProfileRecord | undefined;
@@ -114,9 +103,6 @@ interface CvAppContextValue {
 	activeRuns: CvRun[];
 	activeId: string | undefined;
 	selectedLanguage: CvLanguage;
-	activeViews: ApplicationView[];
-	activeViewId: string | undefined;
-	activeView: ApplicationView | undefined;
 	aiStatuses: AiToolStatus[];
 	selectedTool: AiToolId;
 	aiModels: AiModels;
@@ -145,10 +131,8 @@ interface CvAppContextValue {
 	archiveApplication: (id: string, archived: boolean) => void;
 	openApplication: (id: string) => void;
 	setActiveId: (id: string) => void;
-	openView: (type: ApplicationViewType) => void;
-	closeView: (viewId: string) => void;
-	setActiveView: (viewId: string) => void;
 	updateActiveJobOffer: (patch: JobOfferPatch) => void;
+	flushActiveJobOffer: () => void;
 	updateActiveCv: (cv: TailoredCv) => void;
 	reviewActiveJobOffer: (options?: { force?: boolean }) => Promise<void>;
 	analyzeActiveProfileMatch: (options?: { force?: boolean }) => Promise<void>;
@@ -253,11 +237,6 @@ export function applicationCompany(application: Pick<Application, "jobOffer">) {
 	return application.jobOffer.company.trim() || "No company";
 }
 
-function defaultViewsFor(appId: string): ViewsEntry {
-	const id = `${appId}:editor`;
-	return { views: [{ id, type: "editor" }], activeViewId: id };
-}
-
 function toListItem(
 	application: Application,
 	runs: CvRun[],
@@ -335,7 +314,6 @@ function mergeJobOfferPatch(
 
 export function CvAppProvider({ children }: { children: ReactNode }) {
 	const db = useDb();
-	const [viewsByApp, setViewsByApp] = useState<ViewsByApp>({});
 	const [selectedLanguage, setSelectedLanguageState] =
 		useState<CvLanguage>("en");
 	const [aiStatuses, setAiStatuses] = useState<AiToolStatus[]>([]);
@@ -493,14 +471,6 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 		activeRuns.find((run) => run.id === settings?.activeRunId) ??
 		activeRuns.find((run) => run.language === selectedLanguage) ??
 		activeRuns[0];
-
-	const activeViewsEntry = activeApplication
-		? (viewsByApp[activeApplication.id] ??
-			defaultViewsFor(activeApplication.id))
-		: undefined;
-	const activeViews = activeViewsEntry?.views ?? [];
-	const activeViewId = activeViewsEntry?.activeViewId;
-	const activeView = activeViews.find((view) => view.id === activeViewId);
 
 	const saveStatus: SaveStatus =
 		settingsLoading || profilesLoading || applicationsLoading || runsLoading
@@ -678,10 +648,6 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 			activeApplicationId: application.id,
 			activeRunId: draftRun.id,
 		});
-		setViewsByApp((prev) => ({
-			...prev,
-			[application.id]: defaultViewsFor(application.id),
-		}));
 		setSelectedLanguageState(profileLanguage);
 		return application.id;
 	}
@@ -716,10 +682,6 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 		updateSettings({
 			activeApplicationId: nextActive,
 			activeRunId: nextRuns[0]?.id,
-		});
-		setViewsByApp((prev) => {
-			const { [id]: _removed, ...rest } = prev;
-			return rest;
 		});
 		return snapshot;
 	}
@@ -778,83 +740,16 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 		setSelectedLanguageState(run.language);
 	}
 
-	function openView(type: ApplicationViewType) {
-		const application = activeApplication;
-		if (!application) {
-			return;
-		}
-
-		setViewsByApp((prev) => {
-			const entry = prev[application.id] ?? defaultViewsFor(application.id);
-			const existing = entry.views.find((view) => view.type === type);
-			if (existing) {
-				return {
-					...prev,
-					[application.id]: { ...entry, activeViewId: existing.id },
-				};
-			}
-
-			const view: ApplicationView = {
-				id: `${application.id}:${type}:${createId("view")}`,
-				type,
-			};
-			return {
-				...prev,
-				[application.id]: {
-					views: [...entry.views, view],
-					activeViewId: view.id,
-				},
-			};
-		});
-	}
-
-	function closeView(viewId: string) {
-		const application = activeApplication;
-		if (!application) {
-			return;
-		}
-
-		setViewsByApp((prev) => {
-			const entry = prev[application.id] ?? defaultViewsFor(application.id);
-			const index = entry.views.findIndex((view) => view.id === viewId);
-			if (index === -1) {
-				return prev;
-			}
-
-			const views = entry.views.filter((view) => view.id !== viewId);
-			if (views.length === 0) {
-				return { ...prev, [application.id]: defaultViewsFor(application.id) };
-			}
-
-			let activeViewId = entry.activeViewId;
-			if (activeViewId === viewId) {
-				activeViewId = (views[index] ?? views[index - 1] ?? views[0]).id;
-			}
-			return { ...prev, [application.id]: { views, activeViewId } };
-		});
-	}
-
-	function setActiveView(viewId: string) {
-		const application = activeApplication;
-		if (!application) {
-			return;
-		}
-
-		setViewsByApp((prev) => {
-			const entry = prev[application.id] ?? defaultViewsFor(application.id);
-			return {
-				...prev,
-				[application.id]: { ...entry, activeViewId: viewId },
-			};
-		});
-	}
-
 	function updateActiveJobOffer(patch: JobOfferPatch) {
 		pendingJobOfferPatchRef.current = mergeJobOfferPatch(
 			pendingJobOfferPatchRef.current,
 			patch,
 		);
 		debouncedPersistJobOfferPatch.current.debounced();
+	}
+
+	function flushActiveJobOffer() {
+		debouncedPersistJobOfferPatch.current.flush();
 	}
 
 	function updateApplicationRunsMatchAnalysis(
@@ -1830,9 +1725,6 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 			activeRuns,
 			activeId,
 			selectedLanguage,
-			activeViews,
-			activeViewId,
-			activeView,
 			aiStatuses,
 			selectedTool,
 			aiModels,
@@ -1863,10 +1755,8 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 			archiveApplication,
 			openApplication,
 			setActiveId,
-			openView,
-			closeView,
-			setActiveView,
 			updateActiveJobOffer,
+			flushActiveJobOffer,
 			updateActiveCv,
 			reviewActiveJobOffer,
 			analyzeActiveProfileMatch,
@@ -1898,7 +1788,6 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 			activeRuns,
 			activeId,
 			selectedLanguage,
-			viewsByApp,
 			aiStatuses,
 			selectedTool,
 			aiModels,
