@@ -2,7 +2,7 @@
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "CV Tailor",
   "mainBinaryName": "CV Tailor",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "identifier": "com.cvtailor.desktop",
   "build": {
     "frontendDist": "../dist",
