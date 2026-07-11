@@ -1,4 +1,8 @@
-import { cvLanguages, type CvLanguage, type ProfileRecord } from "@cv-tailor/core";
+import {
+	type CvLanguage,
+	cvLanguages,
+	type ProfileRecord,
+} from "@cv-tailor/core";
 import { Button } from "@cv-tailor/ui/components/button";
 import { Input } from "@cv-tailor/ui/components/input";
 import {

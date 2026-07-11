@@ -10,9 +10,17 @@ export interface ApplicationStepMeta {
 }
 
 export const applicationSteps: ApplicationStepMeta[] = [
-	{ id: "job-details", translationKey: "application.tab.jobDetails", number: 1 },
+	{
+		id: "job-details",
+		translationKey: "application.tab.jobDetails",
+		number: 1,
+	},
 	{ id: "review", translationKey: "application.tab.review", number: 2 },
-	{ id: "generate-cv", translationKey: "application.tab.generateCv", number: 3 },
+	{
+		id: "generate-cv",
+		translationKey: "application.tab.generateCv",
+		number: 3,
+	},
 ];
 
 export interface AnalysisState {

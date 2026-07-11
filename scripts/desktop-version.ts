@@ -94,16 +94,7 @@ export function readConfiguredVersion() {
 export function getLatestGitHubReleaseVersion(repo: string) {
 	const result = spawnSync(
 		"gh",
-		[
-			"release",
-			"list",
-			"--repo",
-			repo,
-			"--limit",
-			"1",
-			"--json",
-			"tagName",
-		],
+		["release", "list", "--repo", repo, "--limit", "1", "--json", "tagName"],
 		{ encoding: "utf8" },
 	);
 

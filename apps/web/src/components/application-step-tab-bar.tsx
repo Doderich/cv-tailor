@@ -61,11 +61,7 @@ export function ApplicationStepTabBar({
 							key={step.id}
 							value={step.id}
 							disabled={!unlocked}
-							title={
-								unlocked
-									? undefined
-									: t("application.tab.locked")
-							}
+							title={unlocked ? undefined : t("application.tab.locked")}
 							onClick={() => {
 								if (unlocked && step.id !== value) {
 									void navigate(applicationStepPath(applicationId, step.id));

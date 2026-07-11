@@ -1,3 +1,4 @@
+use std::net::IpAddr;
 use std::time::Duration;
 
 use reqwest::Url;
@@ -20,6 +21,66 @@ pub struct FetchUrlTextResponse {
     pub status: u16,
     pub content_type: Option<String>,
     pub text: String,
+}
+
+fn is_private_or_loopback(ip: IpAddr) -> bool {
+    match ip {
+        IpAddr::V4(ipv4) => {
+            ipv4.is_loopback()
+                || ipv4.is_private()
+                || ipv4.is_link_local()
+                || ipv4.is_broadcast()
+                || ipv4.is_unspecified()
+        }
+        IpAddr::V6(ipv6) => {
+            ipv6.is_loopback()
+                || ipv6.is_unique_local()
+                || ipv6.is_unicast_link_local()
+                || ipv6.is_unspecified()
+        }
+    }
+}
+
+fn is_disallowed_fetch_host(host: &str) -> bool {
+    let normalized = host.trim().trim_end_matches('.').to_ascii_lowercase();
+
+    if normalized.is_empty() {
+        return true;
+    }
+
+    if normalized == "localhost" || normalized.ends_with(".localhost") {
+        return true;
+    }
+
+    if normalized.ends_with(".local") || normalized.ends_with(".internal") {
+        return true;
+    }
+
+    if let Ok(ip) = normalized.parse::<IpAddr>() {
+        return is_private_or_loopback(ip);
+    }
+
+    false
+}
+
+fn ensure_fetchable_url(url: &Url) -> Result<(), AppError> {
+    let host = url.host_str().ok_or_else(|| {
+        AppError::with_details(
+            "invalid_url",
+            "The source URL is missing a host.",
+            url.to_string(),
+        )
+    })?;
+
+    if is_disallowed_fetch_host(host) {
+        return Err(AppError::with_details(
+            "blocked_fetch_host",
+            "This URL points to a local or private network address and cannot be fetched.",
+            host.to_string(),
+        ));
+    }
+
+    Ok(())
 }
 
 fn remove_between_case_insensitive(
@@ -97,6 +158,8 @@ pub async fn fetch_url_text(
         ));
     }
 
+    ensure_fetchable_url(&url)?;
+
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(20))
         .user_agent("cv-tailor/0.1 profile-import")
@@ -153,4 +216,36 @@ pub async fn fetch_url_text(
         content_type,
         text: truncated,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{ensure_fetchable_url, is_disallowed_fetch_host};
+    use reqwest::Url;
+
+    #[test]
+    fn blocks_localhost_hosts() {
+        assert!(is_disallowed_fetch_host("localhost"));
+        assert!(is_disallowed_fetch_host("api.localhost"));
+    }
+
+    #[test]
+    fn blocks_private_ips() {
+        assert!(is_disallowed_fetch_host("127.0.0.1"));
+        assert!(is_disallowed_fetch_host("10.0.0.8"));
+        assert!(is_disallowed_fetch_host("192.168.1.20"));
+        assert!(is_disallowed_fetch_host("::1"));
+    }
+
+    #[test]
+    fn allows_public_hosts() {
+        assert!(!is_disallowed_fetch_host("example.com"));
+        assert!(!is_disallowed_fetch_host("www.stepstone.de"));
+    }
+
+    #[test]
+    fn rejects_localhost_urls() {
+        let url = Url::parse("https://localhost/jobs/123").expect("valid url");
+        assert!(ensure_fetchable_url(&url).is_err());
+    }
 }

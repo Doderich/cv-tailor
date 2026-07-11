@@ -4,6 +4,8 @@ A desktop-first app for tailoring CVs to job applications. Import your profile, 
 
 Built as a TypeScript monorepo with **React**, **TanStack Router**, **TanStack DB**, and **Tauri 2**.
 
+Licensed under the [MIT License](LICENSE). See [SECURITY.md](SECURITY.md) for the security model.
+
 ## What you can do
 
 - **Manage profiles** — import from files or URLs, edit experience, skills, and projects
