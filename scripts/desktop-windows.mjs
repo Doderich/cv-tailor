@@ -5,6 +5,11 @@ import { fileURLToPath } from "node:url";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const passthroughArgs = process.argv.slice(3);
+const tsxCli = join(repoRoot, "node_modules/tsx/dist/cli.mjs");
+const releaseScript = join(
+	repoRoot,
+	"scripts/release-desktop-windows-local.ts",
+);
 
 function run(command, args, options = {}) {
 	const result = spawnSync(command, args, {
@@ -14,9 +19,23 @@ function run(command, args, options = {}) {
 		env: process.env,
 	});
 
+	if (result.error) {
+		console.error(`Failed to start ${command}: ${result.error.message}`);
+		process.exit(1);
+	}
+
 	if (result.status !== 0) {
 		process.exit(result.status ?? 1);
 	}
+}
+
+function runTsScript(scriptPath, args = []) {
+	if (!existsSync(tsxCli)) {
+		console.error("Missing tsx. Run: pnpm install");
+		process.exit(1);
+	}
+
+	run(process.execPath, [tsxCli, scriptPath, ...args]);
 }
 
 function requireMacSshConfig() {
@@ -78,12 +97,7 @@ if (action === "build") {
 	}
 } else if (action === "release") {
 	if (process.platform === "win32") {
-		run("pnpm", [
-			"exec",
-			"tsx",
-			"scripts/release-desktop-windows-local.ts",
-			...passthroughArgs,
-		]);
+		runTsScript(releaseScript, passthroughArgs);
 	} else {
 		requireMacSshConfig();
 		run("bash", [

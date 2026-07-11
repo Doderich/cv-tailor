@@ -141,15 +141,19 @@ function resolveVersionForRelease(options: {
 }
 
 function runLocalBuild() {
-	run("powershell", [
-		"-NoProfile",
-		"-ExecutionPolicy",
-		"Bypass",
-		"-File",
-		remoteBuildScriptPath,
-		"-RepoPath",
-		repoRoot,
-	]);
+	run(
+		"powershell",
+		[
+			"-NoProfile",
+			"-ExecutionPolicy",
+			"Bypass",
+			"-File",
+			remoteBuildScriptPath,
+			"-RepoPath",
+			repoRoot,
+		],
+		{ shell: true },
+	);
 }
 
 function main() {
@@ -214,4 +218,9 @@ function main() {
 	);
 }
 
-main();
+try {
+	main();
+} catch (error) {
+	console.error(error instanceof Error ? error.message : error);
+	process.exit(1);
+}

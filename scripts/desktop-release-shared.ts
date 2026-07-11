@@ -30,16 +30,21 @@ export function ensureGhAvailable() {
 export function run(
 	command: string,
 	args: string[],
-	options?: { env?: NodeJS.ProcessEnv; cwd?: string },
+	options?: { env?: NodeJS.ProcessEnv; cwd?: string; shell?: boolean },
 ) {
 	const result = spawnSync(command, args, {
 		cwd: options?.cwd,
 		stdio: "inherit",
+		shell: options?.shell ?? false,
 		env: {
 			...process.env,
 			...options?.env,
 		},
 	});
+
+	if (result.error) {
+		throw new Error(`Failed to start ${command}: ${result.error.message}`);
+	}
 
 	if (result.status !== 0) {
 		throw new Error(`Command failed: ${command} ${args.join(" ")}`);
