@@ -66,12 +66,14 @@ import {
 } from "@/lib/data-backup";
 import { translateCvLanguage } from "@/lib/i18n-labels";
 import {
+	type AiToolPaths,
 	type AiToolStatus,
 	detectAiTools,
 	exportGeneratedCvPdf,
 	formatAppError,
 	isTauriRuntime,
 	runAiToolResilient,
+	suggestAiToolPaths,
 } from "@/lib/tauri-ai";
 
 export type SaveStatus = "idle" | "saving" | "saved" | "error";
@@ -109,6 +111,7 @@ interface CvAppContextValue {
 	aiStatuses: AiToolStatus[];
 	selectedTool: AiToolId;
 	aiModels: AiModels;
+	aiToolPaths: AiToolPaths;
 	effectiveAiProvider: AiProviderId | undefined;
 	effectiveAiModel: string | undefined;
 	saveStatus: SaveStatus;
@@ -126,6 +129,8 @@ interface CvAppContextValue {
 	rawProfileMatchOutput: string | undefined;
 	setSelectedTool: (tool: AiToolId) => void;
 	setAiModel: (provider: AiProviderId, model: string) => void;
+	setAiToolPath: (provider: AiProviderId, path: string) => void;
+	suggestAndApplyAiToolPaths: () => Promise<void>;
 	setSelectedLanguage: (language: CvLanguage) => void;
 	refreshAiStatuses: () => Promise<void>;
 	createApplication: () => string;
@@ -354,7 +359,7 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 		new Map<string, DeletedApplicationSnapshot>(),
 	);
 	const pendingAiSettingsRef = useRef<
-		Partial<Pick<AppSettings, "selectedAiTool" | "aiModels">>
+		Partial<Pick<AppSettings, "selectedAiTool" | "aiModels" | "aiToolPaths">>
 	>({});
 
 	const {
@@ -397,6 +402,7 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 	const aiStatusesRef = useRef(aiStatuses);
 	const selectedToolRef = useRef<AiToolId>("auto");
 	const aiModelsRef = useRef<AiModels>(defaultAiModels);
+	const aiToolPathsRef = useRef<AiToolPaths>({});
 	const effectiveAiModelRef = useRef<string | undefined>(undefined);
 	const profileMatchRequestRef = useRef(0);
 	const persistProfilePatchRef = useRef<(patch: Partial<BaseProfile>) => void>(
@@ -453,6 +459,10 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 			}) as AiModels,
 		[settings?.aiModels],
 	);
+	const aiToolPaths = useMemo(
+		() => ({ ...(settings?.aiToolPaths ?? {}) }),
+		[settings?.aiToolPaths],
+	);
 
 	useEffect(() => {
 		if (!profileSnapshot) {
@@ -507,6 +517,7 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 		: undefined;
 	selectedToolRef.current = selectedTool;
 	aiModelsRef.current = aiModels;
+	aiToolPathsRef.current = aiToolPaths;
 	effectiveAiModelRef.current = effectiveAiModel;
 	const canGenerateActive =
 		Boolean(activeApplication?.jobOffer.rawText.trim()) &&
@@ -522,7 +533,7 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 	useEffect(() => {
 		async function loadAiStatuses() {
 			try {
-				setAiStatuses(await detectAiTools());
+				setAiStatuses(await detectAiTools(aiToolPathsRef.current));
 			} catch (error) {
 				toast.error(i18n.t("app.toast.aiDetectFailed"), {
 					description: getErrorMessage(error),
@@ -531,7 +542,7 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 		}
 
 		void loadAiStatuses();
-	}, []);
+	}, [aiToolPaths]);
 
 	function updateSettings(patch: Partial<typeof settings>) {
 		if (!settings) {
@@ -593,7 +604,9 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 	}
 
 	async function persistAiSettings(
-		patch: Partial<Pick<AppSettings, "selectedAiTool" | "aiModels">>,
+		patch: Partial<
+			Pick<AppSettings, "selectedAiTool" | "aiModels" | "aiToolPaths">
+		>,
 	) {
 		if (!settingsRef.current) {
 			pendingAiSettingsRef.current = {
@@ -626,6 +639,35 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 		});
 	}
 
+	function setAiToolPath(provider: AiProviderId, path: string) {
+		const current = { ...(settingsRef.current?.aiToolPaths ?? {}) };
+		const trimmed = path.trim();
+		if (trimmed) {
+			current[provider] = trimmed;
+		} else {
+			delete current[provider];
+		}
+		void persistAiSettings({ aiToolPaths: current });
+	}
+
+	async function suggestAndApplyAiToolPaths() {
+		try {
+			const suggested = await suggestAiToolPaths();
+			const current = { ...(settingsRef.current?.aiToolPaths ?? {}) };
+			for (const provider of ["claude", "codex", "cursor"] as const) {
+				if (!current[provider]?.trim() && suggested[provider]?.trim()) {
+					current[provider] = suggested[provider]!.trim();
+				}
+			}
+			await persistAiSettings({ aiToolPaths: current });
+			setAiStatuses(await detectAiTools(current));
+		} catch (error) {
+			toast.error(i18n.t("app.toast.aiDetectFailed"), {
+				description: getErrorMessage(error),
+			});
+		}
+	}
+
 	function setSelectedLanguage(language: CvLanguage) {
 		setSelectedLanguageState(language);
 		const runForLanguage = activeRuns
@@ -638,7 +680,7 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 
 	async function refreshAiStatuses() {
 		try {
-			setAiStatuses(await detectAiTools());
+			setAiStatuses(await detectAiTools(aiToolPathsRef.current));
 		} catch (error) {
 			toast.error(i18n.t("app.toast.aiDetectFailed"), {
 				description: getErrorMessage(error),
@@ -822,6 +864,7 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 				statuses,
 				model,
 				models,
+				toolPaths: aiToolPathsRef.current,
 			},
 		);
 
@@ -1140,6 +1183,7 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 					statuses: aiStatuses,
 					model: effectiveAiModel,
 					models: aiModels,
+					toolPaths: aiToolPaths,
 				},
 			);
 			let parsedReview: {
@@ -1267,6 +1311,7 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 					statuses: aiStatuses,
 					model: effectiveAiModel,
 					models: aiModels,
+					toolPaths: aiToolPaths,
 				},
 			);
 			let parsedCv: TailoredCv;
@@ -1757,6 +1802,7 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 			aiStatuses,
 			selectedTool,
 			aiModels,
+			aiToolPaths,
 			effectiveAiProvider,
 			effectiveAiModel,
 			saveStatus,
@@ -1776,6 +1822,8 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 			rawProfileMatchOutput,
 			setSelectedTool,
 			setAiModel,
+			setAiToolPath,
+			suggestAndApplyAiToolPaths,
 			setSelectedLanguage,
 			refreshAiStatuses,
 			createApplication,
@@ -1820,6 +1868,7 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 			aiStatuses,
 			selectedTool,
 			aiModels,
+			aiToolPaths,
 			effectiveAiProvider,
 			effectiveAiModel,
 			saveStatus,

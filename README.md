@@ -141,17 +141,20 @@ The setup script writes the updater public key into `apps/web/src-tauri/tauri.co
 Publish a release:
 
 ```bash
-# 1. Bump version in apps/web/src-tauri/tauri.conf.json
-# 2. Publish
 pnpm run desktop:release -- --notes "Release notes here"
 ```
 
-This builds a signed app, generates `latest.json`, and uploads the `.dmg`, updater archive, signatures, and manifest to GitHub Releases.
+The script bumps the patch version automatically from the latest GitHub release
+(for example `0.1.0` → `0.1.1`), updates `tauri.conf.json` and `Cargo.toml`, then
+builds and publishes.
 
-Dry run (build only, no upload):
+Optional flags:
 
 ```bash
-pnpm run desktop:release -- --dry-run
+pnpm run desktop:release -- --bump minor --notes "New features"
+pnpm run desktop:release -- --version 1.0.0 --notes "Major release"
+pnpm run desktop:release -- --no-bump   # re-upload current version
+pnpm run desktop:release -- --dry-run   # build only, no GitHub publish
 ```
 
 > **Public repo required for auto-update.** The updater fetches release assets without authentication. Private repos need a public CDN or bucket for update files instead.

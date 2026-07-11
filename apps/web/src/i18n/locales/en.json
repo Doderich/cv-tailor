@@ -100,6 +100,14 @@
 			"preferredTool": "Preferred tool",
 			"model": "Model",
 			"refreshTools": "Refresh tools",
+			"toolPaths": "CLI paths",
+			"toolPathsHelp": "Release builds do not inherit your shell PATH. Set the full path to each CLI if auto-detect fails.",
+			"autoDetectPaths": "Auto-detect paths",
+			"pathPlaceholder": {
+				"claude": "/opt/homebrew/bin/claude",
+				"codex": "/Users/you/.bun/bin/codex",
+				"cursor": "/Users/you/.local/bin/agent"
+			},
 			"tool": {
 				"auto": "Auto",
 				"claude": "Claude",
@@ -278,7 +286,8 @@
 			"title": "AI Tool Status",
 			"ready": "Ready",
 			"unavailable": "Unavailable",
-			"notChecked": "Not checked"
+			"notChecked": "Not checked",
+			"resolvedPath": "Path: {{path}}"
 		},
 		"history": {
 			"metric": {

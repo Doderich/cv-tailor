@@ -7,6 +7,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@cv-tailor/ui/components/select";
+import { Input } from "@cv-tailor/ui/components/input";
 import { cn } from "@cv-tailor/ui/lib/utils";
 import { Monitor, Moon, RefreshCw, Sun } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -75,6 +76,47 @@ const segmentedButtonClass =
 	"rounded-sm px-2.5 py-1 text-sm font-medium transition-colors";
 
 const toolOptionIds: AiToolId[] = ["auto", "claude", "codex", "cursor"];
+const aiProviderIds: AiProviderId[] = ["claude", "codex", "cursor"];
+
+function AiToolPathFields() {
+	const { t } = useTranslation();
+	const { aiToolPaths, setAiToolPath, suggestAndApplyAiToolPaths } = useCvApp();
+
+	return (
+		<div className="grid gap-3">
+			<div className="grid gap-1">
+				<span className="font-medium text-base">
+					{t("settings.ai.toolPaths")}
+				</span>
+				<p className="text-muted-foreground text-sm">
+					{t("settings.ai.toolPathsHelp")}
+				</p>
+			</div>
+			{aiProviderIds.map((provider) => (
+				<label key={provider} className="grid gap-1.5">
+					<span className="font-medium text-sm">
+						{t(`settings.ai.tool.${provider}`)}
+					</span>
+					<Input
+						value={aiToolPaths[provider] ?? ""}
+						onChange={(event) => setAiToolPath(provider, event.target.value)}
+						placeholder={t(`settings.ai.pathPlaceholder.${provider}`)}
+						className="font-mono text-sm"
+					/>
+				</label>
+			))}
+			<div>
+				<Button
+					variant="outline"
+					size="sm"
+					onClick={() => void suggestAndApplyAiToolPaths()}
+				>
+					<RefreshCw /> {t("settings.ai.autoDetectPaths")}
+				</Button>
+			</div>
+		</div>
+	);
+}
 
 function TextSizeSelect() {
 	const { t } = useTranslation();
@@ -225,6 +267,7 @@ export function SettingsAiSection() {
 						/>
 					</div>
 				) : null}
+				<AiToolPathFields />
 				<div>
 					<Button
 						variant="outline"

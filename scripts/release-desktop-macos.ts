@@ -3,6 +3,14 @@ import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
+import {
+	type BumpLevel,
+	getLatestGitHubReleaseVersion,
+	readConfiguredVersion,
+	resolveReleaseVersion,
+	writeConfiguredVersion,
+} from "./desktop-version.ts";
+
 const repoRoot = join(import.meta.dirname, "..");
 const webRoot = join(repoRoot, "apps/web");
 const tauriConfigPath = join(webRoot, "src-tauri/tauri.conf.json");
@@ -34,20 +42,28 @@ type LatestJson = {
 };
 
 function usage() {
-	console.log(`Usage: pnpm run desktop:release [-- "Release notes here"]
+	console.log(`Usage: pnpm run desktop:release [-- options]
 
 Builds a signed macOS desktop release and publishes it to GitHub Releases.
+The release version is bumped automatically from the latest GitHub release.
 
 Options:
-  --notes "..."   Release notes for latest.json and GitHub
-  --dry-run       Build and generate latest.json without publishing
-  --help          Show this help text
+  --notes "..."       Release notes for latest.json and GitHub
+  --version "1.2.3"   Use an explicit version instead of auto-bumping
+  --bump patch|minor|major
+                      Bump level when auto-bumping (default: patch)
+  --no-bump           Keep the current tauri.conf.json version
+  --dry-run           Build and generate latest.json without publishing
+  --help              Show this help text
 `);
 }
 
 function parseArgs(argv: string[]) {
 	let notes = "";
 	let dryRun = false;
+	let noBump = false;
+	let explicitVersion = "";
+	let bump: BumpLevel = "patch";
 
 	for (let index = 0; index < argv.length; index += 1) {
 		const arg = argv[index];
@@ -62,22 +78,43 @@ function parseArgs(argv: string[]) {
 			continue;
 		}
 
+		if (arg === "--no-bump") {
+			noBump = true;
+			continue;
+		}
+
 		if (arg === "--notes") {
 			notes = argv[index + 1] ?? "";
+			index += 1;
+			continue;
+		}
+
+		if (arg === "--version") {
+			explicitVersion = argv[index + 1] ?? "";
+			index += 1;
+			continue;
+		}
+
+		if (arg === "--bump") {
+			const level = argv[index + 1];
+			if (level !== "patch" && level !== "minor" && level !== "major") {
+				throw new Error(`Invalid bump level: ${level ?? "(missing)"}`);
+			}
+			bump = level;
 			index += 1;
 		}
 	}
 
-	return { notes, dryRun };
+	return { notes, dryRun, noBump, explicitVersion, bump };
 }
 
 function run(
 	command: string,
 	args: string[],
-	options?: { env?: NodeJS.ProcessEnv },
+	options?: { env?: NodeJS.ProcessEnv; cwd?: string },
 ) {
 	const result = spawnSync(command, args, {
-		cwd: webRoot,
+		cwd: options?.cwd ?? webRoot,
 		stdio: "inherit",
 		env: {
 			...process.env,
@@ -200,13 +237,49 @@ function buildLatestJson(
 	};
 }
 
+function resolveVersionForRelease(options: {
+	noBump: boolean;
+	explicitVersion: string;
+	bump: BumpLevel;
+}) {
+	const current = readConfiguredVersion();
+	const latestRelease = getLatestGitHubReleaseVersion(githubRepo);
+	const nextVersion = resolveReleaseVersion({
+		current,
+		latestRelease,
+		bump: options.bump,
+		explicit: options.explicitVersion || undefined,
+		noBump: options.noBump,
+	});
+
+	if (nextVersion === current) {
+		console.log(`Using version ${nextVersion}.`);
+		return nextVersion;
+	}
+
+	console.log(
+		`Bumping version ${current} -> ${nextVersion}${
+			latestRelease ? ` (latest release: v${latestRelease})` : ""
+		}.`,
+	);
+
+	return writeConfiguredVersion(nextVersion);
+}
+
 function main() {
-	const { notes, dryRun } = parseArgs(process.argv.slice(2));
+	const { notes, dryRun, noBump, explicitVersion, bump } = parseArgs(
+		process.argv.slice(2),
+	);
+	const version = resolveVersionForRelease({
+		noBump,
+		explicitVersion,
+		bump,
+	});
 	const config = readTauriConfig();
+	config.version = version;
 
 	ensurePrerequisites(config);
 
-	const version = config.version;
 	const tag = version.startsWith("v") ? version : `v${version}`;
 	const releaseNotes = notes.trim() || `CV Tailor ${version} for macOS`;
 
@@ -282,6 +355,9 @@ function main() {
 
 	console.log(
 		`Published ${tag} to https://github.com/${githubRepo}/releases/tag/${tag}`,
+	);
+	console.log(
+		`Remember to commit the version bump in apps/web/src-tauri/tauri.conf.json and Cargo.toml.`,
 	);
 }
 
