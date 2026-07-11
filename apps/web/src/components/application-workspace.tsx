@@ -3,6 +3,7 @@ import {
 	buildJobOfferFromFetchedPage,
 	type CvLanguage,
 	type CvRun,
+	type CvTemplateId,
 	type JobPosition,
 	jobOfferNeedsReview,
 	jobPositions,
@@ -25,6 +26,7 @@ import {
 	ArrowLeft,
 	ArrowRight,
 	CheckCircle2,
+	FileDown,
 	FileText,
 	Languages,
 	Link2,
@@ -40,6 +42,7 @@ import { toast } from "sonner";
 
 import { ArrayLinesField } from "@/components/array-lines-field";
 import { CvPreview } from "@/components/cv/cv-preview";
+import { CvTemplatePicker } from "@/components/cv/cv-template-picker";
 import { GeneratedCvEditor } from "@/components/cv/generated-cv-editor";
 import { KeywordMatchGrid, MatchBulletList } from "@/components/cv/insights";
 import { applicationStepPath } from "@/lib/application-route";
@@ -123,6 +126,8 @@ export function GenerateCvStep({
 		profile,
 		selectedLanguage,
 		setSelectedLanguage,
+		cvTemplate,
+		setCvTemplate,
 		updateActiveCv,
 		generateActive,
 		canGenerateActive,
@@ -132,6 +137,7 @@ export function GenerateCvStep({
 		generationError,
 		rawCliOutput,
 		exportPdf,
+		printCv,
 	} = useCvApp();
 
 	return (
@@ -142,11 +148,14 @@ export function GenerateCvStep({
 				profile={profile}
 				selectedLanguage={selectedLanguage}
 				onLanguageChange={setSelectedLanguage}
+				cvTemplate={cvTemplate}
+				onCvTemplateChange={setCvTemplate}
 				onBack={() =>
 					void navigate(applicationStepPath(application.id, "review"))
 				}
 				onGenerate={(language) => void generateActive(language)}
 				onEditCv={updateActiveCv}
+				onPrintCv={printCv}
 				onExportPdf={() => void exportPdf()}
 				canGenerate={canGenerateActive}
 				canUseSelectedAi={canUseSelectedAi}
@@ -718,9 +727,12 @@ function TailorStep({
 	profile,
 	selectedLanguage,
 	onLanguageChange,
+	cvTemplate,
+	onCvTemplateChange,
 	onBack,
 	onGenerate,
 	onEditCv,
+	onPrintCv,
 	onExportPdf,
 	canGenerate,
 	canUseSelectedAi,
@@ -734,9 +746,12 @@ function TailorStep({
 	profile: ReturnType<typeof useCvApp>["profile"];
 	selectedLanguage: CvLanguage;
 	onLanguageChange: (language: CvLanguage) => void;
+	cvTemplate: CvTemplateId;
+	onCvTemplateChange: (template: CvTemplateId) => void;
 	onBack: () => void;
 	onGenerate: (language: CvLanguage) => void;
 	onEditCv: ReturnType<typeof useCvApp>["updateActiveCv"];
+	onPrintCv: () => void;
 	onExportPdf: () => void;
 	canGenerate: boolean;
 	canUseSelectedAi: boolean;
@@ -762,16 +777,26 @@ function TailorStep({
 					</Button>
 					<Button
 						variant="outline"
-						onClick={onExportPdf}
-						disabled={isExportingPdf || !run}
+						onClick={onPrintCv}
+						disabled={!run}
 					>
-						{isExportingPdf ? (
-							<Loader2 className="animate-spin" />
-						) : (
-							<Printer />
-						)}
-						{t("application.generate.exportPdf")}
+						<Printer />
+						{t("application.generate.printCv")}
 					</Button>
+					{isTauriRuntime() ? (
+						<Button
+							variant="outline"
+							onClick={onExportPdf}
+							disabled={isExportingPdf || !run}
+						>
+							{isExportingPdf ? (
+								<Loader2 className="animate-spin" />
+							) : (
+								<FileDown />
+							)}
+							{t("application.generate.exportPdf")}
+						</Button>
+					) : null}
 					<Button
 						onClick={() => onGenerate(selectedLanguage)}
 						disabled={!canGenerate}
@@ -820,6 +845,20 @@ function TailorStep({
 			{hasRunForLanguage && run ? (
 				<div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
 					<section className="min-w-0">
+						<div className="mb-4 grid gap-3 rounded-xl border bg-card p-4">
+							<div className="grid gap-1">
+								<h3 className="font-medium text-sm">
+									{t("cv.template.title")}
+								</h3>
+								<p className="text-muted-foreground text-xs">
+									{t("cv.template.help")}
+								</p>
+							</div>
+							<CvTemplatePicker
+								value={cvTemplate}
+								onChange={onCvTemplateChange}
+							/>
+						</div>
 						<GeneratedCvEditor
 							profile={profile}
 							application={application}
@@ -833,6 +872,7 @@ function TailorStep({
 								profile={profile}
 								application={application}
 								run={run}
+								template={cvTemplate}
 							/>
 						</div>
 					</section>

@@ -1,4 +1,4 @@
-use tauri::AppHandle;
+use tauri::{AppHandle, Manager};
 
 use crate::{
     ai::{self, AiRunRequest, AiRunResponse, AiToolPaths, AiToolStatus},
@@ -47,6 +47,19 @@ pub fn export_generated_cv_pdf(
     request: ExportPdfRequest,
 ) -> Result<ExportPdfResponse, AppError> {
     pdf_export::export_generated_cv_pdf(&app, request)
+}
+
+#[tauri::command]
+pub fn print_generated_cv(app: AppHandle) -> Result<(), AppError> {
+    let window = app.get_webview_window("main").ok_or_else(|| {
+        AppError::new(
+            "window_not_found",
+            "The main application window is unavailable.",
+        )
+    })?;
+
+    window.print()?;
+    Ok(())
 }
 
 #[tauri::command]

@@ -26,6 +26,7 @@ import { useTheme } from "@/components/theme-provider";
 import { applicationStepPath } from "@/lib/application-route";
 import { applicationTitle, useCvApp } from "@/lib/cv-app-context";
 import { transitionForReduced, transitions } from "@/lib/motion";
+import { isTauriRuntime } from "@/lib/tauri-ai";
 
 export const openCommandPaletteEvent = "cmdk:open";
 
@@ -53,6 +54,7 @@ export function CommandPalette() {
 		openApplication,
 		generateActive,
 		exportPdf,
+		printCv,
 	} = useCvApp();
 	const { setTheme } = useTheme();
 	const { palettes, setPalette } = usePalette();
@@ -128,16 +130,30 @@ export function CommandPalette() {
 
 		if (activeApplication) {
 			actions.push({
-				id: "export-pdf",
-				label: t("commandPalette.exportPdf"),
+				id: "print-cv",
+				label: t("commandPalette.printCv"),
 				group: "actions",
 				icon: Printer,
-				keywords: "print download",
+				keywords: "print save pdf browser html preview",
 				run: () => {
-					void exportPdf();
+					printCv();
 					close();
 				},
 			});
+
+			if (isTauriRuntime()) {
+				actions.push({
+					id: "export-pdf",
+					label: t("commandPalette.exportPdf"),
+					group: "actions",
+					icon: FileText,
+					keywords: "download native export",
+					run: () => {
+						void exportPdf();
+						close();
+					},
+				});
+			}
 
 			if (canGenerateActive) {
 				actions.push({
@@ -228,6 +244,7 @@ export function CommandPalette() {
 		openApplication,
 		generateActive,
 		exportPdf,
+		printCv,
 		navigate,
 		palettes,
 		setPalette,

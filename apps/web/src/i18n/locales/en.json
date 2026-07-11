@@ -24,6 +24,7 @@
 			"pdfExported": "PDF exported",
 			"pdfRevealed": "The PDF was revealed in Finder.",
 			"pdfExportFailed": "PDF export failed",
+			"printFailed": "Print failed",
 			"backupExported": "Backup exported",
 			"backupSummary": "{{profiles}} profiles, {{applications}} applications, {{cvRuns}} CV versions.",
 			"snapshotCreated": "Snapshot saved",
@@ -89,7 +90,9 @@
 			"typeface": "Typeface",
 			"palette": "Palette",
 			"language": "Language",
-			"selectTextSize": "Select text size"
+			"selectTextSize": "Select text size",
+			"cvTemplate": "CV layout",
+			"cvTemplateHelp": "Choose how generated CVs are previewed and printed. ATS-friendly single-column layouts work best for most applications."
 		},
 		"theme": {
 			"light": "Light",
@@ -217,6 +220,7 @@
 			"title": "Tailor the CV to this offer",
 			"subtitle": "Choose a language, generate with your local AI, then refine any section. Each language keeps its own version.",
 			"exportPdf": "Export PDF",
+			"printCv": "Print / Save PDF",
 			"generate": "Generate",
 			"regenerate": "Regenerate",
 			"aiSetupDesktop": "Install or authenticate an AI tool (Claude, Codex, or Cursor), then refresh in settings.",
@@ -255,6 +259,7 @@
 		"newApplication": "New application",
 		"settings": "Open profile & settings",
 		"exportPdf": "Export active CV as PDF",
+		"printCv": "Print / save active CV as PDF",
 		"generate": "Generate tailored CV",
 		"themeLight": "Theme: Light",
 		"themeDark": "Theme: Dark",
@@ -455,6 +460,30 @@
 			"reviewNotes": "Review notes",
 			"missingRequirements": "Missing requirements",
 			"warnings": "Reviewer warnings"
+		},
+		"template": {
+			"title": "Layout",
+			"help": "Pick a template for preview and PDF export. Changes apply to all CVs.",
+			"classic": {
+				"label": "Classic",
+				"description": "Centered header with clean section dividers. Safe default for any industry."
+			},
+			"modern": {
+				"label": "Modern",
+				"description": "Left-aligned with navy accents. Great for tech, product, and startup roles."
+			},
+			"sidebar": {
+				"label": "Sidebar",
+				"description": "Two-column layout with contact and skills in a dark sidebar."
+			},
+			"minimal": {
+				"label": "Minimal",
+				"description": "Light typography and generous whitespace for a calm, understated look."
+			},
+			"executive": {
+				"label": "Executive",
+				"description": "Bold header band and strong hierarchy for senior leadership roles."
+			}
 		}
 	},
 	"backup": {

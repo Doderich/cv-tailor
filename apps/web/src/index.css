@@ -91,6 +91,104 @@
 		text-align: center;
 	}
 
+	.print-cv[data-template="modern"] header,
+	.print-cv[data-template="minimal"] header {
+		text-align: left;
+	}
+
+	.print-cv[data-template="modern"] .print-section h2 {
+		border-bottom: 1.5pt solid #1e40af;
+		color: #1e40af;
+		letter-spacing: 0.06em;
+		text-transform: none;
+	}
+
+	.print-cv[data-template="minimal"] .print-section h2 {
+		border-bottom: none;
+		color: #4b5162;
+		font-size: 10pt;
+		letter-spacing: 0;
+		text-transform: none;
+	}
+
+	.print-cv[data-template="executive"] header {
+		background: #0f172a;
+		color: #f8fafc;
+		margin: -18mm -18mm 16pt;
+		padding: 18pt 18mm 14pt;
+		text-align: left;
+	}
+
+	.print-cv[data-template="executive"] .print-headline {
+		color: #cbd5e1;
+	}
+
+	.print-cv[data-template="executive"] .print-contact {
+		color: #94a3b8;
+	}
+
+	.print-cv[data-template="executive"] .print-section h2 {
+		border-bottom: none;
+		border-left: 3pt solid #0f172a;
+		color: #0f172a;
+		padding-left: 8pt;
+		text-transform: uppercase;
+	}
+
+	.print-cv-sidebar {
+		display: grid;
+		grid-template-columns: 68mm 1fr;
+		gap: 14pt;
+		max-width: none;
+	}
+
+	.print-cv-sidebar .print-sidebar {
+		background: #0f172a;
+		color: #f8fafc;
+		margin: -18mm 0 -18mm -18mm;
+		padding: 18mm 10pt 18mm 18mm;
+	}
+
+	.print-cv-sidebar .print-sidebar h1 {
+		font-size: 16pt;
+		margin: 0 0 4pt;
+		text-align: left;
+	}
+
+	.print-cv-sidebar .print-sidebar .print-headline {
+		color: #cbd5e1;
+		text-align: left;
+	}
+
+	.print-cv-sidebar .print-sidebar .print-contact {
+		color: #94a3b8;
+		text-align: left;
+	}
+
+	.print-cv-sidebar .print-sidebar-block {
+		margin-top: 12pt;
+	}
+
+	.print-cv-sidebar .print-sidebar-block h2 {
+		border-bottom: none;
+		color: #94a3b8;
+		font-size: 7.5pt;
+		letter-spacing: 0.12em;
+		margin: 0 0 4pt;
+		padding: 0;
+		text-transform: uppercase;
+	}
+
+	.print-cv-sidebar .print-sidebar-block p {
+		color: #e2e8f0;
+		font-size: 9pt;
+		margin: 0;
+	}
+
+	.print-cv-sidebar .print-main {
+		padding-top: 0;
+	}
+
 	.print-cv h1 {
 		font-size: 21pt;
 		font-weight: 600;
@@ -160,11 +258,14 @@
 	}
 
 	.print-cv ul {
+		list-style-position: outside;
+		list-style-type: disc;
 		margin: 3pt 0 0 14pt;
 		padding: 0;
 	}
 
 	.print-cv li {
+		display: list-item;
 		margin: 0 0 3pt;
 		padding-left: 2pt;
 	}

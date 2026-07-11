@@ -24,6 +24,7 @@
 			"pdfExported": "PDF exportiert",
 			"pdfRevealed": "Das PDF wurde im Finder angezeigt.",
 			"pdfExportFailed": "PDF-Export fehlgeschlagen",
+			"printFailed": "Drucken fehlgeschlagen",
 			"backupExported": "Sicherung exportiert",
 			"backupSummary": "{{profiles}} Profile, {{applications}} Bewerbungen, {{cvRuns}} Lebenslauf-Versionen.",
 			"snapshotCreated": "Schnappschuss gespeichert",
@@ -89,7 +90,9 @@
 			"typeface": "Schriftart",
 			"palette": "Farbpalette",
 			"language": "Sprache",
-			"selectTextSize": "Textgröße wählen"
+			"selectTextSize": "Textgröße wählen",
+			"cvTemplate": "Lebenslauf-Layout",
+			"cvTemplateHelp": "Wähle, wie generierte Lebensläufe in der Vorschau und beim Drucken aussehen. Einsprachige Layouts funktionieren am besten für die meisten Bewerbungen."
 		},
 		"theme": {
 			"light": "Hell",
@@ -217,6 +220,7 @@
 			"title": "Lebenslauf auf diese Stelle zuschneiden",
 			"subtitle": "Wähle eine Sprache, generiere mit deiner lokalen KI und verfeinere dann beliebige Abschnitte. Jede Sprache behält ihre eigene Version.",
 			"exportPdf": "PDF exportieren",
+			"printCv": "Drucken / Als PDF speichern",
 			"generate": "Generieren",
 			"regenerate": "Neu generieren",
 			"aiSetupDesktop": "Installiere oder authentifiziere ein KI-Tool (Claude, Codex oder Cursor) und aktualisiere es in den Einstellungen.",
@@ -255,6 +259,7 @@
 		"newApplication": "Neue Bewerbung",
 		"settings": "Profil & Einstellungen öffnen",
 		"exportPdf": "Aktiven Lebenslauf als PDF exportieren",
+		"printCv": "Aktiven Lebenslauf drucken / als PDF speichern",
 		"generate": "Zugeschnittenen Lebenslauf generieren",
 		"themeLight": "Design: Hell",
 		"themeDark": "Design: Dunkel",
@@ -455,6 +460,30 @@
 			"reviewNotes": "Prüfhinweise",
 			"missingRequirements": "Fehlende Anforderungen",
 			"warnings": "Prüfer-Warnungen"
+		},
+		"template": {
+			"title": "Layout",
+			"help": "Wähle eine Vorlage für Vorschau und PDF-Export. Änderungen gelten für alle Lebensläufe.",
+			"classic": {
+				"label": "Klassisch",
+				"description": "Zentrierte Kopfzeile mit klaren Abschnittstrennern. Sicherer Standard für jede Branche."
+			},
+			"modern": {
+				"label": "Modern",
+				"description": "Linksbündig mit blauen Akzenten. Ideal für Tech-, Produkt- und Startup-Rollen."
+			},
+			"sidebar": {
+				"label": "Seitenleiste",
+				"description": "Zweispaltiges Layout mit Kontakt und Fähigkeiten in einer dunklen Seitenleiste."
+			},
+			"minimal": {
+				"label": "Minimal",
+				"description": "Leichte Typografie und viel Weißraum für einen ruhigen, zurückhaltenden Look."
+			},
+			"executive": {
+				"label": "Executive",
+				"description": "Kräftige Kopfzeile und starke Hierarchie für Führungsrollen."
+			}
 		}
 	},
 	"backup": {

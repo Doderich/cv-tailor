@@ -1,5 +1,5 @@
 import type { AiToolId } from "@cv-tailor/ai";
-import type { Application, BaseProfile, CvRun } from "@cv-tailor/core";
+import type { Application, BaseProfile, CvRun, CvTemplateId } from "@cv-tailor/core";
 
 export interface AiToolStatus {
 	id: "claude" | "codex" | "cursor";
@@ -45,6 +45,17 @@ export interface FetchUrlTextResponse {
 	status: number;
 	contentType?: string;
 	text: string;
+}
+
+export interface ExportPdfLabels {
+	summary: string;
+	skills: string;
+	experience: string;
+	projects: string;
+	education: string;
+	languages: string;
+	present: string;
+	nameFallback: string;
 }
 
 export interface ExportPdfResponse {
@@ -249,6 +260,8 @@ export async function exportGeneratedCvPdf(
 	profile: BaseProfile,
 	application: Application,
 	run: CvRun,
+	cvTemplate: CvTemplateId,
+	labels: ExportPdfLabels,
 ): Promise<ExportPdfResponse> {
 	const invoke = await loadInvoke();
 
@@ -271,6 +284,19 @@ export async function exportGeneratedCvPdf(
 				cv: run.cv,
 				aiTool: run.aiTool,
 			},
+			cvTemplate,
+			labels,
 		},
 	});
+}
+
+export async function printGeneratedCv(): Promise<void> {
+	const invoke = await loadInvoke();
+
+	if (!invoke) {
+		window.print();
+		return;
+	}
+
+	await invoke("print_generated_cv");
 }
