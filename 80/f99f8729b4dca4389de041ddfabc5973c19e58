@@ -1,0 +1,27 @@
+scripts/release-desktop-windows-local.ts
+  s_8be3ec8959c8da::t_72094c1e704617 144-156
+  s_8be3ec8959c8da::t_ba5ffe472e3ba8 221-226
+scripts/desktop-release-shared.ts
+  s_8be3ec8959c8da::t_388fe06810d7a0 33,38,45-47
+  s_8be3ec8959c8da::t_fb3d7680a352a6 48
+scripts/desktop-windows.mjs
+  s_8be3ec8959c8da::t_ffbc940401a234 8-12,22-26,32-38
+  s_8be3ec8959c8da::t_a3173d96151d52 100
+  s_8be3ec8959c8da::t_0063b51e19bfc7 39-40
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "80f99f8729b4dca4389de041ddfabc5973c19e58",
+  "prompts": {},
+  "sessions": {
+    "s_8be3ec8959c8da": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "ca52c269-3eb9-4927-b85a-ae74c9955dc2",
+        "model": "composer-2.5"
+      },
+      "human_author": "Malte Budig <malte.budig@gmx.net>"
+    }
+  }
+}
