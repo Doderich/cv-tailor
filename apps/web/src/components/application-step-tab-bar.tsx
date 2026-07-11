@@ -5,6 +5,7 @@ import {
 } from "@cv-tailor/ui/components/tabs";
 import { cn } from "@cv-tailor/ui/lib/utils";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
+import { useTranslation } from "react-i18next";
 
 import { applicationStepPath } from "@/lib/application-route";
 import {
@@ -21,6 +22,7 @@ export function ApplicationStepTabBar({
 	applicationId: string;
 	className?: string;
 }) {
+	const { t } = useTranslation();
 	const navigate = useNavigate();
 	const {
 		applications,
@@ -66,7 +68,7 @@ export function ApplicationStepTabBar({
 							title={
 								unlocked
 									? undefined
-									: "Complete the previous step first"
+									: t("application.tab.locked")
 							}
 							onClick={() => {
 								if (unlocked && step.id !== value) {
@@ -76,7 +78,7 @@ export function ApplicationStepTabBar({
 								}
 							}}
 						>
-							{step.label}
+							{t(step.translationKey)}
 						</TabsTrigger>
 					);
 				})}

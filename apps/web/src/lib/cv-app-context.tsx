@@ -27,7 +27,6 @@ import {
 	createEmptyApplication,
 	createId,
 	createProfileRecord,
-	cvLanguageLabel,
 	cvLanguages,
 	type JobOffer,
 	type JobPostingReview,
@@ -59,9 +58,11 @@ import {
 } from "react";
 import { toast } from "sonner";
 
+import i18n from "@/i18n";
 import { useDb } from "@/lib/db-provider";
 import { createDebouncedCallback } from "@/lib/debounce";
 import { exportAllData as exportBackup, importAllData as importBackup } from "@/lib/data-backup";
+import { translateCvLanguage } from "@/lib/i18n-labels";
 import {
 	type AiToolStatus,
 	detectAiTools,
@@ -230,11 +231,27 @@ export function resolveEffectiveAiModel(
 export { claudeModelOptions, codexModelOptions, cursorModelOptions };
 
 export function applicationTitle(application: Pick<Application, "jobOffer">) {
-	return application.jobOffer.title.trim() || "Untitled role";
+	return (
+		application.jobOffer.title.trim() ||
+		i18n.t("app.application.untitledRole")
+	);
 }
 
 export function applicationCompany(application: Pick<Application, "jobOffer">) {
-	return application.jobOffer.company.trim() || "No company";
+	return (
+		application.jobOffer.company.trim() || i18n.t("app.application.noCompany")
+	);
+}
+
+function runLabel(language: CvLanguage, version: number) {
+	const languageLabel = translateCvLanguage(language);
+	if (version <= 1) {
+		return i18n.t("app.run.label", { language: languageLabel });
+	}
+	return i18n.t("app.run.labelVersioned", {
+		language: languageLabel,
+		version,
+	});
 }
 
 function toListItem(
@@ -506,7 +523,7 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 			try {
 				setAiStatuses(await detectAiTools());
 			} catch (error) {
-				toast.error("Could not detect AI tools", {
+				toast.error(i18n.t("app.toast.aiDetectFailed"), {
 					description: getErrorMessage(error),
 				});
 			}
@@ -569,7 +586,7 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 			throw new Error(
 				message.toLowerCase().includes("database")
 					? message
-					: `Could not write profile to the database: ${message}`,
+					: i18n.t("app.error.dbWriteProfile", { message }),
 			);
 		}
 	}
@@ -588,7 +605,7 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 		try {
 			await persistSettings(patch);
 		} catch (error) {
-			toast.error("Could not save AI settings", {
+			toast.error(i18n.t("app.toast.aiSettingsSaveFailed"), {
 				description: getErrorMessage(error),
 			});
 		}
@@ -622,7 +639,7 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 		try {
 			setAiStatuses(await detectAiTools());
 		} catch (error) {
-			toast.error("Could not detect AI tools", {
+			toast.error(i18n.t("app.toast.aiDetectFailed"), {
 				description: getErrorMessage(error),
 			});
 		}
@@ -1105,7 +1122,7 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 		}
 
 		if (!canUseSelectedAi) {
-			setJobReviewError("No AI tool is available for job review.");
+			setJobReviewError(i18n.t("app.error.noAiForReview"));
 			return;
 		}
 
@@ -1180,10 +1197,10 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 			setJobReviewError(
 				message.toLowerCase().includes("not logged in") ||
 					message.toLowerCase().includes("login")
-					? `${message} Try Settings → AI tool and pick Cursor, or run \`claude /login\`.`
+					? i18n.t("app.error.jobReviewLoginHint", { message })
 					: message,
 			);
-			toast.error("Job review failed", { description: message });
+			toast.error(i18n.t("app.toast.jobReviewFailed"), { description: message });
 		} finally {
 			setIsReviewingJobOffer(false);
 		}
@@ -1273,10 +1290,10 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 				applicationId: application.id,
 				profileId: profileRecord.id,
 				language,
-				label:
-					existingRunsForLanguage.length === 0
-						? cvLanguageLabel(language)
-						: `${cvLanguageLabel(language)} v${existingRunsForLanguage.length + 1}`,
+				label: runLabel(
+					language,
+					existingRunsForLanguage.length + 1,
+				),
 				cv: parsedCv,
 				signals,
 				matchAnalysis: analysis,
@@ -1298,11 +1315,15 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 			});
 			updateSettings({ activeRunId: runId });
 			setSelectedLanguageState(language);
-			toast.success(`${cvLanguageLabel(language)} CV generated`);
+			toast.success(
+				i18n.t("app.toast.cvGenerated", {
+					language: translateCvLanguage(language),
+				}),
+			);
 		} catch (error) {
 			const message = getErrorMessage(error);
 			setGenerationError(message);
-			toast.error("Generation failed", { description: message });
+			toast.error(i18n.t("app.toast.generationFailed"), { description: message });
 		} finally {
 			setIsGenerating(false);
 		}
@@ -1326,13 +1347,13 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 				activeApplication,
 				activeRun,
 			);
-			toast.success("PDF exported", {
+			toast.success(i18n.t("app.toast.pdfExported"), {
 				description: response.revealed
-					? "The PDF was revealed in Finder."
+					? i18n.t("app.toast.pdfRevealed")
 					: response.path,
 			});
 		} catch (error) {
-			toast.error("PDF export failed", {
+			toast.error(i18n.t("app.toast.pdfExportFailed"), {
 				description: getErrorMessage(error),
 			});
 		} finally {
@@ -1344,11 +1365,15 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 		setIsExportingData(true);
 		try {
 			const summary = await exportBackup(db);
-			toast.success("Backup exported", {
-				description: `${summary.profiles} profiles, ${summary.applications} applications, ${summary.cvRuns} CV versions.`,
+			toast.success(i18n.t("app.toast.backupExported"), {
+				description: i18n.t("app.toast.backupSummary", {
+					profiles: summary.profiles,
+					applications: summary.applications,
+					cvRuns: summary.cvRuns,
+				}),
 			});
 		} catch (error) {
-			toast.error("Export failed", {
+			toast.error(i18n.t("app.toast.exportFailed"), {
 				description: getErrorMessage(error),
 			});
 		} finally {
@@ -1366,13 +1391,19 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 			const summary = await importBackup(db, content, mode);
 			setProfileRevision((current) => current + 1);
 			toast.success(
-				mode === "replace" ? "Backup restored" : "Backup merged",
+				mode === "replace"
+					? i18n.t("app.toast.backupRestored")
+					: i18n.t("app.toast.backupMerged"),
 				{
-					description: `${summary.profiles} profiles, ${summary.applications} applications, ${summary.cvRuns} CV versions.`,
+					description: i18n.t("app.toast.backupSummary", {
+						profiles: summary.profiles,
+						applications: summary.applications,
+						cvRuns: summary.cvRuns,
+					}),
 				},
 			);
 		} catch (error) {
-			toast.error("Import failed", {
+			toast.error(i18n.t("app.toast.importFailed"), {
 				description: getErrorMessage(error),
 			});
 			throw error;
@@ -1514,7 +1545,7 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 				profileSnapshotUpdatedAtRef.current = undefined;
 				setProfileRevision((current) => current + 1);
 			} catch (error) {
-				toast.error("Could not save profile", {
+				toast.error(i18n.t("app.toast.profileSaveFailed"), {
 					description: getErrorMessage(error),
 				});
 			}
@@ -1538,7 +1569,7 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 				applyProfilePatch(draft, patch, now);
 			});
 		} catch (error) {
-			toast.error("Could not save profile", {
+			toast.error(i18n.t("app.toast.profileSaveFailed"), {
 				description: getErrorMessage(error),
 			});
 		}
@@ -1585,7 +1616,7 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 
 	function deleteProfile(id: string) {
 		if (profiles.length <= 1) {
-			toast.error("Cannot delete the last profile");
+			toast.error(i18n.t("app.toast.cannotDeleteLastProfile"));
 			return;
 		}
 
@@ -1593,8 +1624,8 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 			(item) => item.profileId === id,
 		);
 		if (linkedApplications.length > 0) {
-			toast.error("Profile has applications", {
-				description: "Delete or archive those applications first.",
+			toast.error(i18n.t("app.toast.profileHasApplications"), {
+				description: i18n.t("app.toast.profileHasApplicationsDescription"),
 			});
 			return;
 		}
@@ -1643,7 +1674,7 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 		const normalized = normalizeBaseProfile(next);
 		const now = new Date().toISOString();
 		const profileName =
-			options.name?.trim() || cvLanguageLabel(options.language);
+			options.name?.trim() || translateCvLanguage(options.language);
 
 		let record: ProfileRecord;
 		if (options.mode === "new") {
@@ -1825,4 +1856,4 @@ export function useCvApp() {
 	return context;
 }
 
-export { cvLanguageLabel, cvLanguages };
+export { translateCvLanguage as cvLanguageLabel, cvLanguages };

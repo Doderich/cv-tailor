@@ -17,8 +17,8 @@
 	"dependencies": {
 		"@cv-tailor/ai": "workspace:*",
 		"@cv-tailor/core": "workspace:*",
-		"@cv-tailor/env": "workspace:*",
 		"@cv-tailor/db": "workspace:*",
+		"@cv-tailor/env": "workspace:*",
 		"@cv-tailor/ui": "workspace:*",
 		"@hookform/resolvers": "^5.4.0",
 		"@tailwindcss/vite": "^4.3.2",
@@ -30,10 +30,13 @@
 		"@tauri-apps/api": "^2.11.1",
 		"@tauri-apps/plugin-sql": "^2.4.0",
 		"dotenv": "catalog:",
+		"i18next": "^26.3.6",
+		"i18next-browser-languagedetector": "^8.2.1",
 		"lucide-react": "catalog:",
 		"next-themes": "catalog:",
 		"react": "catalog:",
 		"react-dom": "catalog:",
+		"react-i18next": "^17.0.9",
 		"sonner": "catalog:",
 		"zod": "catalog:"
 	},

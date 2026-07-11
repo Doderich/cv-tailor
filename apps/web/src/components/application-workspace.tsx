@@ -1,4 +1,4 @@
-import { buildJobOfferFromFetchedPage, type Application, type CvLanguage, type CvRun, type JobPosition, jobOfferNeedsReview, jobPositionLabel, jobPositions } from "@cv-tailor/core";
+import { buildJobOfferFromFetchedPage, type Application, type CvLanguage, type CvRun, type JobPosition, jobOfferNeedsReview, jobPositions } from "@cv-tailor/core";
 import { Button } from "@cv-tailor/ui/components/button";
 import { Input } from "@cv-tailor/ui/components/input";
 import { Label } from "@cv-tailor/ui/components/label";
@@ -26,6 +26,7 @@ import {
 	WandSparkles,
 } from "lucide-react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
 import { ArrayLinesField } from "@/components/array-lines-field";
@@ -37,11 +38,8 @@ import {
 } from "@/components/cv/insights";
 import { applicationStepPath } from "@/lib/application-route";
 import { isAnalysisInProgress } from "@/lib/application-steps";
-import {
-	cvLanguageLabel,
-	cvLanguages,
-	useCvApp,
-} from "@/lib/cv-app-context";
+import { cvLanguages, useCvApp } from "@/lib/cv-app-context";
+import { useCvLanguageLabel, useJobPositionLabel } from "@/lib/i18n-labels";
 import { formatSourceError, parseSourceUrls } from "@/lib/profile-source-urls";
 import {
 	fetchUrlText,
@@ -174,6 +172,8 @@ function LanguagePicker({
 	value: CvLanguage;
 	onChange: (language: CvLanguage) => void;
 }) {
+	const cvLanguageLabel = useCvLanguageLabel();
+
 	return (
 		<div className="inline-flex rounded-lg border bg-card p-1">
 			{cvLanguages.map((language) => {
@@ -222,6 +222,8 @@ function PasteStep({
 	}) => void;
 	onContinue: () => void;
 }) {
+	const { t } = useTranslation();
+	const jobPositionLabel = useJobPositionLabel();
 	const [importMode, setImportMode] = useState<"paste" | "url">("paste");
 	const [sourceUrl, setSourceUrl] = useState(links[0] ?? "");
 	const [isFetching, setIsFetching] = useState(false);
@@ -252,12 +254,12 @@ function PasteStep({
 		const urls = parseSourceUrls(sourceUrl);
 		const url = urls[0];
 		if (!url) {
-			toast.error("Enter a valid job posting URL");
+			toast.error(t("application.jobDetails.toast.invalidUrl"));
 			return;
 		}
 
 		if (!canImportUrl) {
-			toast.error("URL import is available only in the desktop app");
+			toast.error(t("application.jobDetails.toast.urlImportDesktopOnly"));
 			return;
 		}
 
@@ -270,9 +272,9 @@ function PasteStep({
 			});
 			updateDraft(extracted);
 			onChange(extracted);
-			toast.success("Job posting imported from link");
+			toast.success(t("application.jobDetails.toast.importSuccess"));
 		} catch (error) {
-			toast.error("Could not import job posting", {
+			toast.error(t("application.jobDetails.toast.importFailed"), {
 				description: formatSourceError(error),
 			});
 		} finally {
@@ -285,9 +287,11 @@ function PasteStep({
 			<div className="grid gap-5 rounded-xl border bg-card p-5">
 				<div className="flex flex-wrap items-center justify-between gap-3">
 					<div>
-						<h3 className="font-medium text-sm">Job posting</h3>
+						<h3 className="font-medium text-sm">
+							{t("application.jobDetails.title")}
+						</h3>
 						<p className="text-muted-foreground text-xs">
-							Paste the offer or import it from a public link.
+							{t("application.jobDetails.subtitle")}
 						</p>
 					</div>
 					<div className="inline-flex rounded-md border bg-background p-0.5">
@@ -302,7 +306,7 @@ function PasteStep({
 							)}
 						>
 							<FileText className="size-3.5" />
-							Paste text
+							{t("application.jobDetails.mode.paste")}
 						</button>
 						<button
 							type="button"
@@ -315,7 +319,7 @@ function PasteStep({
 							)}
 						>
 							<Link2 className="size-3.5" />
-							From link
+							{t("application.jobDetails.mode.url")}
 						</button>
 					</div>
 				</div>
@@ -323,18 +327,20 @@ function PasteStep({
 				{importMode === "url" ? (
 					<div className="grid gap-3 rounded-lg border bg-muted/20 p-4">
 						<div className="grid gap-2">
-							<Label htmlFor="job-posting-url">Job posting URL</Label>
+							<Label htmlFor="job-posting-url">
+								{t("application.jobDetails.url.label")}
+							</Label>
 							<Input
 								id="job-posting-url"
 								value={sourceUrl}
 								onChange={(event) => setSourceUrl(event.target.value)}
-								placeholder="https://www.stepstone.de/stellenangebote--..."
+								placeholder={t("application.jobDetails.url.placeholder")}
 							/>
 						</div>
 						<p className="text-muted-foreground text-sm">
 							{canImportUrl
-								? "Paste a public job posting link. CV Tailor will fetch the page and fill in title, company, and description."
-								: "Open the desktop app to import job postings from a URL."}
+								? t("application.jobDetails.url.helpDesktop")
+								: t("application.jobDetails.url.helpWeb")}
 						</p>
 						<div className="flex justify-end">
 							<Button
@@ -346,7 +352,7 @@ function PasteStep({
 								) : (
 									<Link2 />
 								)}
-								Import from link
+								{t("application.jobDetails.url.importButton")}
 							</Button>
 						</div>
 					</div>
@@ -354,31 +360,41 @@ function PasteStep({
 
 				<div className="grid gap-4">
 					<div className="grid gap-2">
-						<Label htmlFor="job-title">Job title</Label>
+						<Label htmlFor="job-title">
+							{t("application.jobDetails.field.jobTitle.label")}
+						</Label>
 						<Input
 							id="job-title"
 							value={draft.title}
 							onChange={(event) =>
 								updateDraft({ title: event.target.value })
 							}
-							placeholder="Senior Frontend Engineer"
+							placeholder={t(
+								"application.jobDetails.field.jobTitle.placeholder",
+							)}
 						/>
 					</div>
 
 					<div className="grid gap-4 sm:grid-cols-2">
 						<div className="grid gap-2">
-							<Label htmlFor="job-company">Company</Label>
+							<Label htmlFor="job-company">
+								{t("application.jobDetails.field.company.label")}
+							</Label>
 							<Input
 								id="job-company"
 								value={draft.company}
 								onChange={(event) =>
 									updateDraft({ company: event.target.value })
 								}
-								placeholder="Acme Inc."
+								placeholder={t(
+									"application.jobDetails.field.company.placeholder",
+								)}
 							/>
 						</div>
 						<div className="grid gap-2">
-							<Label htmlFor="job-position-type">Position type</Label>
+							<Label htmlFor="job-position-type">
+								{t("application.jobDetails.field.positionType.label")}
+							</Label>
 							<Select
 								value={draft.position}
 								onValueChange={(value) => {
@@ -389,9 +405,15 @@ function PasteStep({
 							>
 								<SelectTrigger
 									id="job-position-type"
-									aria-label="Position type"
+									aria-label={t(
+										"application.jobDetails.field.positionType.ariaLabel",
+									)}
 								>
-									<SelectValue placeholder="Select position type">
+									<SelectValue
+										placeholder={t(
+											"application.jobDetails.field.positionType.placeholder",
+										)}
+									>
 										{jobPositionLabel(draft.position)}
 									</SelectValue>
 								</SelectTrigger>
@@ -407,22 +429,26 @@ function PasteStep({
 					</div>
 
 					<ArrayLinesField
-						label="Posting links"
+						label={t("application.jobDetails.field.links.label")}
 						values={draft.links}
 						onChange={(nextLinks) => updateDraft({ links: nextLinks })}
-						placeholder="https://www.stepstone.de/..."
+						placeholder={t("application.jobDetails.field.links.placeholder")}
 						rows={2}
 					/>
 
 					<div className="grid gap-2">
-						<Label htmlFor="job-description">Job description</Label>
+						<Label htmlFor="job-description">
+							{t("application.jobDetails.field.description.label")}
+						</Label>
 						<Textarea
 							id="job-description"
 							value={draft.rawText}
 							onChange={(event) =>
 								updateDraft({ rawText: event.target.value })
 							}
-							placeholder="Paste the full job offer text here."
+							placeholder={t(
+								"application.jobDetails.field.description.placeholder",
+							)}
 							rows={16}
 							className="min-h-56"
 						/>
@@ -431,7 +457,7 @@ function PasteStep({
 			</div>
 			<div className="flex justify-end">
 				<Button onClick={onContinue} disabled={!canContinue}>
-					Continue to review <ArrowRight />
+					{t("application.jobDetails.continue")} <ArrowRight />
 				</Button>
 			</div>
 		</div>
@@ -449,6 +475,7 @@ function ReviewStepContent({
 	onBack: () => void;
 	onContinue: () => void;
 }) {
+	const { t } = useTranslation();
 	const {
 		reviewActiveJobOffer,
 		analyzeActiveProfileMatch,
@@ -512,7 +539,7 @@ function ReviewStepContent({
 	if (!run) {
 		return (
 			<div className="rounded-xl border bg-card p-6 text-muted-foreground text-sm">
-				No CV run selected yet.
+				{t("application.review.noRun")}
 			</div>
 		);
 	}
@@ -525,25 +552,35 @@ function ReviewStepContent({
 	};
 	const isAnalyzing = isAnalysisInProgress(application, analysisState);
 	const canContinue = !isAnalyzing;
+	const statusMessage = isReviewingJobOffer
+		? t("application.review.status.reviewingJob")
+		: isAnalyzingProfileMatch
+			? t("application.review.status.analyzingMatch")
+			: isAnalyzing
+				? t("application.review.status.preparing")
+				: review
+					? t("application.review.status.reviewed", {
+							reviewTool: review.reviewTool,
+							evaluatorSuffix: matchAnalysis.evaluatorTool
+								? t("application.review.status.evaluatorWithTool", {
+										evaluatorTool: matchAnalysis.evaluatorTool,
+									})
+								: matchAnalysis.source === "draft"
+									? t("application.review.status.evaluatorHeuristics")
+									: "",
+						})
+					: canUseSelectedAi
+						? t("application.review.status.waiting")
+						: t("application.review.status.aiUnavailable");
 
 	return (
 		<div className="grid w-full gap-5">
 			<div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-card p-4">
 				<div className="grid gap-1">
-					<h3 className="font-medium text-sm">Job analysis</h3>
-					<p className="text-muted-foreground text-xs">
-						{isReviewingJobOffer
-							? "AI is reviewing the posting and extracting meaningful keywords."
-							: isAnalyzingProfileMatch
-								? "AI is evaluating how well your profile matches this role."
-								: isAnalyzing
-									? "Preparing job analysis…"
-									: review
-										? `Reviewed with ${review.reviewTool}. Match evaluated${matchAnalysis.evaluatorTool ? ` with ${matchAnalysis.evaluatorTool}` : matchAnalysis.source === "draft" ? " with keyword heuristics" : ""}.`
-										: canUseSelectedAi
-											? "Waiting for AI review."
-											: "AI review unavailable. Install a desktop AI tool to analyze this posting."}
-					</p>
+					<h3 className="font-medium text-sm">
+						{t("application.review.title")}
+					</h3>
+					<p className="text-muted-foreground text-xs">{statusMessage}</p>
 				</div>
 				<div className="flex flex-wrap gap-2">
 					<Button
@@ -559,7 +596,7 @@ function ReviewStepContent({
 						) : (
 							<Sparkles />
 						)}
-						Re-match profile
+						{t("application.review.rematch")}
 					</Button>
 					<Button
 						variant="outline"
@@ -572,14 +609,16 @@ function ReviewStepContent({
 						) : (
 							<Sparkles />
 						)}
-						Re-analyze job
+						{t("application.review.reanalyze")}
 					</Button>
 				</div>
 			</div>
 
 			{review?.summary ? (
 				<div className="rounded-xl border bg-card p-4 text-sm">
-					<h3 className="mb-2 font-medium text-sm">Role summary</h3>
+					<h3 className="mb-2 font-medium text-sm">
+						{t("application.review.roleSummary")}
+					</h3>
 					<p className="text-muted-foreground leading-relaxed">{review.summary}</p>
 				</div>
 			) : null}
@@ -610,21 +649,25 @@ function ReviewStepContent({
 
 			<div className="grid gap-3 sm:grid-cols-3">
 				<Metric
-					label="Profile match"
-					value={isAnalyzing ? "…" : `${matchAnalysis.score}%`}
+					label={t("application.review.metric.profileMatch")}
+					value={isAnalyzing ? t("common.loading") : `${matchAnalysis.score}%`}
 				/>
 				<Metric
-					label="Seniority"
-					value={isAnalyzing ? "…" : signals.seniority}
+					label={t("application.review.metric.seniority")}
+					value={isAnalyzing ? t("common.loading") : signals.seniority}
 				/>
 				<Metric
-					label="Keywords"
-					value={isAnalyzing ? "…" : signals.keywords.length.toString()}
+					label={t("application.review.metric.keywords")}
+					value={
+						isAnalyzing ? t("common.loading") : signals.keywords.length.toString()
+					}
 				/>
 			</div>
 
 			<section className="rounded-xl border bg-card p-4">
-				<h3 className="mb-3 font-medium text-sm">Detected keywords</h3>
+				<h3 className="mb-3 font-medium text-sm">
+					{t("application.review.detectedKeywords")}
+				</h3>
 				<KeywordMatchGrid
 					keywords={signals.keywords}
 					matchedKeywords={matchAnalysis.matchedKeywords}
@@ -634,19 +677,19 @@ function ReviewStepContent({
 
 			<div className="grid items-start gap-3 lg:grid-cols-2">
 				<MatchBulletList
-					title="Good fit"
+					title={t("application.review.goodFit.title")}
 					icon={CheckCircle2}
 					items={matchAnalysis.goodFit ?? []}
-					empty="No clear strengths detected yet. Re-match your profile after updating it."
+					empty={t("application.review.goodFit.empty")}
 					loading={isAnalyzing}
 					tone="positive"
 					limit={6}
 				/>
 				<MatchBulletList
-					title="Gaps to address"
+					title={t("application.review.gaps.title")}
 					icon={TriangleAlert}
 					items={matchAnalysis.missingRequirements}
-					empty="No clear gaps detected."
+					empty={t("application.review.gaps.empty")}
 					loading={isAnalyzing}
 					tone="negative"
 					limit={6}
@@ -655,10 +698,10 @@ function ReviewStepContent({
 
 			<div className="flex justify-between pt-1">
 				<Button variant="ghost" onClick={onBack}>
-					<ArrowLeft /> Back
+					<ArrowLeft /> {t("common.back")}
 				</Button>
 				<Button onClick={onContinue} disabled={!canContinue}>
-					Generate CV <ArrowRight />
+					{t("application.review.generateCv")} <ArrowRight />
 				</Button>
 			</div>
 		</div>
@@ -698,16 +741,19 @@ function TailorStep({
 	generationError: string | undefined;
 	rawCliOutput: string | undefined;
 }) {
+	const { t } = useTranslation();
+	const cvLanguageLabel = useCvLanguageLabel();
 	const hasRunForLanguage = run?.language === selectedLanguage;
 
 	return (
 		<div className="grid gap-4">
 			<div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-card p-4">
 				<div className="grid gap-2">
-					<p className="font-medium text-sm">Tailor the CV to this offer</p>
+					<p className="font-medium text-sm">
+						{t("application.generate.title")}
+					</p>
 					<p className="text-muted-foreground text-xs">
-						Choose a language, generate with your local AI, then refine any
-						section. Each language keeps its own version.
+						{t("application.generate.subtitle")}
 					</p>
 					<LanguagePicker
 						value={selectedLanguage}
@@ -716,7 +762,7 @@ function TailorStep({
 				</div>
 				<div className="flex items-center gap-2">
 					<Button variant="ghost" onClick={onBack}>
-						<ArrowLeft /> Back
+						<ArrowLeft /> {t("common.back")}
 					</Button>
 					<Button
 						variant="outline"
@@ -728,7 +774,7 @@ function TailorStep({
 						) : (
 							<Printer />
 						)}
-						Export PDF
+						{t("application.generate.exportPdf")}
 					</Button>
 					<Button
 						onClick={() => onGenerate(selectedLanguage)}
@@ -740,8 +786,12 @@ function TailorStep({
 							<WandSparkles />
 						)}
 						{hasRunForLanguage && run?.source !== "draft"
-							? `Regenerate ${cvLanguageLabel(selectedLanguage)}`
-							: `Generate ${cvLanguageLabel(selectedLanguage)}`}
+							? t("application.generate.regenerate", {
+									language: cvLanguageLabel(selectedLanguage),
+								})
+							: t("application.generate.generate", {
+									language: cvLanguageLabel(selectedLanguage),
+								})}
 					</Button>
 				</div>
 			</div>
@@ -750,15 +800,16 @@ function TailorStep({
 				<p className="flex items-center gap-2 rounded-lg border border-accent bg-accent/40 p-3 text-xs">
 					<FileText className="size-4 shrink-0" />
 					{isTauriRuntime()
-						? "Install or authenticate an AI tool (Claude, Codex, or Cursor), then refresh in settings."
-						: "Open the Tauri desktop app to run local AI generation. You can still edit manually."}
+						? t("application.generate.aiSetupDesktop")
+						: t("application.generate.aiSetupWeb")}
 				</p>
 			) : null}
 
 			{!hasRunForLanguage ? (
 				<p className="rounded-lg border bg-muted/40 p-3 text-muted-foreground text-sm">
-					No {cvLanguageLabel(selectedLanguage)} version yet. Generate one to
-					start editing and exporting.
+					{t("application.generate.noVersionYet", {
+						language: cvLanguageLabel(selectedLanguage),
+					})}
 				</p>
 			) : null}
 

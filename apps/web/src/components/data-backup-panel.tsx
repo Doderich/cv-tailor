@@ -4,6 +4,7 @@ import { cn } from "@cv-tailor/ui/lib/utils";
 import { useLiveQuery } from "@tanstack/react-db";
 import { Download, Loader2, Upload } from "lucide-react";
 import { useId, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import { useCvApp } from "@/lib/cv-app-context";
 import { useDb } from "@/lib/db-provider";
@@ -22,9 +23,10 @@ function ImportModeControl({
 	value: ImportMode;
 	onChange: (value: ImportMode) => void;
 }) {
+	const { t } = useTranslation();
 	const options: { id: ImportMode; label: string }[] = [
-		{ id: "merge", label: "Merge" },
-		{ id: "replace", label: "Replace all" },
+		{ id: "merge", label: t("backup.merge") },
+		{ id: "replace", label: t("backup.replaceAll") },
 	];
 
 	return (
@@ -52,6 +54,7 @@ function ImportModeControl({
 }
 
 export function DataBackupPanel() {
+	const { t } = useTranslation();
 	const db = useDb();
 	const { data: runs = [] } = useLiveQuery((q) => q.from({ run: db.cvRuns }));
 	const {
@@ -73,9 +76,7 @@ export function DataBackupPanel() {
 
 		if (
 			importMode === "replace" &&
-			!window.confirm(
-				"Replace all local data with this backup? This cannot be undone.",
-			)
+			!window.confirm(t("backup.confirmReplace"))
 		) {
 			return;
 		}
@@ -92,24 +93,29 @@ export function DataBackupPanel() {
 	return (
 		<div className="grid gap-4 rounded-xl border bg-card p-4">
 			<div className="grid gap-1">
-				<h3 className="font-medium text-base">Backup & restore</h3>
+				<h3 className="font-medium text-base">{t("backup.title")}</h3>
 				<p className="text-muted-foreground text-sm leading-relaxed">
-					Export profiles, applications, tailored CVs, AI outputs, and settings
-					to a JSON file. Import on this device or another installation.
+					{t("backup.description")}
 				</p>
 			</div>
 
 			<div className="grid gap-2 text-sm sm:grid-cols-3">
 				<div className="rounded-lg border bg-background px-3 py-2">
-					<div className="text-muted-foreground text-xs">Profiles</div>
+					<div className="text-muted-foreground text-xs">
+						{t("backup.profiles")}
+					</div>
 					<div className="font-medium">{profiles.length}</div>
 				</div>
 				<div className="rounded-lg border bg-background px-3 py-2">
-					<div className="text-muted-foreground text-xs">Applications</div>
+					<div className="text-muted-foreground text-xs">
+						{t("backup.applications")}
+					</div>
 					<div className="font-medium">{applications.length}</div>
 				</div>
 				<div className="rounded-lg border bg-background px-3 py-2">
-					<div className="text-muted-foreground text-xs">CV versions</div>
+					<div className="text-muted-foreground text-xs">
+						{t("backup.cvVersions")}
+					</div>
 					<div className="font-medium">{runs.length}</div>
 				</div>
 			</div>
@@ -125,7 +131,7 @@ export function DataBackupPanel() {
 					) : (
 						<Download />
 					)}
-					Export backup
+					{t("backup.export")}
 				</Button>
 
 				<Button
@@ -138,7 +144,7 @@ export function DataBackupPanel() {
 					) : (
 						<Upload />
 					)}
-					Import backup
+					{t("backup.import")}
 				</Button>
 				<input
 					ref={fileInputRef}
@@ -151,12 +157,12 @@ export function DataBackupPanel() {
 			</div>
 
 			<div className="grid gap-2">
-				<Label>Import mode</Label>
+				<Label>{t("backup.importMode")}</Label>
 				<ImportModeControl value={importMode} onChange={setImportMode} />
 				<p className="text-muted-foreground text-xs leading-relaxed">
 					{importMode === "merge"
-						? "Merge adds records from the backup that do not already exist. Existing records are kept."
-						: "Replace deletes all local data first, then restores the backup exactly."}
+						? t("backup.mergeHelp")
+						: t("backup.replaceHelp")}
 				</p>
 			</div>
 		</div>
