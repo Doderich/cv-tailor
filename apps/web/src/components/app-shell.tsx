@@ -21,14 +21,14 @@ import {
 	Search,
 	Settings,
 	Trash2,
-	X,
 } from "lucide-react";
 import { type ReactNode, useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { CommandPalette } from "@/components/command-palette";
+import { ApplicationStepTabBar } from "@/components/application-step-tab-bar";
 import { ScoreBadge } from "@/components/cv/score-badge";
 import { useAppMenuShortcuts } from "@/hooks/use-app-menu-shortcuts";
-import { applicationViewRegistry, viewMeta } from "@/lib/application-views";
+import { applicationStepPath } from "@/lib/application-route";
 import type { ApplicationListItem } from "@/lib/cv-app-context";
 import {
 	applicationCompany,
@@ -43,16 +43,31 @@ const sidebarCollapsedKey = "cv-tailor-sidebar-collapsed";
 const minSidebarWidth = 240;
 const maxSidebarWidth = 520;
 const defaultSidebarWidth = 300;
-const shellHeaderClassName =
-	"flex h-14 shrink-0 items-center gap-1.5 border-b px-3";
-const sidebarHeaderClassName = cn(
-	shellHeaderClassName,
-	"border-sidebar-border bg-sidebar",
-);
-const mainHeaderClassName = cn(
-	shellHeaderClassName,
-	"bg-background/95 backdrop-blur",
-);
+const shellHeaderHeight = "h-10";
+const macTitlebarDragHeight = "h-7";
+const macTitlebarInsetLeft = "pl-[4.875rem]";
+
+function MacTitlebarDragStrip({ className }: { className?: string }) {
+	if (!isDesktop) {
+		return null;
+	}
+
+	return (
+		<div
+			className={cn(macTitlebarDragHeight, "shrink-0", className)}
+			data-tauri-drag-region=""
+		/>
+	);
+}
+
+function HeaderDivider() {
+	return (
+		<div
+			className="mx-1 h-4 w-px shrink-0 bg-border"
+			{...(isDesktop ? { "data-tauri-drag-region": "" } : {})}
+		/>
+	);
+}
 
 function SidebarToggle({
 	onOpenRail,
@@ -89,13 +104,6 @@ function SidebarToggle({
 
 function clampWidth(value: number) {
 	return Math.min(maxSidebarWidth, Math.max(minSidebarWidth, value));
-}
-
-function saveLabel(saveStatus: ReturnType<typeof useCvApp>["saveStatus"]) {
-	if (saveStatus === "saving") return "Saving…";
-	if (saveStatus === "error") return "Save error";
-	if (saveStatus === "idle") return "Loading…";
-	return "All changes saved";
 }
 
 function ApplicationRailItem({
@@ -185,19 +193,19 @@ function ApplicationRail({ onNavigate }: { onNavigate?: () => void }) {
 	const {
 		activeApplications,
 		archivedApplications,
-		activeId,
-		aiStatuses,
 		archiveApplication,
 		createApplication,
 		deleteApplication,
 		restoreApplication,
 		openApplication,
-		saveStatus,
 	} = useCvApp();
 	const navigate = useNavigate();
 	const pathname = useRouterState({
 		select: (state) => state.location.pathname,
 	});
+	const activeApplicationId = pathname.startsWith("/application/")
+		? pathname.slice("/application/".length).split("/")[0]
+		: undefined;
 	const [query, setQuery] = useState("");
 	const [showArchived, setShowArchived] = useState(false);
 
@@ -208,22 +216,28 @@ function ApplicationRail({ onNavigate }: { onNavigate?: () => void }) {
 			.includes(term);
 	const visibleActive = activeApplications.filter(matches);
 	const visibleArchived = archivedApplications.filter(matches);
-	const readyTools = aiStatuses.filter((status) => status.available).length;
 
 	function handleOpen(id: string) {
 		openApplication(id);
-		void navigate({ to: "/" });
+		void navigate(applicationStepPath(id, "job-details"));
 		onNavigate?.();
 	}
 
 	function handleCreate() {
-		createApplication();
-		void navigate({ to: "/" });
+		const id = createApplication();
+		if (!id) {
+			return;
+		}
+
+		void navigate(applicationStepPath(id, "job-details"));
 		onNavigate?.();
 	}
 
 	function handleDelete(application: ApplicationListItem) {
 		const snapshot = deleteApplication(application.id);
+		if (application.id === activeApplicationId) {
+			void navigate({ to: "/" });
+		}
 		toast("Application deleted", {
 			description: applicationTitle(application),
 			action: snapshot
@@ -236,20 +250,23 @@ function ApplicationRail({ onNavigate }: { onNavigate?: () => void }) {
 	}
 
 	return (
-		<div className="flex h-full flex-col">
-			<header className={sidebarHeaderClassName}>
-				<div className="relative min-w-0 flex-1">
+		<div className="flex min-h-0 flex-1 flex-col">
+			<div
+				className={cn(
+					"flex min-h-0 flex-1 flex-col gap-3 px-3 pb-3",
+					isDesktop ? "pt-4" : "pt-3",
+				)}
+			>
+				<div className="relative min-w-0">
 					<Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
 					<Input
 						value={query}
 						onChange={(event) => setQuery(event.target.value)}
 						placeholder="Search applications"
-						className="h-10 w-full pl-9"
+						className="h-9 w-full bg-sidebar pl-9"
 					/>
 				</div>
-			</header>
 
-			<div className="flex min-h-0 flex-1 flex-col gap-3 p-3">
 			<Button className="w-full justify-center" onClick={handleCreate}>
 				<Plus /> New application
 			</Button>
@@ -268,7 +285,7 @@ function ApplicationRail({ onNavigate }: { onNavigate?: () => void }) {
 								<li key={application.id}>
 									<ApplicationRailItem
 										application={application}
-										active={application.id === activeId && pathname === "/"}
+										active={application.id === activeApplicationId}
 										onOpen={() => handleOpen(application.id)}
 										onArchiveToggle={() =>
 											archiveApplication(application.id, true)
@@ -301,7 +318,7 @@ function ApplicationRail({ onNavigate }: { onNavigate?: () => void }) {
 										<li key={application.id}>
 											<ApplicationRailItem
 												application={application}
-												active={application.id === activeId && pathname === "/"}
+												active={application.id === activeApplicationId}
 												onOpen={() => handleOpen(application.id)}
 												onArchiveToggle={() =>
 													archiveApplication(application.id, false)
@@ -317,7 +334,7 @@ function ApplicationRail({ onNavigate }: { onNavigate?: () => void }) {
 				</div>
 			</ScrollArea>
 
-			<div className="grid gap-2 border-sidebar-border border-t pt-3">
+			<div className="border-sidebar-border border-t p-3">
 				<Button
 					variant={pathname === "/settings" ? "secondary" : "ghost"}
 					className="w-full justify-start"
@@ -333,148 +350,75 @@ function ApplicationRail({ onNavigate }: { onNavigate?: () => void }) {
 						</kbd>
 					) : null}
 				</Button>
-				<div className="flex items-center justify-between gap-2 px-2 text-muted-foreground text-sm">
-					<span className={cn(saveStatus === "error" && "text-destructive")}>
-						{saveLabel(saveStatus)}
-					</span>
-					<span>
-						{readyTools}/{aiStatuses.length || 3} AI ready
-					</span>
-				</div>
 			</div>
 			</div>
 		</div>
 	);
 }
 
-function ViewTabBar({
+function ShellHeader({
+	center,
 	onOpenRail,
 	onToggleCollapse,
 	collapsed,
 }: {
+	center?: ReactNode;
 	onOpenRail: () => void;
 	onToggleCollapse: () => void;
 	collapsed: boolean;
 }) {
-	const {
-		activeApplication,
-		activeViews,
-		activeViewId,
-		openView,
-		closeView,
-		setActiveView,
-	} = useCvApp();
+	const dragRegion = isDesktop
+		? ({ "data-tauri-drag-region": "" } as const)
+		: {};
 
 	return (
 		<header
-			className={mainHeaderClassName}
-			data-tauri-drag-region={isDesktop ? "" : undefined}
-		>
-			<SidebarToggle
-				onOpenRail={onOpenRail}
-				onToggleCollapse={onToggleCollapse}
-				collapsed={collapsed}
-			/>
-
-			{activeApplication ? (
-				<div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto overscroll-x-none">
-					{activeViews.map((view) => {
-						const meta = viewMeta(view.type);
-						const Icon = meta.icon;
-						const active = view.id === activeViewId;
-						const isEditor = view.type === "editor";
-						const label = isEditor
-							? applicationTitle(activeApplication)
-							: meta.label;
-						return (
-							<div
-								key={view.id}
-								className={cn(
-									"group flex h-10 max-w-[260px] shrink-0 items-center gap-2 rounded-md border pr-1.5 pl-3 text-base transition-colors",
-									active
-										? "border-border bg-muted"
-										: "border-transparent hover:bg-muted/60",
-								)}
-							>
-								<button
-									type="button"
-									className="flex min-w-0 items-center gap-1.5 py-1"
-									onClick={() => setActiveView(view.id)}
-								>
-									{isEditor ? null : (
-										<Icon className="size-4 shrink-0 text-muted-foreground" />
-									)}
-									<span className="truncate" title={label}>
-										{label}
-									</span>
-									{meta.available ? null : (
-										<span className="rounded-full bg-accent px-1.5 py-0.5 text-[10px] text-accent-foreground uppercase">
-											soon
-										</span>
-									)}
-								</button>
-								{activeViews.length > 1 ? (
-									<button
-										type="button"
-										className="grid size-6 shrink-0 place-items-center rounded opacity-0 transition-opacity hover:bg-foreground/10 group-hover:opacity-100"
-										onClick={() => closeView(view.id)}
-										title="Close view"
-									>
-										<X className="size-4" />
-									</button>
-								) : null}
-							</div>
-						);
-					})}
-
-					<DropdownMenu>
-						<DropdownMenuTrigger
-							render={
-								<Button
-									variant="ghost"
-									size="icon-sm"
-									className="shrink-0"
-									title="Add view"
-								/>
-							}
-						>
-							<Plus />
-						</DropdownMenuTrigger>
-						<DropdownMenuContent align="start">
-							{applicationViewRegistry.map((meta) => {
-								const Icon = meta.icon;
-								return (
-									<DropdownMenuItem
-										key={meta.type}
-										onClick={() => openView(meta.type)}
-									>
-										<Icon />
-										<span className="flex-1">{meta.label}</span>
-										{meta.available ? null : (
-											<span className="rounded-full bg-accent px-1.5 py-px text-[9px] text-accent-foreground uppercase">
-												soon
-											</span>
-										)}
-									</DropdownMenuItem>
-								);
-							})}
-						</DropdownMenuContent>
-					</DropdownMenu>
-
-					<div
-						className="h-full min-w-8 flex-1 self-stretch"
-						data-tauri-drag-region={isDesktop ? "" : undefined}
-					/>
-				</div>
-			) : (
-				<div
-					className="flex h-full flex-1 items-center self-stretch pl-1 text-base text-muted-foreground"
-					data-tauri-drag-region={isDesktop ? "" : undefined}
-				>
-					No application open
-				</div>
+			className={cn(
+				"flex shrink-0 items-center border-b bg-background/95 backdrop-blur",
+				shellHeaderHeight,
 			)}
+			{...dragRegion}
+		>
+			{isDesktop && collapsed ? (
+				<div className={macTitlebarInsetLeft} {...dragRegion} aria-hidden />
+			) : null}
+			<div className="flex min-w-0 items-center gap-0.5 px-2">
+				<SidebarToggle
+					onOpenRail={onOpenRail}
+					onToggleCollapse={onToggleCollapse}
+					collapsed={collapsed}
+				/>
+				{center ? (
+					<>
+						<HeaderDivider />
+						<div className="flex min-w-0 items-center">{center}</div>
+					</>
+				) : null}
+			</div>
+
+			<div className="min-w-4 flex-1" {...dragRegion} aria-hidden />
 		</header>
+	);
+}
+
+function ApplicationStepHeader({
+	applicationId,
+	onOpenRail,
+	onToggleCollapse,
+	collapsed,
+}: {
+	applicationId: string;
+	onOpenRail: () => void;
+	onToggleCollapse: () => void;
+	collapsed: boolean;
+}) {
+	return (
+		<ShellHeader
+			onOpenRail={onOpenRail}
+			onToggleCollapse={onToggleCollapse}
+			collapsed={collapsed}
+			center={<ApplicationStepTabBar applicationId={applicationId} />}
+		/>
 	);
 }
 
@@ -494,23 +438,16 @@ function RouteTopBar({
 	title?: string;
 }) {
 	return (
-		<header
-			className={mainHeaderClassName}
-			data-tauri-drag-region={isDesktop ? "" : undefined}
-		>
-			<SidebarToggle
-				onOpenRail={onOpenRail}
-				onToggleCollapse={onToggleCollapse}
-				collapsed={collapsed}
-			/>
-			{title ? (
-				<h1 className="truncate px-1 font-semibold text-base font-heading">{title}</h1>
-			) : null}
-			<div
-				className="h-full flex-1 self-stretch"
-				data-tauri-drag-region={isDesktop ? "" : undefined}
-			/>
-		</header>
+		<ShellHeader
+			onOpenRail={onOpenRail}
+			onToggleCollapse={onToggleCollapse}
+			collapsed={collapsed}
+			center={
+				title ? (
+					<span className="truncate font-medium text-sm">{title}</span>
+				) : undefined
+			}
+		/>
 	);
 }
 
@@ -522,7 +459,10 @@ export function AppShell({ children }: { children: ReactNode }) {
 	const pathname = useRouterState({
 		select: (state) => state.location.pathname,
 	});
-	const showTabBar = pathname === "/";
+	const applicationId = pathname.startsWith("/application/")
+		? pathname.slice("/application/".length).split("/")[0]
+		: undefined;
+	const showStepHeader = Boolean(applicationId);
 
 	const toggleCollapsed = useCallback(() => {
 		setCollapsed((prev) => {
@@ -574,12 +514,6 @@ export function AppShell({ children }: { children: ReactNode }) {
 			className="app-shell flex h-svh flex-col overflow-hidden overscroll-none bg-background text-foreground"
 			style={{ "--rail-w": `${width}px` } as React.CSSProperties}
 		>
-			{isDesktop ? (
-				<div
-					className="h-7 shrink-0 border-b bg-sidebar"
-					data-tauri-drag-region=""
-				/>
-			) : null}
 			<div
 				className={cn(
 					"grid min-h-0 flex-1 grid-cols-1 [grid-template-rows:minmax(0,1fr)]",
@@ -590,10 +524,11 @@ export function AppShell({ children }: { children: ReactNode }) {
 			>
 				<aside
 					className={cn(
-						"relative hidden border-r bg-sidebar text-sidebar-foreground lg:h-full",
-						collapsed ? "lg:hidden" : "lg:block",
+						"relative hidden flex-col border-r bg-sidebar text-sidebar-foreground lg:flex lg:h-full",
+						collapsed ? "lg:hidden" : "lg:flex",
 					)}
 				>
+					<MacTitlebarDragStrip className="bg-sidebar" />
 					<ApplicationRail />
 					<div
 						onPointerDown={startResize}
@@ -617,8 +552,9 @@ export function AppShell({ children }: { children: ReactNode }) {
 				) : null}
 
 				<div className="flex min-h-0 flex-col">
-					{showTabBar ? (
-						<ViewTabBar
+					{showStepHeader && applicationId ? (
+						<ApplicationStepHeader
+							applicationId={applicationId}
 							onOpenRail={() => setRailOpen(true)}
 							onToggleCollapse={toggleCollapsed}
 							collapsed={collapsed}
