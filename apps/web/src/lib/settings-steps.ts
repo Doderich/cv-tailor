@@ -6,13 +6,13 @@ export interface SettingsStepMeta {
 }
 
 export const settingsSteps: SettingsStepMeta[] = [
-	{ id: "appearance", translationKey: "settings.tab.appearance" },
+	{ id: "profile", translationKey: "settings.tab.profile" },
 	{ id: "ai", translationKey: "settings.tab.ai" },
 	{ id: "data", translationKey: "settings.tab.data" },
-	{ id: "profile", translationKey: "settings.tab.profile" },
+	{ id: "appearance", translationKey: "settings.tab.appearance" },
 ];
 
-export const defaultSettingsStep: SettingsStepId = "appearance";
+export const defaultSettingsStep: SettingsStepId = "profile";
 
 export function parseSettingsStep(
 	pathname: string,

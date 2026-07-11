@@ -23,7 +23,13 @@ import {
 	Trash2,
 } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { type ReactNode, useCallback, useEffect, useState } from "react";
+import {
+	memo,
+	type ReactNode,
+	useCallback,
+	useEffect,
+	useState,
+} from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { AnimatedPage } from "@/components/animated-page";
@@ -51,15 +57,40 @@ const maxSidebarWidth = 520;
 const defaultSidebarWidth = 300;
 const shellHeaderHeight = "h-10";
 const macTitlebarInsetLeft = "pl-[4.875rem]";
+const sheetTitlebarInsetLeft = "pl-[5rem]";
+const sheetMotionClass =
+	"transition-transform duration-200 ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none";
+const sheetBackdropMotionClass =
+	"transition-opacity duration-150 ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none";
+
+function useMediaQuery(query: string) {
+	const [matches, setMatches] = useState(() =>
+		typeof window === "undefined" ? false : window.matchMedia(query).matches,
+	);
+
+	useEffect(() => {
+		const mediaQuery = window.matchMedia(query);
+		const onChange = () => setMatches(mediaQuery.matches);
+		onChange();
+		mediaQuery.addEventListener("change", onChange);
+		return () => mediaQuery.removeEventListener("change", onChange);
+	}, [query]);
+
+	return matches;
+}
 
 function SidebarToggle({
 	onOpenRail,
+	onCloseRail,
 	onToggleCollapse,
 	collapsed,
+	railOpen,
 }: {
 	onOpenRail: () => void;
+	onCloseRail: () => void;
 	onToggleCollapse: () => void;
 	collapsed: boolean;
+	railOpen: boolean;
 }) {
 	const { t } = useTranslation();
 
@@ -69,10 +100,12 @@ function SidebarToggle({
 				variant="ghost"
 				size="icon-sm"
 				className="lg:hidden"
-				onClick={onOpenRail}
-				title={t("shell.openApplications")}
+				onClick={railOpen ? onCloseRail : onOpenRail}
+				title={
+					railOpen ? t("shell.hideSidebar") : t("shell.openApplications")
+				}
 			>
-				<PanelLeft />
+				{railOpen ? <PanelLeftClose /> : <PanelLeft />}
 			</Button>
 			<Button
 				variant="ghost"
@@ -175,7 +208,13 @@ function ApplicationRailItem({
 	);
 }
 
-function ApplicationRail({ onNavigate }: { onNavigate?: () => void }) {
+function ApplicationRailContent({
+	onClose,
+	onNavigate,
+}: {
+	onClose?: () => void;
+	onNavigate?: () => void;
+}) {
 	const { t } = useTranslation();
 	const {
 		activeApplications,
@@ -237,9 +276,33 @@ function ApplicationRail({ onNavigate }: { onNavigate?: () => void }) {
 		});
 	}
 
+	const sheetDragRegion = isDesktop
+		? ({ "data-tauri-drag-region": "" } as const)
+		: {};
+
 	return (
 		<div className="flex min-h-0 flex-1 flex-col">
-			<div className={cn("flex min-h-0 flex-1 flex-col gap-3 px-3 pt-3 pb-3")}>
+			{onClose ? (
+				<div
+					className={cn(
+						"flex shrink-0 items-center border-sidebar-border border-b pr-2",
+						shellHeaderHeight,
+						isDesktop && sheetTitlebarInsetLeft,
+					)}
+					{...sheetDragRegion}
+				>
+					<Button
+						variant="ghost"
+						size="icon-sm"
+						className="ml-2 shrink-0"
+						onClick={onClose}
+						title={t("shell.hideSidebar")}
+					>
+						<PanelLeftClose />
+					</Button>
+				</div>
+			) : null}
+			<div className="flex min-h-0 flex-1 flex-col gap-3 px-3 pt-3 pb-3">
 				<div className="relative min-w-0">
 					<Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
 					<Input
@@ -351,16 +414,61 @@ function ApplicationRail({ onNavigate }: { onNavigate?: () => void }) {
 	);
 }
 
+const ApplicationRail = memo(ApplicationRailContent);
+ApplicationRail.displayName = "ApplicationRail";
+
+function MobileApplicationRailSheet({
+	open,
+	onClose,
+}: {
+	open: boolean;
+	onClose: () => void;
+}) {
+	const { t } = useTranslation();
+
+	return (
+		<div
+			className={cn("fixed inset-0 z-40", !open && "pointer-events-none")}
+			aria-hidden={!open}
+		>
+			<button
+				type="button"
+				aria-label={t("shell.closeMenu")}
+				tabIndex={open ? 0 : -1}
+				className={cn(
+					"absolute inset-0 bg-foreground/40",
+					sheetBackdropMotionClass,
+					open ? "opacity-100" : "opacity-0",
+				)}
+				onClick={onClose}
+			/>
+			<div
+				className={cn(
+					"absolute inset-y-0 left-0 flex w-72 transform-gpu flex-col border-r bg-sidebar text-sidebar-foreground shadow-xl",
+					sheetMotionClass,
+					open ? "translate-x-0 will-change-transform" : "-translate-x-full",
+				)}
+			>
+				<ApplicationRail onClose={onClose} onNavigate={onClose} />
+			</div>
+		</div>
+	);
+}
+
 function ShellHeader({
 	center,
 	onOpenRail,
+	onCloseRail,
 	onToggleCollapse,
 	collapsed,
+	railOpen,
 }: {
 	center?: ReactNode;
 	onOpenRail: () => void;
+	onCloseRail: () => void;
 	onToggleCollapse: () => void;
 	collapsed: boolean;
+	railOpen: boolean;
 }) {
 	const dragRegion = isDesktop
 		? ({ "data-tauri-drag-region": "" } as const)
@@ -378,8 +486,10 @@ function ShellHeader({
 			<div className="relative z-10 flex shrink-0 items-center px-2">
 				<SidebarToggle
 					onOpenRail={onOpenRail}
+					onCloseRail={onCloseRail}
 					onToggleCollapse={onToggleCollapse}
 					collapsed={collapsed}
+					railOpen={railOpen}
 				/>
 			</div>
 
@@ -395,19 +505,25 @@ function ShellHeader({
 function ApplicationStepHeader({
 	applicationId,
 	onOpenRail,
+	onCloseRail,
 	onToggleCollapse,
 	collapsed,
+	railOpen,
 }: {
 	applicationId: string;
 	onOpenRail: () => void;
+	onCloseRail: () => void;
 	onToggleCollapse: () => void;
 	collapsed: boolean;
+	railOpen: boolean;
 }) {
 	return (
 		<ShellHeader
 			onOpenRail={onOpenRail}
+			onCloseRail={onCloseRail}
 			onToggleCollapse={onToggleCollapse}
 			collapsed={collapsed}
+			railOpen={railOpen}
 			center={<ApplicationStepTabBar applicationId={applicationId} />}
 		/>
 	);
@@ -415,18 +531,24 @@ function ApplicationStepHeader({
 
 function SettingsStepHeader({
 	onOpenRail,
+	onCloseRail,
 	onToggleCollapse,
 	collapsed,
+	railOpen,
 }: {
 	onOpenRail: () => void;
+	onCloseRail: () => void;
 	onToggleCollapse: () => void;
 	collapsed: boolean;
+	railOpen: boolean;
 }) {
 	return (
 		<ShellHeader
 			onOpenRail={onOpenRail}
+			onCloseRail={onCloseRail}
 			onToggleCollapse={onToggleCollapse}
 			collapsed={collapsed}
+			railOpen={railOpen}
 			center={<SettingsTabBar />}
 		/>
 	);
@@ -434,18 +556,24 @@ function SettingsStepHeader({
 
 function RouteTopBar({
 	onOpenRail,
+	onCloseRail,
 	onToggleCollapse,
 	collapsed,
+	railOpen,
 }: {
 	onOpenRail: () => void;
+	onCloseRail: () => void;
 	onToggleCollapse: () => void;
 	collapsed: boolean;
+	railOpen: boolean;
 }) {
 	return (
 		<ShellHeader
 			onOpenRail={onOpenRail}
+			onCloseRail={onCloseRail}
 			onToggleCollapse={onToggleCollapse}
 			collapsed={collapsed}
+			railOpen={railOpen}
 		/>
 	);
 }
@@ -456,6 +584,7 @@ export function AppShell() {
 	const [collapsed, setCollapsed] = useState(false);
 	const [width, setWidth] = useState(defaultSidebarWidth);
 	const reduced = useReducedMotion();
+	const isLargeScreen = useMediaQuery("(min-width: 1024px)");
 	useAppMenuShortcuts();
 	useDesktopUpdater();
 	const pathname = useRouterState({
@@ -474,6 +603,8 @@ export function AppShell() {
 			return next;
 		});
 	}, []);
+	const openRail = useCallback(() => setRailOpen(true), []);
+	const closeRail = useCallback(() => setRailOpen(false), []);
 
 	useEffect(() => {
 		const stored = window.localStorage.getItem(sidebarWidthKey);
@@ -482,6 +613,12 @@ export function AppShell() {
 		}
 		setCollapsed(window.localStorage.getItem(sidebarCollapsedKey) === "true");
 	}, []);
+
+	useEffect(() => {
+		if (isLargeScreen && railOpen) {
+			setRailOpen(false);
+		}
+	}, [isLargeScreen, railOpen]);
 
 	const startResize = useCallback(
 		(event: React.PointerEvent) => {
@@ -520,21 +657,27 @@ export function AppShell() {
 			{showStepHeader && applicationId ? (
 				<ApplicationStepHeader
 					applicationId={applicationId}
-					onOpenRail={() => setRailOpen(true)}
+					onOpenRail={openRail}
+					onCloseRail={closeRail}
 					onToggleCollapse={toggleCollapsed}
 					collapsed={collapsed}
+					railOpen={railOpen}
 				/>
 			) : isSettingsRoute ? (
 				<SettingsStepHeader
-					onOpenRail={() => setRailOpen(true)}
+					onOpenRail={openRail}
+					onCloseRail={closeRail}
 					onToggleCollapse={toggleCollapsed}
 					collapsed={collapsed}
+					railOpen={railOpen}
 				/>
 			) : (
 				<RouteTopBar
-					onOpenRail={() => setRailOpen(true)}
+					onOpenRail={openRail}
+					onCloseRail={closeRail}
 					onToggleCollapse={toggleCollapsed}
 					collapsed={collapsed}
+					railOpen={railOpen}
 				/>
 			)}
 			<div className="flex min-h-0 flex-1">
@@ -555,37 +698,12 @@ export function AppShell() {
 					</div>
 				</motion.aside>
 
-				<AnimatePresence>
-					{railOpen ? (
-						<motion.div
-							key="mobile-rail"
-							initial={{ opacity: 0 }}
-							animate={{ opacity: 1 }}
-							exit={{ opacity: 0 }}
-							transition={transitionForReduced(reduced, transitions.fast)}
-							className="fixed inset-0 z-40 lg:hidden"
-						>
-							<button
-								type="button"
-								aria-label={t("shell.closeMenu")}
-								className="absolute inset-0 bg-foreground/40"
-								onClick={() => setRailOpen(false)}
-							/>
-							<motion.div
-								initial={{ x: "-100%" }}
-								animate={{ x: 0 }}
-								exit={{ x: "-100%" }}
-								transition={transitionForReduced(reduced, transitions.drawer)}
-								className="absolute inset-y-0 left-0 flex w-72 flex-col border-r bg-sidebar text-sidebar-foreground shadow-xl"
-							>
-								<ApplicationRail onNavigate={() => setRailOpen(false)} />
-							</motion.div>
-						</motion.div>
-					) : null}
-				</AnimatePresence>
+				{isLargeScreen ? null : (
+					<MobileApplicationRailSheet open={railOpen} onClose={closeRail} />
+				)}
 
 				<motion.div
-					layout
+					layout={isLargeScreen}
 					transition={transitionForReduced(reduced, transitions.sidebar)}
 					className="min-h-0 min-w-0 flex-1"
 				>
