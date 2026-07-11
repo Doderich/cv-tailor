@@ -1,0 +1,25 @@
+package.json
+  s_8be3ec8959c8da::t_50198d34f44850 31
+scripts/clean-install.sh
+  s_8be3ec8959c8da::t_e58f0d309ae190 1-16
+scripts/clean-install.ps1
+  s_8be3ec8959c8da::t_30f173416b4912 1-34
+scripts/clean-install-dispatch.mjs
+  s_8be3ec8959c8da::t_b50e164627f7a4 1-25
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "9ced73ecc2c9c21d08dc5baf1c24305a716fea8d",
+  "prompts": {},
+  "sessions": {
+    "s_8be3ec8959c8da": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "ca52c269-3eb9-4927-b85a-ae74c9955dc2",
+        "model": "composer-2.5"
+      },
+      "human_author": "Malte Budig <malte.budig@gmx.net>"
+    }
+  }
+}
