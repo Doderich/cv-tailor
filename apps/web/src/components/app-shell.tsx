@@ -26,6 +26,7 @@ import { type ReactNode, useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { CommandPalette } from "@/components/command-palette";
 import { ApplicationStepTabBar } from "@/components/application-step-tab-bar";
+import { SettingsTabBar } from "@/components/settings-tab-bar";
 import { ScoreBadge } from "@/components/cv/score-badge";
 import { useAppMenuShortcuts } from "@/hooks/use-app-menu-shortcuts";
 import { applicationStepPath } from "@/lib/application-route";
@@ -44,30 +45,7 @@ const minSidebarWidth = 240;
 const maxSidebarWidth = 520;
 const defaultSidebarWidth = 300;
 const shellHeaderHeight = "h-10";
-const macTitlebarDragHeight = "h-7";
 const macTitlebarInsetLeft = "pl-[4.875rem]";
-
-function MacTitlebarDragStrip({ className }: { className?: string }) {
-	if (!isDesktop) {
-		return null;
-	}
-
-	return (
-		<div
-			className={cn(macTitlebarDragHeight, "shrink-0", className)}
-			data-tauri-drag-region=""
-		/>
-	);
-}
-
-function HeaderDivider() {
-	return (
-		<div
-			className="mx-1 h-4 w-px shrink-0 bg-border"
-			{...(isDesktop ? { "data-tauri-drag-region": "" } : {})}
-		/>
-	);
-}
 
 function SidebarToggle({
 	onOpenRail,
@@ -253,8 +231,7 @@ function ApplicationRail({ onNavigate }: { onNavigate?: () => void }) {
 		<div className="flex min-h-0 flex-1 flex-col">
 			<div
 				className={cn(
-					"flex min-h-0 flex-1 flex-col gap-3 px-3 pb-3",
-					isDesktop ? "pt-4" : "pt-3",
+					"flex min-h-0 flex-1 flex-col gap-3 px-3 pt-3 pb-3",
 				)}
 			>
 				<div className="relative min-w-0">
@@ -336,7 +313,7 @@ function ApplicationRail({ onNavigate }: { onNavigate?: () => void }) {
 
 			<div className="border-sidebar-border border-t p-3">
 				<Button
-					variant={pathname === "/settings" ? "secondary" : "ghost"}
+					variant={pathname.startsWith("/settings") ? "secondary" : "ghost"}
 					className="w-full justify-start"
 					onClick={() => {
 						void navigate({ to: "/settings" });
@@ -374,29 +351,35 @@ function ShellHeader({
 	return (
 		<header
 			className={cn(
-				"flex shrink-0 items-center border-b bg-background/95 backdrop-blur",
+				center ? "grid grid-cols-[1fr_auto_1fr]" : "flex",
+				"shrink-0 items-center border-b bg-background/95 backdrop-blur",
 				shellHeaderHeight,
 			)}
 			{...dragRegion}
 		>
-			{isDesktop && collapsed ? (
-				<div className={macTitlebarInsetLeft} {...dragRegion} aria-hidden />
-			) : null}
-			<div className="flex min-w-0 items-center gap-0.5 px-2">
+			<div className="flex w-full min-w-0 items-center gap-0.5 px-2">
+				{isDesktop ? (
+					<div className={macTitlebarInsetLeft} {...dragRegion} aria-hidden />
+				) : null}
 				<SidebarToggle
 					onOpenRail={onOpenRail}
 					onToggleCollapse={onToggleCollapse}
 					collapsed={collapsed}
 				/>
 				{center ? (
-					<>
-						<HeaderDivider />
-						<div className="flex min-w-0 items-center">{center}</div>
-					</>
+					<div className="min-w-0 flex-1" {...dragRegion} aria-hidden />
 				) : null}
 			</div>
 
-			<div className="min-w-4 flex-1" {...dragRegion} aria-hidden />
+			{center ? (
+				<div className="flex min-w-0 justify-center px-2">{center}</div>
+			) : null}
+
+			<div
+				className={cn(center ? "min-w-0" : "min-w-4 flex-1")}
+				{...dragRegion}
+				aria-hidden
+			/>
 		</header>
 	);
 }
@@ -422,31 +405,39 @@ function ApplicationStepHeader({
 	);
 }
 
-const routeTitles: Record<string, string> = {
-	"/settings": "Settings",
-};
-
-function RouteTopBar({
+function SettingsStepHeader({
 	onOpenRail,
 	onToggleCollapse,
 	collapsed,
-	title,
 }: {
 	onOpenRail: () => void;
 	onToggleCollapse: () => void;
 	collapsed: boolean;
-	title?: string;
 }) {
 	return (
 		<ShellHeader
 			onOpenRail={onOpenRail}
 			onToggleCollapse={onToggleCollapse}
 			collapsed={collapsed}
-			center={
-				title ? (
-					<span className="truncate font-medium text-sm">{title}</span>
-				) : undefined
-			}
+			center={<SettingsTabBar />}
+		/>
+	);
+}
+
+function RouteTopBar({
+	onOpenRail,
+	onToggleCollapse,
+	collapsed,
+}: {
+	onOpenRail: () => void;
+	onToggleCollapse: () => void;
+	collapsed: boolean;
+}) {
+	return (
+		<ShellHeader
+			onOpenRail={onOpenRail}
+			onToggleCollapse={onToggleCollapse}
+			collapsed={collapsed}
 		/>
 	);
 }
@@ -462,6 +453,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 	const applicationId = pathname.startsWith("/application/")
 		? pathname.slice("/application/".length).split("/")[0]
 		: undefined;
+	const isSettingsRoute = pathname.startsWith("/settings");
 	const showStepHeader = Boolean(applicationId);
 
 	const toggleCollapsed = useCallback(() => {
@@ -514,6 +506,26 @@ export function AppShell({ children }: { children: ReactNode }) {
 			className="app-shell flex h-svh flex-col overflow-hidden overscroll-none bg-background text-foreground"
 			style={{ "--rail-w": `${width}px` } as React.CSSProperties}
 		>
+			{showStepHeader && applicationId ? (
+				<ApplicationStepHeader
+					applicationId={applicationId}
+					onOpenRail={() => setRailOpen(true)}
+					onToggleCollapse={toggleCollapsed}
+					collapsed={collapsed}
+				/>
+			) : isSettingsRoute ? (
+				<SettingsStepHeader
+					onOpenRail={() => setRailOpen(true)}
+					onToggleCollapse={toggleCollapsed}
+					collapsed={collapsed}
+				/>
+			) : (
+				<RouteTopBar
+					onOpenRail={() => setRailOpen(true)}
+					onToggleCollapse={toggleCollapsed}
+					collapsed={collapsed}
+				/>
+			)}
 			<div
 				className={cn(
 					"grid min-h-0 flex-1 grid-cols-1 [grid-template-rows:minmax(0,1fr)]",
@@ -528,7 +540,6 @@ export function AppShell({ children }: { children: ReactNode }) {
 						collapsed ? "lg:hidden" : "lg:flex",
 					)}
 				>
-					<MacTitlebarDragStrip className="bg-sidebar" />
 					<ApplicationRail />
 					<div
 						onPointerDown={startResize}
@@ -551,26 +562,9 @@ export function AppShell({ children }: { children: ReactNode }) {
 					</div>
 				) : null}
 
-				<div className="flex min-h-0 flex-col">
-					{showStepHeader && applicationId ? (
-						<ApplicationStepHeader
-							applicationId={applicationId}
-							onOpenRail={() => setRailOpen(true)}
-							onToggleCollapse={toggleCollapsed}
-							collapsed={collapsed}
-						/>
-					) : (
-						<RouteTopBar
-							onOpenRail={() => setRailOpen(true)}
-							onToggleCollapse={toggleCollapsed}
-							collapsed={collapsed}
-							title={routeTitles[pathname]}
-						/>
-					)}
-					<ScrollArea className="min-h-0 flex-1">
-						<main>{children}</main>
-					</ScrollArea>
-				</div>
+				<ScrollArea className="min-h-0 flex-1">
+					<main>{children}</main>
+				</ScrollArea>
 			</div>
 			<CommandPalette />
 		</div>
