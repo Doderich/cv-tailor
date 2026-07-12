@@ -12,6 +12,11 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 
 import {
+	buildGithubReleaseDownloadUrl,
+	toGithubReleaseAssetName,
+	verifyReleaseAssetUrls,
+} from "./desktop-release-shared.ts";
+import {
 	type BumpLevel,
 	getLatestGitHubReleaseVersion,
 	readConfiguredVersion,
