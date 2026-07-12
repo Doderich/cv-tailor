@@ -1,11 +1,11 @@
-import { toast } from "sonner";
-
 import { isTauriRuntime } from "@/lib/tauri-ai";
 
 export const DESKTOP_UPDATER_ENDPOINT =
 	"https://github.com/Doderich/cv-tailor/releases/latest/download/latest.json";
 
 export const DESKTOP_UPDATE_CHECKED_EVENT = "cv-tailor:desktop-update-checked";
+
+const PENDING_RESTART_VERSION_KEY = "cv-tailor:pending-restart-version";
 
 export type DesktopUpdateStatus =
 	| "skipped"
@@ -15,6 +15,7 @@ export type DesktopUpdateStatus =
 	| "declined"
 	| "installing"
 	| "installed"
+	| "ready_to_restart"
 	| "error";
 
 export type DesktopUpdateCheckResult = {
@@ -30,6 +31,7 @@ export type DesktopAppInfo = {
 	version: string;
 	appName: string;
 	expectedUpdaterArchive: string;
+	expectedGithubUpdaterArchive: string;
 	platform: string;
 	arch: string;
 	osVersion: string;
@@ -37,10 +39,45 @@ export type DesktopAppInfo = {
 	updaterEnabled: boolean;
 };
 
+type PendingDesktopUpdate = {
+	version: string;
+	body?: string | null;
+	downloadAndInstall: () => Promise<void>;
+};
+
 let lastCheckResult: DesktopUpdateCheckResult | null = null;
+let pendingDesktopUpdate: PendingDesktopUpdate | null = null;
 
 export function getLastDesktopUpdateCheck() {
 	return lastCheckResult;
+}
+
+export function hasPendingDesktopUpdate() {
+	return pendingDesktopUpdate !== null;
+}
+
+export function getPendingRestartVersion() {
+	if (typeof window === "undefined") {
+		return null;
+	}
+
+	return window.sessionStorage.getItem(PENDING_RESTART_VERSION_KEY);
+}
+
+export function clearPendingRestartVersion() {
+	if (typeof window === "undefined") {
+		return;
+	}
+
+	window.sessionStorage.removeItem(PENDING_RESTART_VERSION_KEY);
+}
+
+function rememberPendingRestart(version: string) {
+	if (typeof window === "undefined") {
+		return;
+	}
+
+	window.sessionStorage.setItem(PENDING_RESTART_VERSION_KEY, version);
 }
 
 export function subscribeDesktopUpdateChecks(
@@ -61,6 +98,29 @@ function publishCheckResult(result: DesktopUpdateCheckResult) {
 	);
 }
 
+export function toGithubReleaseAssetName(fileName: string) {
+	return fileName.replace(/ /g, ".");
+}
+
+export function updaterArchivesMatch(
+	localArchive: string,
+	remoteArchive: string,
+) {
+	if (localArchive === remoteArchive) {
+		return true;
+	}
+
+	if (toGithubReleaseAssetName(localArchive) === remoteArchive) {
+		return true;
+	}
+
+	if (localArchive === toGithubReleaseAssetName(remoteArchive)) {
+		return true;
+	}
+
+	return false;
+}
+
 export async function loadDesktopAppInfo(): Promise<DesktopAppInfo | null> {
 	if (!isTauriRuntime()) {
 		return null;
@@ -74,26 +134,21 @@ export async function loadDesktopAppInfo(): Promise<DesktopAppInfo | null> {
 
 	const isDevBuild = import.meta.env.DEV;
 	const appName = await getName();
+	const expectedUpdaterArchive = `${appName}.app.tar.gz`;
 
 	return {
 		version: await getVersion(),
 		appName,
-		expectedUpdaterArchive: `${appName}.app.tar.gz`,
+		expectedUpdaterArchive,
+		expectedGithubUpdaterArchive: toGithubReleaseAssetName(
+			expectedUpdaterArchive,
+		),
 		platform: platform(),
 		arch: arch(),
 		osVersion: version(),
 		isDevBuild,
 		updaterEnabled: !isDevBuild,
 	};
-}
-
-async function confirmInstall(version: string, body?: string | null) {
-	const { ask } = await import("@tauri-apps/plugin-dialog");
-
-	return ask(body?.trim() || "Install the update and restart?", {
-		title: `CV Tailor ${version} is available`,
-		kind: "info",
-	});
 }
 
 function formatUpdaterError(
@@ -126,50 +181,13 @@ function formatUpdaterError(
 		: "Update check failed.";
 }
 
-function notifyForResult(
-	result: DesktopUpdateCheckResult,
-	notify: boolean | "errors-only",
-) {
-	if (!notify) {
-		return;
-	}
-
-	if (notify === "errors-only" && result.status !== "error") {
-		return;
-	}
-
-	switch (result.status) {
-		case "current":
-			toast.success(
-				result.currentVersion
-					? `You're up to date (v${result.currentVersion}).`
-					: "You're up to date.",
-			);
-			return;
-		case "dev_skipped":
-		case "skipped":
-			toast.message(result.message ?? "Update check skipped.");
-			return;
-		case "error":
-			toast.error(result.message ?? "Update check failed.");
-			return;
-		case "installing":
-			toast.message(`Installing CV Tailor ${result.availableVersion}…`);
-			return;
-		default:
-			return;
-	}
-}
-
-export async function checkForDesktopUpdate(options?: {
-	promptBeforeInstall?: boolean;
-	notify?: boolean | "errors-only";
+export async function checkDesktopUpdate(options?: {
 	allowDevCheck?: boolean;
 }): Promise<DesktopUpdateCheckResult> {
 	const checkedAt = new Date().toISOString();
-	const promptBeforeInstall = options?.promptBeforeInstall ?? true;
-	const notify = options?.notify ?? promptBeforeInstall;
 	const allowDevCheck = options?.allowDevCheck ?? false;
+
+	pendingDesktopUpdate = null;
 
 	const appInfo = await loadDesktopAppInfo();
 
@@ -180,7 +198,6 @@ export async function checkForDesktopUpdate(options?: {
 			message: "Not running in the desktop app.",
 		};
 		publishCheckResult(result);
-		notifyForResult(result, notify);
 		return result;
 	}
 
@@ -192,7 +209,6 @@ export async function checkForDesktopUpdate(options?: {
 			message: "Update checks are disabled in development builds.",
 		};
 		publishCheckResult(result);
-		notifyForResult(result, notify);
 		return result;
 	}
 
@@ -211,7 +227,6 @@ export async function checkForDesktopUpdate(options?: {
 				message,
 			};
 			publishCheckResult(result);
-			notifyForResult(result, notify);
 			return result;
 		}
 
@@ -222,9 +237,14 @@ export async function checkForDesktopUpdate(options?: {
 				checkedAt,
 			};
 			publishCheckResult(result);
-			notifyForResult(result, notify);
 			return result;
 		}
+
+		pendingDesktopUpdate = {
+			version: update.version,
+			body: update.body,
+			downloadAndInstall: () => update.downloadAndInstall(),
+		};
 
 		const available: DesktopUpdateCheckResult = {
 			status: "available",
@@ -234,53 +254,7 @@ export async function checkForDesktopUpdate(options?: {
 			checkedAt,
 		};
 		publishCheckResult(available);
-
-		const shouldInstall =
-			!promptBeforeInstall ||
-			(await confirmInstall(update.version, update.body));
-
-		if (!shouldInstall) {
-			const declined: DesktopUpdateCheckResult = {
-				...available,
-				status: "declined",
-			};
-			publishCheckResult(declined);
-			return declined;
-		}
-
-		const installing: DesktopUpdateCheckResult = {
-			...available,
-			status: "installing",
-		};
-		publishCheckResult(installing);
-		notifyForResult(installing, notify);
-
-		try {
-			await update.downloadAndInstall();
-		} catch (error) {
-			const message = formatUpdaterError(error, "install");
-			const result: DesktopUpdateCheckResult = {
-				status: "error",
-				currentVersion: appInfo.version,
-				availableVersion: update.version,
-				checkedAt,
-				message,
-			};
-			publishCheckResult(result);
-			notifyForResult(result, notify);
-			return result;
-		}
-
-		const installed: DesktopUpdateCheckResult = {
-			...available,
-			status: "installed",
-		};
-		publishCheckResult(installed);
-
-		const { relaunch } = await import("@tauri-apps/plugin-process");
-		await relaunch();
-
-		return installed;
+		return available;
 	} catch (error) {
 		const message = formatUpdaterError(error, "check");
 		const result: DesktopUpdateCheckResult = {
@@ -290,9 +264,84 @@ export async function checkForDesktopUpdate(options?: {
 			message,
 		};
 		publishCheckResult(result);
-		notifyForResult(result, notify);
 		return result;
 	}
+}
+
+export async function installPendingDesktopUpdate(): Promise<DesktopUpdateCheckResult> {
+	const checkedAt = new Date().toISOString();
+	const appInfo = await loadDesktopAppInfo();
+	const pending = pendingDesktopUpdate;
+
+	if (!pending) {
+		const result: DesktopUpdateCheckResult = {
+			status: "error",
+			checkedAt,
+			currentVersion: appInfo?.version,
+			message: "No pending update is available to install.",
+		};
+		publishCheckResult(result);
+		return result;
+	}
+
+	const installing: DesktopUpdateCheckResult = {
+		status: "installing",
+		currentVersion: appInfo?.version,
+		availableVersion: pending.version,
+		releaseNotes: pending.body ?? undefined,
+		checkedAt,
+	};
+	publishCheckResult(installing);
+
+	try {
+		await pending.downloadAndInstall();
+	} catch (error) {
+		const message = formatUpdaterError(error, "install");
+		const result: DesktopUpdateCheckResult = {
+			status: "error",
+			currentVersion: appInfo?.version,
+			availableVersion: pending.version,
+			checkedAt,
+			message,
+		};
+		publishCheckResult(result);
+		return result;
+	} finally {
+		pendingDesktopUpdate = null;
+	}
+
+	rememberPendingRestart(pending.version);
+
+	const ready: DesktopUpdateCheckResult = {
+		status: "ready_to_restart",
+		currentVersion: appInfo?.version,
+		availableVersion: pending.version,
+		releaseNotes: pending.body ?? undefined,
+		checkedAt,
+	};
+	publishCheckResult(ready);
+	return ready;
+}
+
+export async function relaunchDesktopApp() {
+	clearPendingRestartVersion();
+	const { relaunch } = await import("@tauri-apps/plugin-process");
+	await relaunch();
+}
+
+export async function checkForDesktopUpdate(options?: {
+	allowDevCheck?: boolean;
+	installImmediately?: boolean;
+}): Promise<DesktopUpdateCheckResult> {
+	const result = await checkDesktopUpdate({
+		allowDevCheck: options?.allowDevCheck,
+	});
+
+	if (result.status === "available" && options?.installImmediately) {
+		return installPendingDesktopUpdate();
+	}
+
+	return result;
 }
 
 export type UpdaterManifestDebugInfo = {
@@ -366,11 +415,17 @@ export function getUpdaterBundleMismatchHint(options: {
 	}
 
 	const remoteArchive = archiveNameFromUrl(platformArtifact.url);
-	if (remoteArchive === options.appInfo.expectedUpdaterArchive) {
+	const expectedArchive = options.appInfo.expectedUpdaterArchive;
+
+	if (updaterArchivesMatch(expectedArchive, remoteArchive)) {
 		return null;
 	}
 
-	return `Installed app expects ${options.appInfo.expectedUpdaterArchive}, but the release ships ${remoteArchive}. Auto-update cannot replace the app bundle until the release artifact name matches.`;
+	if (remoteArchive === expectedArchive) {
+		return `Release manifest points to ${remoteArchive}, but GitHub stores updater assets as ${options.appInfo.expectedGithubUpdaterArchive}. The download URL is invalid.`;
+	}
+
+	return `Installed app expects ${expectedArchive} (GitHub: ${options.appInfo.expectedGithubUpdaterArchive}), but the release ships ${remoteArchive}.`;
 }
 
 export function formatDesktopUpdateDebugReport(options: {
@@ -395,6 +450,7 @@ export function formatDesktopUpdateDebugReport(options: {
 			`version: ${options.appInfo.version}`,
 			`appName: ${options.appInfo.appName}`,
 			`expectedUpdaterArchive: ${options.appInfo.expectedUpdaterArchive}`,
+			`expectedGithubUpdaterArchive: ${options.appInfo.expectedGithubUpdaterArchive}`,
 			`platform: ${options.appInfo.platform}`,
 			`arch: ${options.appInfo.arch}`,
 			`osVersion: ${options.appInfo.osVersion}`,

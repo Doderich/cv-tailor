@@ -1,5 +1,13 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+	copyFileSync,
+	existsSync,
+	mkdirSync,
+	readdirSync,
+	readFileSync,
+	rmSync,
+	writeFileSync,
+} from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
@@ -235,18 +243,42 @@ function findDmgArtifact() {
 	return dmg ? join(dmgDir, dmg) : null;
 }
 
+function stageGithubUploadArtifacts(
+	artifacts: ReturnType<typeof findMacUpdaterArtifacts>,
+) {
+	const uploadDir = join(bundleRoot, "github-upload");
+	rmSync(uploadDir, { recursive: true, force: true });
+	mkdirSync(uploadDir, { recursive: true });
+
+	return artifacts.map((artifact) => {
+		const uploadName = toGithubReleaseAssetName(artifact.archiveName);
+		const uploadArchivePath = join(uploadDir, uploadName);
+		const uploadSignaturePath = `${uploadArchivePath}.sig`;
+
+		copyFileSync(artifact.archivePath, uploadArchivePath);
+		copyFileSync(`${artifact.archivePath}.sig`, uploadSignaturePath);
+
+		return {
+			...artifact,
+			uploadName,
+			uploadArchivePath,
+			uploadSignaturePath,
+		};
+	});
+}
+
 function buildLatestJson(
 	version: string,
 	notes: string,
 	tag: string,
-	artifacts: ReturnType<typeof findMacUpdaterArtifacts>,
+	artifacts: ReturnType<typeof stageGithubUploadArtifacts>,
 ): LatestJson {
 	const platforms: LatestJson["platforms"] = {};
 
 	for (const artifact of artifacts) {
 		platforms[artifact.platformKey] = {
 			signature: artifact.signature,
-			url: `https://github.com/${githubRepo}/releases/download/${tag}/${artifact.archiveName}`,
+			url: buildGithubReleaseDownloadUrl(tag, artifact.archiveName),
 		};
 	}
 
@@ -316,12 +348,13 @@ function main() {
 	});
 
 	const updaterArtifacts = findMacUpdaterArtifacts(config.productName);
+	const stagedArtifacts = stageGithubUploadArtifacts(updaterArtifacts);
 	const dmgPath = findDmgArtifact();
 	const latestJson = buildLatestJson(
 		version,
 		releaseNotes,
 		tag,
-		updaterArtifacts,
+		stagedArtifacts,
 	);
 	const latestJsonPath = join(bundleRoot, "latest.json");
 	writeFileSync(latestJsonPath, `${JSON.stringify(latestJson, null, 2)}\n`);
@@ -335,8 +368,10 @@ function main() {
 
 	const uploadPaths = [
 		latestJsonPath,
-		...updaterArtifacts.map((artifact) => artifact.archivePath),
-		...updaterArtifacts.map((artifact) => `${artifact.archivePath}.sig`),
+		...stagedArtifacts.flatMap((artifact) => [
+			artifact.uploadArchivePath,
+			artifact.uploadSignaturePath,
+		]),
 	];
 
 	if (dmgPath) {
@@ -360,6 +395,8 @@ function main() {
 			githubRepo,
 			"--clobber",
 		]);
+		verifyReleaseAssetUrls(latestJson);
+		console.log("Verified updater download URLs.");
 		return;
 	}
 
@@ -375,6 +412,9 @@ function main() {
 		releaseNotes,
 		...uploadPaths,
 	]);
+
+	verifyReleaseAssetUrls(latestJson);
+	console.log("Verified updater download URLs.");
 
 	console.log(
 		`Published ${tag} to https://github.com/${githubRepo}/releases/tag/${tag}`,

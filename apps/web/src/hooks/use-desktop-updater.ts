@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 
-import { checkForDesktopUpdate } from "@/lib/desktop-updater";
+import { runStartupDesktopUpdateCheck } from "@/lib/desktop-update-notifications";
 import { isTauriRuntime } from "@/lib/tauri-ai";
 
 export function useDesktopUpdater() {
@@ -10,10 +10,7 @@ export function useDesktopUpdater() {
 		}
 
 		const timeout = window.setTimeout(() => {
-			void checkForDesktopUpdate({
-				promptBeforeInstall: true,
-				notify: "errors-only",
-			});
+			void runStartupDesktopUpdateCheck();
 		}, 4_000);
 
 		return () => {

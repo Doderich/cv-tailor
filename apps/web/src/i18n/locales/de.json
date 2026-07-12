@@ -1,4 +1,21 @@
 {
+	"desktopUpdate": {
+		"toast": {
+			"checking": "Suche nach Updates…",
+			"upToDate": "Du nutzt die neueste Version (v{{version}}).",
+			"updateAvailable": "CV Tailor {{version}} ist verfügbar",
+			"updateAvailableDescription": "Lade das Update herunter, wenn du bereit bist.",
+			"download": "Herunterladen",
+			"downloading": "Update wird heruntergeladen…",
+			"downloadingVersion": "Installiere v{{version}}…",
+			"readyToRestart": "CV Tailor {{version}} ist bereit",
+			"readyToRestartDescription": "Starte neu, um die neue Version zu verwenden.",
+			"restartNow": "Jetzt neu starten",
+			"restartLater": "Später",
+			"checkFailed": "Update-Prüfung fehlgeschlagen.",
+			"installFailed": "Update-Installation fehlgeschlagen."
+		}
+	},
 	"app": {
 		"title": "cv-tailor",
 		"description": "cv-tailor ist eine Webanwendung",
@@ -127,9 +144,11 @@
 		"data": {
 			"updates": {
 				"title": "Desktop-Updates",
-				"description": "Prüfe GitHub Releases auf eine neuere Desktop-Version. Beim Start wird automatisch nach Updates gesucht.",
+				"description": "CV Tailor prüft beim Start auf Updates und zeigt eine Benachrichtigung, wenn eine neue Version verfügbar ist.",
 				"check": "Nach Updates suchen",
 				"checkDev": "Trotzdem prüfen (Dev)",
+				"install": "Update herunterladen",
+				"restart": "Jetzt neu starten",
 				"currentVersion": "Installierte Version",
 				"lastChecked": "Zuletzt geprüft {{date}}",
 				"status": {
@@ -140,6 +159,7 @@
 					"declined": "Update auf v{{version}} abgelehnt.",
 					"installing": "Installiere v{{version}}…",
 					"installed": "v{{version}} installiert. Starte neu…",
+					"readyToRestart": "v{{version}} ist installiert. Starte neu, um das Update abzuschließen.",
 					"devSkipped": "Update-Prüfungen sind in Entwicklungs-Builds deaktiviert.",
 					"error": "Update-Prüfung fehlgeschlagen."
 				},
@@ -156,7 +176,7 @@
 					"endpoint": "Update-Endpunkt",
 					"manifestVersion": "Remote-Version",
 					"manifestPlatforms": "Remote-Plattformen",
-					"expectedArchive": "Erwartetes Update-Archiv",
+					"expectedArchive": "GitHub-Update-Archiv",
 					"remoteArchive": "Remote-Update-Archiv",
 					"unavailable": "Nicht verfügbar",
 					"fetchManifest": "Release-Manifest laden",

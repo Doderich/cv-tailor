@@ -1,4 +1,21 @@
 {
+	"desktopUpdate": {
+		"toast": {
+			"checking": "Checking for updates…",
+			"upToDate": "You're up to date (v{{version}}).",
+			"updateAvailable": "CV Tailor {{version}} is available",
+			"updateAvailableDescription": "Download the update when you're ready.",
+			"download": "Download",
+			"downloading": "Downloading update…",
+			"downloadingVersion": "Installing v{{version}}…",
+			"readyToRestart": "CV Tailor {{version}} is ready",
+			"readyToRestartDescription": "Restart to start using the new version.",
+			"restartNow": "Restart now",
+			"restartLater": "Later",
+			"checkFailed": "Update check failed.",
+			"installFailed": "Update installation failed."
+		}
+	},
 	"app": {
 		"title": "cv-tailor",
 		"description": "cv-tailor is a web application",
@@ -127,9 +144,11 @@
 		"data": {
 			"updates": {
 				"title": "Desktop updates",
-				"description": "Check GitHub Releases for a newer desktop build. Updates install automatically on startup when a release is available.",
+				"description": "CV Tailor checks for updates on startup and shows a notification when a new version is available.",
 				"check": "Check for updates",
 				"checkDev": "Check anyway (dev)",
+				"install": "Download update",
+				"restart": "Restart now",
 				"currentVersion": "Installed version",
 				"lastChecked": "Last checked {{date}}",
 				"status": {
@@ -140,6 +159,7 @@
 					"declined": "Update to v{{version}} was declined.",
 					"installing": "Installing v{{version}}…",
 					"installed": "Installed v{{version}}. Restarting…",
+					"readyToRestart": "v{{version}} is installed. Restart to finish updating.",
 					"devSkipped": "Update checks are disabled in development builds.",
 					"error": "Update check failed."
 				},
@@ -156,7 +176,7 @@
 					"endpoint": "Update endpoint",
 					"manifestVersion": "Remote version",
 					"manifestPlatforms": "Remote platforms",
-					"expectedArchive": "Expected updater archive",
+					"expectedArchive": "GitHub updater archive",
 					"remoteArchive": "Remote updater archive",
 					"unavailable": "Unavailable",
 					"fetchManifest": "Fetch release manifest",

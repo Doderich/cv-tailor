@@ -13,16 +13,20 @@ import { useTranslation } from "react-i18next";
 import {
 	type DesktopAppInfo,
 	type DesktopUpdateCheckResult,
-	checkForDesktopUpdate,
+	checkDesktopUpdate,
 	DESKTOP_UPDATER_ENDPOINT,
 	fetchUpdaterManifestForDebug,
 	formatDesktopUpdateDebugReport,
 	getLastDesktopUpdateCheck,
 	getUpdaterBundleMismatchHint,
+	hasPendingDesktopUpdate,
+	installPendingDesktopUpdate,
 	loadDesktopAppInfo,
+	relaunchDesktopApp,
 	subscribeDesktopUpdateChecks,
 	type UpdaterManifestDebugInfo,
 } from "@/lib/desktop-updater";
+import { presentDesktopUpdateResult } from "@/lib/desktop-update-notifications";
 import { formatLocalizedDate } from "@/lib/i18n-labels";
 
 function DebugRow({ label, value }: { label: string; value: string }) {
@@ -38,6 +42,7 @@ function statusTone(status: DesktopUpdateCheckResult["status"] | "idle" | "check
 	switch (status) {
 		case "current":
 		case "installed":
+		case "ready_to_restart":
 			return "text-primary";
 		case "available":
 		case "installing":
@@ -56,6 +61,7 @@ export function DesktopUpdatesPanel() {
 		getLastDesktopUpdateCheck(),
 	);
 	const [isChecking, setIsChecking] = useState(false);
+	const [isInstalling, setIsInstalling] = useState(false);
 	const [isLoadingDebug, setIsLoadingDebug] = useState(false);
 	const [manifest, setManifest] = useState<UpdaterManifestDebugInfo | null>(null);
 	const [manifestError, setManifestError] = useState<string | null>(null);
@@ -111,7 +117,11 @@ export function DesktopUpdatesPanel() {
 		};
 	}, []);
 
-	const status = isChecking ? "checking" : (lastCheck?.status ?? "idle");
+	const status = isChecking
+		? "checking"
+		: isInstalling
+			? "installing"
+			: (lastCheck?.status ?? "idle");
 	const platformKey =
 		appInfo?.platform === "macos" ? `darwin-${appInfo.arch}` : null;
 	const remoteArchive =
@@ -131,13 +141,20 @@ export function DesktopUpdatesPanel() {
 	async function handleCheck(allowDevCheck = false) {
 		setIsChecking(true);
 		try {
-			await checkForDesktopUpdate({
-				promptBeforeInstall: true,
-				notify: true,
-				allowDevCheck,
-			});
+			const result = await checkDesktopUpdate({ allowDevCheck });
+			presentDesktopUpdateResult(result);
 		} finally {
 			setIsChecking(false);
+		}
+	}
+
+	async function handleInstall() {
+		setIsInstalling(true);
+		try {
+			const result = await installPendingDesktopUpdate();
+			presentDesktopUpdateResult(result);
+		} finally {
+			setIsInstalling(false);
 		}
 	}
 
@@ -203,7 +220,8 @@ export function DesktopUpdatesPanel() {
 					version: lastCheck.availableVersion ?? "—",
 				});
 			case "installed":
-				return t("settings.data.updates.status.installed", {
+			case "ready_to_restart":
+				return t("settings.data.updates.status.readyToRestart", {
 					version: lastCheck.availableVersion ?? "—",
 				});
 			case "dev_skipped":
@@ -241,7 +259,7 @@ export function DesktopUpdatesPanel() {
 						<Button
 							variant="outline"
 							size="sm"
-							disabled={isChecking}
+							disabled={isChecking || isInstalling}
 							onClick={() => void handleCheck(false)}
 						>
 							{isChecking ? (
@@ -252,11 +270,33 @@ export function DesktopUpdatesPanel() {
 							{t("settings.data.updates.check")}
 						</Button>
 
+						{lastCheck?.status === "available" || hasPendingDesktopUpdate() ? (
+							<Button
+								size="sm"
+								disabled={isChecking || isInstalling}
+								onClick={() => void handleInstall()}
+							>
+								{isInstalling ? (
+									<Loader2 className="animate-spin" />
+								) : null}
+								{t("settings.data.updates.install")}
+							</Button>
+						) : null}
+
+						{lastCheck?.status === "ready_to_restart" ? (
+							<Button
+								size="sm"
+								onClick={() => void relaunchDesktopApp()}
+							>
+								{t("settings.data.updates.restart")}
+							</Button>
+						) : null}
+
 						{appInfo?.isDevBuild ? (
 							<Button
 								variant="outline"
 								size="sm"
-								disabled={isChecking}
+								disabled={isChecking || isInstalling}
 								onClick={() => void handleCheck(true)}
 							>
 								{t("settings.data.updates.checkDev")}
@@ -268,14 +308,18 @@ export function DesktopUpdatesPanel() {
 				<div
 					className={cn(
 						"flex items-start gap-2 rounded-md border px-3 py-2 text-sm",
-						status === "current" || status === "installed"
+						status === "current" ||
+						status === "installed" ||
+						status === "ready_to_restart"
 							? "border-primary/30 bg-primary/5"
 							: status === "error"
 								? "border-destructive/30 bg-destructive/5"
 								: "bg-card",
 					)}
 				>
-					{status === "current" || status === "installed" ? (
+					{status === "current" ||
+					status === "installed" ||
+					status === "ready_to_restart" ? (
 						<CheckCircle2 className="mt-0.5 size-4 shrink-0 text-primary" />
 					) : status === "error" ? (
 						<TriangleAlert className="mt-0.5 size-4 shrink-0 text-destructive" />
@@ -339,7 +383,7 @@ export function DesktopUpdatesPanel() {
 						/>
 						<DebugRow
 							label={t("settings.data.updates.debug.expectedArchive")}
-							value={appInfo?.expectedUpdaterArchive ?? "—"}
+							value={appInfo?.expectedGithubUpdaterArchive ?? "—"}
 						/>
 						<DebugRow
 							label={t("settings.data.updates.debug.remoteArchive")}

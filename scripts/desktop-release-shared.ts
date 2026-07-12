@@ -5,6 +5,37 @@ import { join } from "node:path";
 
 export const githubRepo = "Doderich/cv-tailor";
 
+export function toGithubReleaseAssetName(fileName: string) {
+	return fileName.replace(/ /g, ".");
+}
+
+export function buildGithubReleaseDownloadUrl(tag: string, fileName: string) {
+	const assetName = toGithubReleaseAssetName(fileName);
+	const encodedName = assetName
+		.split("/")
+		.map((segment) => encodeURIComponent(segment))
+		.join("/");
+
+	return `https://github.com/${githubRepo}/releases/download/${tag}/${encodedName}`;
+}
+
+export function verifyReleaseAssetUrls(latestJson: LatestJson) {
+	for (const [platform, artifact] of Object.entries(latestJson.platforms)) {
+		const result = spawnSync(
+			"curl",
+			["-sI", "-o", "/dev/null", "-w", "%{http_code}", artifact.url],
+			{ encoding: "utf8" },
+		);
+
+		const status = result.stdout?.trim();
+		if (status !== "200" && status !== "302") {
+			throw new Error(
+				`Release asset for ${platform} is not reachable (${status ?? "unknown"}): ${artifact.url}`,
+			);
+		}
+	}
+}
+
 export type LatestJson = {
 	version: string;
 	notes: string;
