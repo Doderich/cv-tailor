@@ -62,6 +62,7 @@ Actions:
   release    Build + publish from Windows, or via SSH from macOS/Linux
   connect    Open SSH session to the Windows repo (macOS/Linux only)
   setup      Create gitignored SSH config from template (macOS/Linux only)
+  setup-ssh  Install your Mac SSH key on the Windows machine (one password prompt)
 
 On Windows, run from the repo root:
   pnpm run desktop:windows:build
@@ -121,6 +122,14 @@ if (action === "build") {
 	}
 
 	run("bash", [join(repoRoot, "scripts/setup-windows-build-local.sh")]);
+} else if (action === "setup-ssh") {
+	if (process.platform === "win32") {
+		console.error("desktop:windows:setup-ssh is only available from macOS/Linux.");
+		process.exit(1);
+	}
+
+	requireMacSshConfig();
+	run("bash", [join(repoRoot, "scripts/setup-windows-ssh-key.sh")]);
 } else {
 	console.error(`Unknown action: ${action}`);
 	process.exit(1);

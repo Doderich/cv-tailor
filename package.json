@@ -22,6 +22,7 @@
 		"desktop:release": "tsx scripts/release-desktop-macos.ts",
 		"desktop:release:windows": "tsx scripts/release-desktop-windows.ts",
 		"desktop:windows:setup": "node scripts/desktop-windows.mjs setup",
+		"desktop:windows:setup-ssh": "node scripts/desktop-windows.mjs setup-ssh",
 		"desktop:windows:connect": "node scripts/desktop-windows.mjs connect",
 		"desktop:windows:build": "node scripts/desktop-windows.mjs build",
 		"desktop:windows:release": "node scripts/desktop-windows.mjs release",

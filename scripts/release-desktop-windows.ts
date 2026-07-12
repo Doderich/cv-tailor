@@ -1,5 +1,5 @@
-import { spawnSync } from "node:child_process";
-import { mkdtempSync, rmSync } from "node:fs";
+import { execSync, spawnSync } from "node:child_process";
+import { existsSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -11,6 +11,7 @@ import {
 	type LatestJson,
 	publishReleaseAssets,
 	run,
+	verifyReleaseAssetUrls,
 	writeLatestJson,
 } from "./desktop-release-shared.ts";
 import {
@@ -34,7 +35,10 @@ import {
 	buildWindowsPlatforms,
 	collectWindowsUploadPaths,
 	findWindowsUpdaterArtifacts,
+	stageWindowsGithubUploadArtifacts,
 } from "./windows-release-artifacts.ts";
+
+const remoteWindowsArtifactsZipName = "cv-tailor-windows-artifacts.zip";
 
 type SshConfig = {
 	host: string;
@@ -221,6 +225,29 @@ function runSsh(config: SshConfig, remoteCommand: string) {
 	run("ssh", sshArgs(config, remoteCommand));
 }
 
+function runSshCapture(config: SshConfig, remoteCommand: string) {
+	const result = spawnSync("ssh", sshArgs(config, remoteCommand), {
+		stdio: "pipe",
+		encoding: "utf8",
+	});
+
+	if (result.status !== 0) {
+		throw new Error(
+			`SSH command failed: ${remoteCommand}\n${result.stderr ?? ""}`,
+		);
+	}
+
+	return result.stdout.trim();
+}
+
+function toScpRemotePath(path: string) {
+	return path.replace(/\\/g, "/");
+}
+
+function escapePowerShellSingleQuotedString(value: string) {
+	return value.replace(/'/g, "''");
+}
+
 function runScp(config: SshConfig, source: string, destination: string) {
 	run("scp", [...scpArgs(config), source, destination]);
 }
@@ -261,22 +288,50 @@ function runRemoteBuild(config: SshConfig) {
 
 function downloadWindowsArtifacts(config: SshConfig) {
 	const tempDir = mkdtempSync(join(tmpdir(), "cv-tailor-windows-"));
+	const localNsisDir = join(tempDir, "nsis");
+	mkdirSync(localNsisDir, { recursive: true });
+
 	const remoteNsisDir = toRemotePath(
 		config,
 		"apps/web/src-tauri/target/release/bundle/nsis",
 	);
+	const escapedNsisDir = escapePowerShellSingleQuotedString(remoteNsisDir);
+	const packCommand =
+		`powershell -NoProfile -Command ` +
+		`"$nsis='${escapedNsisDir}'; ` +
+		`$zip=Join-Path $env:TEMP '${remoteWindowsArtifactsZipName}'; ` +
+		`if (-not (Test-Path -LiteralPath $nsis)) { Write-Error ('Missing NSIS dir: ' + $nsis); exit 1 }; ` +
+		`if (Test-Path -LiteralPath $zip) { Remove-Item -LiteralPath $zip -Force }; ` +
+		`Compress-Archive -Path (Join-Path $nsis '*') -DestinationPath $zip -Force; ` +
+		`Write-Output $zip"`;
+
+	console.log("Packaging Windows artifacts on remote machine...");
+	const remoteZipPath = runSshCapture(config, packCommand);
+	const localZipPath = join(tempDir, remoteWindowsArtifactsZipName);
 
 	console.log(`Downloading Windows artifacts to ${tempDir}...`);
-	run("scp", [
-		...scpArgs(config),
-		"-r",
-		`${sshTarget(config)}:"${remoteNsisDir}"`,
-		tempDir,
-	]);
+	runScp(
+		config,
+		`${sshTarget(config)}:${toScpRemotePath(remoteZipPath)}`,
+		localZipPath,
+	);
+
+	if (!existsSync(localZipPath)) {
+		throw new Error(`Failed to download Windows artifacts zip: ${localZipPath}`);
+	}
+
+	console.log("Extracting Windows artifacts...");
+	execSync(`unzip -oq ${JSON.stringify(localZipPath)} -d ${JSON.stringify(localNsisDir)}`);
+
+	const cleanupCommand =
+		`powershell -NoProfile -Command ` +
+		`"Remove-Item -LiteralPath '${escapePowerShellSingleQuotedString(remoteZipPath)}' -Force -ErrorAction SilentlyContinue"`;
+
+	spawnSync("ssh", sshArgs(config, cleanupCommand), { stdio: "pipe" });
 
 	return {
 		tempDir,
-		localNsisDir: join(tempDir, "nsis"),
+		localNsisDir,
 		cleanup() {
 			rmSync(tempDir, { recursive: true, force: true });
 		},
@@ -358,6 +413,10 @@ function main() {
 
 	try {
 		const updaterArtifacts = findWindowsUpdaterArtifacts(download.localNsisDir);
+		const stagedArtifacts = stageWindowsGithubUploadArtifacts(
+			updaterArtifacts,
+			join(download.tempDir, "github-upload"),
+		);
 		const existingLatestJson = downloadExistingLatestJson(tag);
 		const latestJson = buildLatestJson({
 			version,
@@ -385,8 +444,10 @@ function main() {
 			tag,
 			title: `CV Tailor ${version}`,
 			notes: releaseNotes,
-			uploadPaths: collectWindowsUploadPaths(latestJsonPath, updaterArtifacts),
+			uploadPaths: collectWindowsUploadPaths(latestJsonPath, stagedArtifacts),
 		});
+
+		verifyReleaseAssetUrls(latestJson);
 
 		console.log(
 			`Published ${tag} to https://github.com/${githubRepo}/releases/tag/${tag}`,

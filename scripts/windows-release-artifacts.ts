@@ -1,13 +1,30 @@
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import {
+	copyFileSync,
+	existsSync,
+	mkdirSync,
+	readdirSync,
+	readFileSync,
+	rmSync,
+} from "node:fs";
 import { join } from "node:path";
 
-import { githubRepo, type LatestJson } from "./desktop-release-shared.ts";
+import {
+	buildGithubReleaseDownloadUrl,
+	type LatestJson,
+	toGithubReleaseAssetName,
+} from "./desktop-release-shared.ts";
 
 export type WindowsUpdaterArtifact = {
 	fileName: string;
 	localPath: string;
 	signature: string;
 	platformKey: string;
+};
+
+export type StagedWindowsUpdaterArtifact = WindowsUpdaterArtifact & {
+	uploadName: string;
+	uploadBundlePath: string;
+	uploadSignaturePath: string;
 };
 
 export function detectWindowsPlatformKey(fileName: string) {
@@ -68,15 +85,39 @@ export function findWindowsUpdaterArtifacts(localNsisDir: string) {
 	return artifacts;
 }
 
+export function stageWindowsGithubUploadArtifacts(
+	artifacts: WindowsUpdaterArtifact[],
+	outputDir: string,
+): StagedWindowsUpdaterArtifact[] {
+	rmSync(outputDir, { recursive: true, force: true });
+	mkdirSync(outputDir, { recursive: true });
+
+	return artifacts.map((artifact) => {
+		const uploadName = toGithubReleaseAssetName(artifact.fileName);
+		const uploadBundlePath = join(outputDir, uploadName);
+		const uploadSignaturePath = `${uploadBundlePath}.sig`;
+
+		copyFileSync(artifact.localPath, uploadBundlePath);
+		copyFileSync(`${artifact.localPath}.sig`, uploadSignaturePath);
+
+		return {
+			...artifact,
+			uploadName,
+			uploadBundlePath,
+			uploadSignaturePath,
+		};
+	});
+}
+
 export function collectWindowsUploadPaths(
 	latestJsonPath: string,
-	updaterArtifacts: WindowsUpdaterArtifact[],
+	stagedArtifacts: StagedWindowsUpdaterArtifact[],
 ) {
 	const uploadPaths = new Set<string>([latestJsonPath]);
 
-	for (const artifact of updaterArtifacts) {
-		uploadPaths.add(artifact.localPath);
-		uploadPaths.add(`${artifact.localPath}.sig`);
+	for (const artifact of stagedArtifacts) {
+		uploadPaths.add(artifact.uploadBundlePath);
+		uploadPaths.add(artifact.uploadSignaturePath);
 	}
 
 	return [...uploadPaths];
@@ -91,7 +132,7 @@ export function buildWindowsPlatforms(
 	for (const artifact of artifacts) {
 		platforms[artifact.platformKey] = {
 			signature: artifact.signature,
-			url: `https://github.com/${githubRepo}/releases/download/${tag}/${artifact.fileName}`,
+			url: buildGithubReleaseDownloadUrl(tag, artifact.fileName),
 		};
 	}
 

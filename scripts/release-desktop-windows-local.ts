@@ -10,6 +10,7 @@ import {
 	githubRepo,
 	publishReleaseAssets,
 	run,
+	verifyReleaseAssetUrls,
 	writeLatestJson,
 } from "./desktop-release-shared.ts";
 import {
@@ -23,6 +24,7 @@ import {
 	buildWindowsPlatforms,
 	collectWindowsUploadPaths,
 	findWindowsUpdaterArtifacts,
+	stageWindowsGithubUploadArtifacts,
 	windowsNsisBundleDir,
 } from "./windows-release-artifacts.ts";
 
@@ -178,6 +180,10 @@ function main() {
 	runLocalBuild();
 
 	const updaterArtifacts = findWindowsUpdaterArtifacts(windowsNsisBundleDir);
+	const stagedArtifacts = stageWindowsGithubUploadArtifacts(
+		updaterArtifacts,
+		join(repoRoot, "apps/web/src-tauri/target/release/bundle/github-upload"),
+	);
 	const existingLatestJson = downloadExistingLatestJson(tag);
 	const latestJson = buildLatestJson({
 		version,
@@ -207,8 +213,10 @@ function main() {
 		tag,
 		title: `CV Tailor ${version}`,
 		notes: releaseNotes,
-		uploadPaths: collectWindowsUploadPaths(latestJsonPath, updaterArtifacts),
+		uploadPaths: collectWindowsUploadPaths(latestJsonPath, stagedArtifacts),
 	});
+
+	verifyReleaseAssetUrls(latestJson);
 
 	console.log(
 		`Published ${tag} to https://github.com/${githubRepo}/releases/tag/${tag}`,
