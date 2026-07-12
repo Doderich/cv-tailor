@@ -29,14 +29,20 @@ export type StagedWindowsUpdaterArtifact = WindowsUpdaterArtifact & {
 
 export function detectWindowsPlatformKey(fileName: string) {
 	if (fileName.includes("aarch64") || fileName.includes("arm64")) {
-		return "windows-aarch64";
+		return fileName.endsWith("-setup.exe") || fileName.endsWith(".msi")
+			? "windows-aarch64-nsis"
+			: "windows-aarch64";
 	}
 
 	if (fileName.includes("i686") || fileName.includes("x86-setup")) {
-		return "windows-i686";
+		return fileName.endsWith("-setup.exe") || fileName.endsWith(".msi")
+			? "windows-i686-nsis"
+			: "windows-i686";
 	}
 
-	return "windows-x86_64";
+	return fileName.endsWith("-setup.exe") || fileName.endsWith(".msi")
+		? "windows-x86_64-nsis"
+		: "windows-x86_64";
 }
 
 export function findWindowsUpdaterArtifacts(localNsisDir: string) {

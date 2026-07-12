@@ -13,6 +13,9 @@ import { join } from "node:path";
 
 import {
 	buildGithubReleaseDownloadUrl,
+	buildLatestJson,
+	downloadExistingLatestJson,
+	type LatestJson,
 	toGithubReleaseAssetName,
 	verifyReleaseAssetUrls,
 } from "./desktop-release-shared.ts";
@@ -39,19 +42,6 @@ type TauriConfig = {
 			pubkey?: string;
 		};
 	};
-};
-
-type LatestJson = {
-	version: string;
-	notes: string;
-	pub_date: string;
-	platforms: Record<
-		string,
-		{
-			signature: string;
-			url: string;
-		}
-	>;
 };
 
 function usage() {
@@ -272,12 +262,10 @@ function stageGithubUploadArtifacts(
 	});
 }
 
-function buildLatestJson(
-	version: string,
-	notes: string,
+function buildMacPlatforms(
 	tag: string,
 	artifacts: ReturnType<typeof stageGithubUploadArtifacts>,
-): LatestJson {
+): LatestJson["platforms"] {
 	const platforms: LatestJson["platforms"] = {};
 
 	for (const artifact of artifacts) {
@@ -287,12 +275,7 @@ function buildLatestJson(
 		};
 	}
 
-	return {
-		version,
-		notes,
-		pub_date: new Date().toISOString(),
-		platforms,
-	};
+	return platforms;
 }
 
 function resolveVersionForRelease(options: {
@@ -355,12 +338,14 @@ function main() {
 	const updaterArtifacts = findMacUpdaterArtifacts(config.productName);
 	const stagedArtifacts = stageGithubUploadArtifacts(updaterArtifacts);
 	const dmgPath = findDmgArtifact();
-	const latestJson = buildLatestJson(
+	const existingLatestJson = downloadExistingLatestJson(tag);
+	const latestJson = buildLatestJson({
 		version,
-		releaseNotes,
+		notes: releaseNotes,
 		tag,
-		stagedArtifacts,
-	);
+		platforms: buildMacPlatforms(tag, stagedArtifacts),
+		existing: existingLatestJson,
+	});
 	const latestJsonPath = join(bundleRoot, "latest.json");
 	writeFileSync(latestJsonPath, `${JSON.stringify(latestJson, null, 2)}\n`);
 
