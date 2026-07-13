@@ -5,6 +5,7 @@ import {
 	type CvRun,
 	type CvTemplateId,
 	type JobPosition,
+	isUsableJobReviewSummary,
 	jobOfferNeedsReview,
 	jobPositions,
 } from "@cv-tailor/core";
@@ -531,7 +532,8 @@ function ReviewStepContent({
 	} = useCvApp();
 	const needsReview = jobOfferNeedsReview(application.jobOffer);
 	const review = application.jobOffer.review;
-	const autoReviewKey = `${application.id}:${application.jobOffer.rawText.trim()}`;
+	const hasUsableRoleSummary = isUsableJobReviewSummary(review?.summary);
+	const autoReviewKey = `${application.id}:${application.jobOffer.rawText.trim()}:${review?.reviewedAt ?? "none"}:${hasUsableRoleSummary ? "ok" : "retry"}`;
 	const lastAutoReviewKeyRef = useRef<string | null>(null);
 	const lastAutoMatchKeyRef = useRef<string | null>(null);
 	const autoMatchKey = `${application.id}:${run?.id ?? "none"}:${run?.matchAnalysis.source ?? "draft"}:${application.jobOffer.review?.reviewedAt ?? "none"}`;
@@ -593,6 +595,13 @@ function ReviewStepContent({
 		canUseSelectedAi,
 	};
 	const isAnalyzing = isAnalysisInProgress(application, analysisState);
+	const showRoleSummaryLoading =
+		isReviewingJobOffer || (needsReview && canUseSelectedAi);
+	const showRoleSummarySection =
+		showRoleSummaryLoading ||
+		hasUsableRoleSummary ||
+		Boolean(review) ||
+		(needsReview && canUseSelectedAi);
 	const canContinue = !isAnalyzing;
 	const statusMessage = isReviewingJobOffer
 		? t("application.review.status.reviewingJob")
@@ -658,14 +667,24 @@ function ReviewStepContent({
 				</div>
 			</div>
 
-			{review?.summary ? (
+			{showRoleSummarySection ? (
 				<div className="rounded-xl border bg-card p-4 text-sm">
 					<h3 className="mb-2 font-medium text-sm">
 						{t("application.review.roleSummary")}
 					</h3>
-					<p className="text-muted-foreground leading-relaxed">
-						{review.summary}
-					</p>
+					{showRoleSummaryLoading ? (
+						<p className="text-muted-foreground leading-relaxed">
+							{t("common.loading")}
+						</p>
+					) : hasUsableRoleSummary ? (
+						<p className="text-muted-foreground leading-relaxed">
+							{review?.summary}
+						</p>
+					) : (
+						<p className="text-muted-foreground leading-relaxed">
+							{t("application.review.roleSummaryUnavailable")}
+						</p>
+					)}
 				</div>
 			) : null}
 

@@ -3,6 +3,8 @@ import {
 	applicationSchema,
 	appSettingsSchema,
 	cvRunSchema,
+	type LegacyAppSettings,
+	migrateAppSettings,
 	normalizeProfileRecord,
 	profileRecordSchema,
 } from "@cv-tailor/core";
@@ -21,7 +23,10 @@ export const cvTailorBackupSchema = z.object({
 	applications: z.array(applicationSchema),
 	cvRuns: z.array(cvRunSchema),
 	aiOutputs: z.array(aiOutputSchema),
-	settings: appSettingsSchema,
+	settings: z.preprocess(
+		(value) => migrateAppSettings(value as LegacyAppSettings),
+		appSettingsSchema,
+	),
 });
 
 export type CvTailorBackup = z.infer<typeof cvTailorBackupSchema>;

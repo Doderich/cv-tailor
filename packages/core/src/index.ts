@@ -196,12 +196,27 @@ export const aiOutputSchema = z.object({
 	stdout: z.string(),
 });
 
+export const aiProviderIdSchema = z.enum([
+	"claude",
+	"codex",
+	"cursor",
+	"lmstudio",
+]);
+
+export const lmStudioConfigSchema = z.object({
+	baseUrl: z.string(),
+	apiKey: z.string().optional(),
+	model: z.string().optional(),
+	enableReasoning: z.boolean().optional(),
+});
+
 export const appSettingsSchema = z.object({
 	id: z.literal("settings"),
-	schemaVersion: z.literal(2),
+	schemaVersion: z.literal(3),
 	activeProfileId: z.string(),
 	activeApplicationId: z.string().optional(),
 	activeRunId: z.string().optional(),
+	selectedAiProvider: aiProviderIdSchema.optional(),
 	selectedAiTool: z.string().optional(),
 	aiModels: z
 		.object({
@@ -219,6 +234,7 @@ export const appSettingsSchema = z.object({
 		})
 		.partial()
 		.optional(),
+	lmStudio: lmStudioConfigSchema.optional(),
 	appliedProfilePatches: z.array(z.string()).optional(),
 	cvTemplate: cvTemplateSchema.default(defaultCvTemplate),
 });
@@ -242,7 +258,110 @@ export type ProfileRecord = z.infer<typeof profileRecordSchema>;
 export type Application = z.infer<typeof applicationSchema>;
 export type CvRun = z.infer<typeof cvRunSchema>;
 export type AiOutput = z.infer<typeof aiOutputSchema>;
+export type AiProviderId = z.infer<typeof aiProviderIdSchema>;
+export type LmStudioConfig = z.infer<typeof lmStudioConfigSchema>;
 export type AppSettings = z.infer<typeof appSettingsSchema>;
+
+export const defaultLmStudioConfig: LmStudioConfig = {
+	baseUrl: "http://localhost:1234",
+	enableReasoning: true,
+};
+
+export type LegacyAppSettings = {
+	id: "settings";
+	schemaVersion?: 2 | 3;
+	activeProfileId: string;
+	activeApplicationId?: string;
+	activeRunId?: string;
+	selectedAiProvider?: AiProviderId;
+	selectedAiTool?: string;
+	aiModels?: Partial<{
+		claude: string;
+		codex: string;
+		cursor: string;
+	}>;
+	aiToolPaths?: Partial<Record<"claude" | "codex" | "cursor", string>>;
+	lmStudio?: Partial<LmStudioConfig>;
+	appliedProfilePatches?: string[];
+	cvTemplate?: AppSettings["cvTemplate"];
+};
+
+export function applyAppSettingsMigration(draft: LegacyAppSettings): void {
+	const existingLmStudio = draft.lmStudio;
+
+	if (draft.schemaVersion === 3 && draft.selectedAiProvider) {
+		draft.lmStudio = {
+			baseUrl: existingLmStudio?.baseUrl ?? defaultLmStudioConfig.baseUrl,
+			apiKey: existingLmStudio?.apiKey,
+			model: existingLmStudio?.model,
+			enableReasoning:
+				existingLmStudio?.enableReasoning ??
+				defaultLmStudioConfig.enableReasoning,
+		};
+		return;
+	}
+
+	const legacyTool = draft.selectedAiTool;
+	if (!draft.selectedAiProvider) {
+		if (
+			legacyTool === "claude" ||
+			legacyTool === "codex" ||
+			legacyTool === "cursor" ||
+			legacyTool === "lmstudio"
+		) {
+			draft.selectedAiProvider = legacyTool;
+		} else {
+			draft.selectedAiProvider = "claude";
+		}
+	}
+
+	draft.schemaVersion = 3;
+	delete draft.selectedAiTool;
+	draft.lmStudio = {
+		baseUrl: existingLmStudio?.baseUrl ?? defaultLmStudioConfig.baseUrl,
+		apiKey: existingLmStudio?.apiKey,
+		model: existingLmStudio?.model,
+		enableReasoning:
+			existingLmStudio?.enableReasoning ??
+			defaultLmStudioConfig.enableReasoning,
+	};
+}
+
+export function migrateAppSettings(settings: LegacyAppSettings): AppSettings {
+	const clone = JSON.parse(JSON.stringify(settings)) as LegacyAppSettings;
+	applyAppSettingsMigration(clone);
+	return appSettingsSchema.parse(clone);
+}
+
+export function buildMigratedAppSettings(
+	settings: LegacyAppSettings,
+): AppSettings {
+	const defaults = createDefaultAppSettings(settings.activeProfileId);
+	const migrated = migrateAppSettings(settings);
+
+	return appSettingsSchema.parse({
+		...migrated,
+		selectedAiProvider:
+			migrated.selectedAiProvider ?? defaults.selectedAiProvider,
+		aiModels: {
+			...defaults.aiModels,
+			...migrated.aiModels,
+		},
+		lmStudio: {
+			baseUrl:
+				migrated.lmStudio?.baseUrl ??
+				defaults.lmStudio?.baseUrl ??
+				defaultLmStudioConfig.baseUrl,
+			apiKey: migrated.lmStudio?.apiKey ?? defaults.lmStudio?.apiKey,
+			model: migrated.lmStudio?.model ?? defaults.lmStudio?.model,
+			enableReasoning:
+				migrated.lmStudio?.enableReasoning ??
+				defaults.lmStudio?.enableReasoning ??
+				defaultLmStudioConfig.enableReasoning,
+		},
+		cvTemplate: migrated.cvTemplate ?? defaults.cvTemplate,
+	});
+}
 
 const stopWords = new Set([
 	"a",
@@ -533,7 +652,16 @@ export function jobOfferNeedsReview(jobOffer: JobOffer) {
 	}
 
 	const review = jobOffer.review;
-	return !review || review.rawText !== rawText;
+	return (
+		!review ||
+		review.rawText !== rawText ||
+		!isUsableJobReviewSummary(review.summary)
+	);
+}
+
+export function isUsableJobReviewSummary(summary: string | undefined) {
+	const trimmed = summary?.trim() ?? "";
+	return trimmed.length >= 40;
 }
 
 export function profileMatchNeedsEvaluation(input: {
@@ -902,14 +1030,15 @@ export function createDefaultAppSettings(
 ): AppSettings {
 	return {
 		id: "settings",
-		schemaVersion: 2,
+		schemaVersion: 3,
 		activeProfileId: profileId,
-		selectedAiTool: "auto",
+		selectedAiProvider: "claude",
 		aiModels: {
 			claude: "sonnet",
 			codex: "gpt-5.4",
 			cursor: "composer-2.5",
 		},
+		lmStudio: defaultLmStudioConfig,
 		cvTemplate: defaultCvTemplate,
 	};
 }

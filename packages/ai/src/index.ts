@@ -3,6 +3,7 @@ import {
 	baseProfileSchema,
 	type CvLanguage,
 	cvLanguageLabel,
+	isUsableJobReviewSummary,
 	type JobOffer,
 	type JobSignals,
 	jobSignalsSchema,
@@ -12,8 +13,22 @@ import {
 	tailoredCvSchema,
 } from "@cv-tailor/core";
 
-export type AiToolId = "auto" | "claude" | "codex" | "cursor";
-export type AiProviderId = "claude" | "codex" | "cursor";
+export type AiProviderId = "claude" | "codex" | "cursor" | "lmstudio";
+
+export const cliProviderIds = ["claude", "codex", "cursor"] as const;
+export type CliProviderId = (typeof cliProviderIds)[number];
+
+export interface LmStudioConfig {
+	baseUrl: string;
+	apiKey?: string;
+	model?: string;
+	enableReasoning?: boolean;
+}
+
+export const defaultLmStudioConfig: LmStudioConfig = {
+	baseUrl: "http://localhost:1234",
+	enableReasoning: true,
+};
 
 export type ClaudeModelId = "opus" | "sonnet" | "haiku";
 export type CodexModelId = "gpt-5.4" | "gpt-5.4-mini" | "gpt-5.3-codex";
@@ -82,12 +97,14 @@ export type GeneratedProfileOutput = BaseProfile;
 export interface ReviewJobPostingInput {
 	jobOffer: JobOffer;
 	rawText: string;
+	outputLanguage?: CvLanguage;
 }
 
 export interface EvaluateProfileMatchInput {
 	profile: BaseProfile;
 	jobOffer: JobOffer;
 	signals: JobSignals;
+	outputLanguage?: CvLanguage;
 }
 
 export interface JobPostingReviewOutput {
@@ -263,31 +280,31 @@ export const matchAnalysisOutputJsonSchema = {
 		},
 		matchedKeywords: {
 			type: "array",
-			items: { type: "string" },
+			items: { type: "string", minLength: 1 },
 			description:
 				"Job keywords, technologies, or soft skills that the profile clearly supports.",
 		},
 		missingKeywords: {
 			type: "array",
-			items: { type: "string" },
+			items: { type: "string", minLength: 1 },
 			description:
 				"Important job keywords, technologies, or soft skills not clearly supported by the profile.",
 		},
 		missingRequirements: {
 			type: "array",
-			items: { type: "string" },
+			items: { type: "string", minLength: 1 },
 			description:
 				"Must-have requirements from the posting that cannot be factually supported by the profile.",
 		},
 		goodFit: {
 			type: "array",
-			items: { type: "string" },
+			items: { type: "string", minLength: 1 },
 			description:
 				"3-6 concise, evidence-based reasons why the profile is a strong fit for the role. Reference concrete profile facts, not generic praise.",
 		},
 		warnings: {
 			type: "array",
-			items: { type: "string" },
+			items: { type: "string", minLength: 1 },
 			description:
 				"Short caveats such as transferable skills, borderline seniority, or partial coverage.",
 		},
@@ -470,8 +487,10 @@ export function buildEvaluateProfileMatchPrompt(
 		"- goodFit must list the strongest factual reasons this profile aligns with the role, including matched requirements, responsibilities, technologies, and working style when evidenced.",
 		"- missingKeywords should focus on meaningful gaps from the extracted job signals, not filler words.",
 		"- warnings should note borderline cases, transferable skills, or seniority mismatches.",
+		`- Target output language: ${cvLanguageLabel(input.outputLanguage ?? "en")} (${input.outputLanguage ?? "en"}). Write goodFit, missingRequirements, and warnings in this language even when the posting uses another language.`,
 		"- score: 0-100 overall fit based on requirements coverage, relevant experience depth, and role alignment.",
 		"- Return JSON only matching the output schema. Do not include Markdown, prose, or code fences.",
+		"- Keep internal reasoning brief. The final answer must still be one complete JSON object.",
 		"",
 		"Output schema:",
 		JSON.stringify(matchAnalysisOutputJsonSchema, null, 2),
@@ -507,9 +526,10 @@ export function buildReviewJobPostingPrompt(
 		"- softSkills: interpersonal or working-style skills explicitly mentioned.",
 		"- seniority: infer from title, scope, and experience expectations.",
 		"- summary: 2-4 sentences describing the role, seniority, and main expectations.",
-		"- Normalize keywords and technologies to lowercase.",
-		"- Preserve the posting language in requirements, responsibilities, summary, and softSkills.",
+		`- Target output language: ${cvLanguageLabel(input.outputLanguage ?? "en")} (${input.outputLanguage ?? "en"}). Write summary, requirements, responsibilities, and softSkills in this language even when the posting uses another language.`,
+		"- Normalize keywords and technologies to lowercase; use conventional technology spellings.",
 		"- Return JSON only matching the output schema. Do not include Markdown, prose, or code fences.",
+		"- Keep internal reasoning brief. The final answer must still be one complete JSON object.",
 		"",
 		"Output schema:",
 		JSON.stringify(jobPostingReviewOutputJsonSchema, null, 2),
@@ -577,6 +597,17 @@ export function buildGenerateProfilePrompt(
 
 function parseJson(value: string): unknown {
 	return JSON.parse(value);
+}
+
+function stripReasoningArtifacts(stdout: string) {
+	const thinkBlock = new RegExp(
+		'<' + 'think' + '>[\s\S]*?<' + '/think' + '>',
+		'gi',
+	);
+	return stdout
+		.replace(thinkBlock, '')
+		.replace(/<reasoning>[\s\S]*?<\/reasoning>/gi, '')
+		.trim();
 }
 
 function extractFencedJson(stdout: string) {
@@ -689,7 +720,7 @@ function parseCliJsonLike(
 	stdout: string,
 	looksLikeExpectedOutput: (value: unknown) => boolean,
 ): unknown {
-	const trimmed = stdout.trim();
+	const trimmed = stripReasoningArtifacts(stdout.trim());
 	const fenced = extractFencedJson(trimmed);
 	const jsonCandidate =
 		fenced ??
@@ -717,50 +748,104 @@ export function parseCliGeneratedProfileOutput(
 	return baseProfileSchema.parse(parsed);
 }
 
+export const matchAnalysisRetryInstruction = [
+	"Your previous JSON response was rejected because it was too minimal or contained placeholder values.",
+	"Re-read the profile, job offer, and extracted signals carefully.",
+	"- Populate goodFit with evidence-based bullets when any overlap exists.",
+	"- Populate missingKeywords and missingRequirements from the job signals when gaps exist.",
+	"- Use [] for arrays with no items. Never use empty strings inside arrays.",
+	"- Return JSON only.",
+].join("\n");
+
+export const jobPostingReviewRetryInstruction = [
+	"Your previous JSON response was rejected because it was incomplete or too minimal.",
+	"Re-read the full job posting and produce a complete summary plus extracted signals.",
+	"- summary must be 2-4 full sentences.",
+	"- keywords, technologies, requirements, and responsibilities must reflect the posting.",
+	"- Return JSON only.",
+].join("\n");
+
+function filterNonEmptyStrings(values: string[]) {
+	return values.map((value) => value.trim()).filter((value) => value.length > 0);
+}
+
+function parseStringList(value: unknown) {
+	if (!Array.isArray(value)) {
+		return [];
+	}
+
+	return filterNonEmptyStrings(
+		value.filter((item): item is string => typeof item === "string"),
+	);
+}
+
+export function isStubMatchAnalysis(analysis: MatchAnalysis) {
+	const matchedKeywords = filterNonEmptyStrings(analysis.matchedKeywords);
+	const missingKeywords = filterNonEmptyStrings(analysis.missingKeywords);
+	const missingRequirements = filterNonEmptyStrings(
+		analysis.missingRequirements,
+	);
+	const goodFit = filterNonEmptyStrings(analysis.goodFit);
+	const warnings = filterNonEmptyStrings(analysis.warnings);
+
+	return (
+		analysis.score === 0 &&
+		matchedKeywords.length === 0 &&
+		missingKeywords.length === 0 &&
+		missingRequirements.length === 0 &&
+		goodFit.length === 0 &&
+		warnings.length === 0
+	);
+}
+
+function assertUsableJobPostingReview(output: JobPostingReviewOutput) {
+	if (!isUsableJobReviewSummary(output.summary)) {
+		throw new Error(
+			"AI returned an incomplete job summary. Reasoning models often truncate JSON after spending tokens on thinking — disable thinking in LM Studio or use a non-reasoning instruct model.",
+		);
+	}
+}
+
+function assertUsableMatchAnalysis(analysis: MatchAnalysis) {
+	if (analysis.source !== "ai") {
+		return;
+	}
+
+	if (isStubMatchAnalysis(analysis)) {
+		throw new Error(
+			"AI returned a placeholder match analysis with no real evaluation. The local model may need a retry, a stronger instruct model, or a CLI provider.",
+		);
+	}
+}
+
 export function parseCliJobPostingReviewOutput(
 	stdout: string,
 ): JobPostingReviewOutput {
 	const parsed = parseCliJsonLike(stdout, looksLikeJobPostingReview);
 	const record = parsed as Record<string, unknown>;
-	return {
+	const output = {
 		signals: jobSignalsSchema.parse(record.signals),
 		summary: typeof record.summary === "string" ? record.summary : "",
 	};
+	assertUsableJobPostingReview(output);
+	return output;
 }
 
 export function parseCliMatchAnalysisOutput(stdout: string): MatchAnalysis {
 	const parsed = parseCliJsonLike(stdout, looksLikeMatchAnalysis);
 	const record = parsed as Record<string, unknown>;
-	return normalizeMatchAnalysis({
+	const analysis = normalizeMatchAnalysis({
 		score:
 			typeof record.score === "number"
 				? Math.max(0, Math.min(100, Math.round(record.score)))
 				: 0,
-		matchedKeywords: Array.isArray(record.matchedKeywords)
-			? record.matchedKeywords.filter(
-					(item): item is string => typeof item === "string",
-				)
-			: [],
-		missingKeywords: Array.isArray(record.missingKeywords)
-			? record.missingKeywords.filter(
-					(item): item is string => typeof item === "string",
-				)
-			: [],
-		missingRequirements: Array.isArray(record.missingRequirements)
-			? record.missingRequirements.filter(
-					(item): item is string => typeof item === "string",
-				)
-			: [],
-		goodFit: Array.isArray(record.goodFit)
-			? record.goodFit.filter(
-					(item): item is string => typeof item === "string",
-				)
-			: [],
-		warnings: Array.isArray(record.warnings)
-			? record.warnings.filter(
-					(item): item is string => typeof item === "string",
-				)
-			: [],
+		matchedKeywords: parseStringList(record.matchedKeywords),
+		missingKeywords: parseStringList(record.missingKeywords),
+		missingRequirements: parseStringList(record.missingRequirements),
+		goodFit: parseStringList(record.goodFit),
+		warnings: parseStringList(record.warnings),
 		source: "ai",
 	});
+	assertUsableMatchAnalysis(analysis);
+	return analysis;
 }

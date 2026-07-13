@@ -1,7 +1,7 @@
 use tauri::{AppHandle, Manager};
 
 use crate::{
-    ai::{self, AiRunRequest, AiRunResponse, AiToolPaths, AiToolStatus},
+    ai::{self, AiRunRequest, AiRunResponse, AiToolPaths, AiToolStatus, LmStudioConfig, LmStudioModel},
     data_snapshots::{
         self, DataSnapshotContentResponse, DataSnapshotIdRequest, DataSnapshotMeta,
         DownloadDataSnapshotResponse, SaveDataSnapshotRequest,
@@ -16,8 +16,18 @@ use crate::{
 };
 
 #[tauri::command]
-pub async fn detect_ai_tools(paths: Option<AiToolPaths>) -> Result<Vec<AiToolStatus>, AppError> {
-    Ok(ai::detect_ai_tools(paths.unwrap_or_default()).await)
+pub async fn detect_ai_tools(
+    paths: Option<AiToolPaths>,
+    lm_studio: Option<LmStudioConfig>,
+) -> Result<Vec<AiToolStatus>, AppError> {
+    Ok(ai::detect_ai_tools(paths.unwrap_or_default(), lm_studio).await)
+}
+
+#[tauri::command]
+pub async fn list_lm_studio_models(
+    config: LmStudioConfig,
+) -> Result<Vec<LmStudioModel>, AppError> {
+    ai::list_lm_studio_models(config).await
 }
 
 #[tauri::command]

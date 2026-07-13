@@ -123,9 +123,14 @@
 			"larger": "Larger"
 		},
 		"ai": {
+			"activeProvider": "Active provider",
 			"preferredTool": "Preferred tool",
 			"model": "Model",
 			"refreshTools": "Refresh tools",
+			"sections": {
+				"cliTools": "CLI tools",
+				"apiProviders": "API providers"
+			},
 			"toolPaths": "CLI paths",
 			"toolPathsHelp": "Release builds do not inherit your shell PATH. Set the full path to each CLI if auto-detect fails.",
 			"autoDetectPaths": "Auto-detect paths",
@@ -134,8 +139,24 @@
 				"codex": "/Users/you/.bun/bin/codex",
 				"cursor": "/Users/you/.local/bin/agent"
 			},
+			"provider": {
+				"claude": "Claude Code",
+				"codex": "Codex CLI",
+				"cursor": "Cursor Agent",
+				"lmstudio": "LM Studio"
+			},
+			"lmStudio": {
+				"help": "Connect to a local LM Studio server with an OpenAI-compatible API. Use reasoning mode for thinking models (higher token budget). Turn it off for standard instruct models.",
+				"baseUrl": "Server URL",
+				"apiKey": "API key (optional)",
+				"apiKeyPlaceholder": "Leave empty for local servers without auth",
+				"model": "Model",
+				"modelPlaceholder": "Select a loaded model",
+				"refreshModels": "Refresh models",
+				"enableReasoning": "Allow reasoning",
+				"enableReasoningHelp": "Keeps thinking enabled for higher-quality analysis. CV Tailor waits up to 20 minutes and skips strict JSON schema in this mode. Disable for faster schema-enforced output from instruct models."
+			},
 			"tool": {
-				"auto": "Auto",
 				"claude": "Claude",
 				"codex": "Codex",
 				"cursor": "Cursor"
@@ -256,6 +277,7 @@
 			"reanalyze": "Re-analyze job",
 			"generateCv": "Generate CV",
 			"roleSummary": "Role summary",
+			"roleSummaryUnavailable": "Role summary unavailable. Use \"Re-analyze job\" to generate it.",
 			"metric": {
 				"profileMatch": "Profile match",
 				"seniority": "Seniority",

@@ -69,9 +69,6 @@ function RootComponent() {
 					</FontFamilyProvider>
 				</PaletteProvider>
 			</ThemeProvider>
-			{import.meta.env.DEV ? (
-				<TanStackRouterDevtools position="bottom-right" />
-			) : null}
 		</>
 	);
 }

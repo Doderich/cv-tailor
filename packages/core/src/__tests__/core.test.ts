@@ -2,11 +2,14 @@ import { describe, expect, it } from "vitest";
 
 import {
 	type BaseProfile,
+	createDefaultAppSettings,
 	createDefaultBaseProfile,
 	extractJobSignals,
 	hasMeaningfulProfileContent,
+	isUsableJobReviewSummary,
 	type JobOffer,
 	jobOfferNeedsReview,
+	migrateAppSettings,
 	normalizeMatchAnalysis,
 	profilesHaveSameContent,
 	resolveJobSignals,
@@ -106,13 +109,26 @@ describe("job posting review helpers", () => {
 				...baseJob,
 				review: {
 					signals: extractJobSignals(baseJob.rawText),
-					summary: "Backend role.",
+					summary:
+						"Backend role focused on Node.js APIs and PostgreSQL data modeling.",
 					rawText: baseJob.rawText,
 					reviewedAt: new Date(0).toISOString(),
 					reviewTool: "claude",
 				},
 			}),
 		).toBe(false);
+		expect(
+			jobOfferNeedsReview({
+				...baseJob,
+				review: {
+					signals: extractJobSignals(baseJob.rawText),
+					summary: "We ...",
+					rawText: baseJob.rawText,
+					reviewedAt: new Date(0).toISOString(),
+					reviewTool: "lmstudio",
+				},
+			}),
+		).toBe(true);
 		expect(
 			jobOfferNeedsReview({
 				...baseJob,
@@ -125,6 +141,15 @@ describe("job posting review helpers", () => {
 					reviewTool: "claude",
 				},
 			}),
+		).toBe(true);
+	});
+
+	it("rejects truncated job review summaries", () => {
+		expect(isUsableJobReviewSummary("We ...")).toBe(false);
+		expect(
+			isUsableJobReviewSummary(
+				"Backend role focused on Node.js APIs and PostgreSQL data modeling.",
+			),
 		).toBe(true);
 	});
 });
@@ -262,5 +287,32 @@ describe("profile content helpers", () => {
 		expect(
 			profilesHaveSameContent(left, profileWith({ summary: "Different" })),
 		).toBe(false);
+	});
+});
+
+describe("migrateAppSettings", () => {
+	it("maps legacy auto selection to claude", () => {
+		const defaults = createDefaultAppSettings();
+		const migrated = migrateAppSettings({
+			...defaults,
+			schemaVersion: 2,
+			selectedAiTool: "auto",
+			selectedAiProvider: undefined,
+		});
+
+		expect(migrated.schemaVersion).toBe(3);
+		expect(migrated.selectedAiProvider).toBe("claude");
+		expect(migrated.lmStudio?.baseUrl).toBe("http://localhost:1234");
+	});
+
+	it("preserves explicit lmstudio selection", () => {
+		const defaults = createDefaultAppSettings();
+		const migrated = migrateAppSettings({
+			...defaults,
+			selectedAiTool: "lmstudio",
+			selectedAiProvider: undefined,
+		});
+
+		expect(migrated.selectedAiProvider).toBe("lmstudio");
 	});
 });

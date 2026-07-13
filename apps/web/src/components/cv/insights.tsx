@@ -276,7 +276,13 @@ export function AnalysisPanel({
 	);
 }
 
-export function AiStatusPanel({ statuses }: { statuses: AiToolStatus[] }) {
+export function AiStatusPanel({
+	statuses,
+	selectedProvider,
+}: {
+	statuses: AiToolStatus[];
+	selectedProvider?: string;
+}) {
 	const { t } = useTranslation();
 
 	return (
@@ -286,7 +292,13 @@ export function AiStatusPanel({ statuses }: { statuses: AiToolStatus[] }) {
 			</CardHeader>
 			<CardContent className="grid gap-2">
 				{statuses.map((status) => (
-					<div key={status.id} className="rounded-md border p-3 text-sm">
+					<div
+						key={status.id}
+						className={cn(
+							"rounded-md border p-3 text-sm",
+							selectedProvider === status.id && "ring-2 ring-primary",
+						)}
+					>
 						<div className="flex items-center justify-between gap-2">
 							<span className="font-medium">{status.label}</span>
 							<span

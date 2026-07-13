@@ -29,6 +29,16 @@ impl AppError {
     }
 }
 
+impl From<reqwest::Error> for AppError {
+    fn from(error: reqwest::Error) -> Self {
+        Self::with_details(
+            "ai_provider_unreachable",
+            "An HTTP request to the AI provider failed.",
+            error.to_string(),
+        )
+    }
+}
+
 impl From<std::io::Error> for AppError {
     fn from(error: std::io::Error) -> Self {
         Self::with_details(

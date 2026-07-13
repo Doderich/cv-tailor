@@ -285,10 +285,12 @@ describe("job posting review prompt and parser", () => {
 				createdAt: new Date(0).toISOString(),
 			},
 			rawText: "We need Node.js and PostgreSQL experience.",
+			outputLanguage: "de",
 		});
 
 		expect(prompt).toContain("Backend Engineer");
 		expect(prompt).toContain("We need Node.js and PostgreSQL experience.");
+		expect(prompt).toContain("Target output language: German (de)");
 		expect(prompt).toContain("Output schema:");
 		expect(prompt).toContain('"seniority"');
 	});
@@ -297,6 +299,28 @@ describe("job posting review prompt and parser", () => {
 		const stdout = `\`\`\`json\n${JSON.stringify(validJobReviewOutput)}\n\`\`\``;
 		expect(parseCliJobPostingReviewOutput(stdout)).toEqual(
 			validJobReviewOutput,
+		);
+	});
+
+	it("parses job review JSON after stripping reasoning blocks", () => {
+		const thinkOpen = "<" + "think" + ">";
+		const thinkClose = "<" + "/think" + ">";
+		const stdout = [
+			thinkOpen + "Need to extract keywords first." + thinkClose,
+			JSON.stringify(validJobReviewOutput),
+		].join("\n");
+		expect(parseCliJobPostingReviewOutput(stdout)).toEqual(
+			validJobReviewOutput,
+		);
+	});
+
+	it("rejects truncated job review summaries", () => {
+		const stdout = `\`\`\`json\n${JSON.stringify({
+			...validJobReviewOutput,
+			summary: "We ...",
+		})}\n\`\`\``;
+		expect(() => parseCliJobPostingReviewOutput(stdout)).toThrow(
+			/incomplete job summary/i,
 		);
 	});
 });
@@ -320,11 +344,13 @@ describe("profile match evaluation prompt and parser", () => {
 			profile: promptInput.profile,
 			jobOffer: promptInput.jobOffer,
 			signals: promptInput.signals,
+			outputLanguage: "de",
 		});
 
 		expect(prompt).toContain(
 			"Judge semantically, not by naive keyword overlap.",
 		);
+		expect(prompt).toContain("Target output language: German (de)");
 		expect(prompt).toContain("goodFit must list the strongest factual reasons");
 		expect(prompt).toContain("Base profile JSON:");
 		expect(prompt).toContain("Extracted job signals JSON:");
@@ -336,5 +362,33 @@ describe("profile match evaluation prompt and parser", () => {
 			...validMatchAnalysisOutput,
 			source: "ai",
 		});
+	});
+
+	it("rejects empty match analysis output", () => {
+		const stdout = `\`\`\`json\n${JSON.stringify({
+			score: 0,
+			matchedKeywords: [],
+			missingKeywords: [],
+			missingRequirements: [],
+			goodFit: [],
+			warnings: [],
+		})}\n\`\`\``;
+		expect(() => parseCliMatchAnalysisOutput(stdout)).toThrow(
+			/placeholder match analysis/i,
+		);
+	});
+
+	it("rejects placeholder warnings in match analysis output", () => {
+		const stdout = `\`\`\`json\n${JSON.stringify({
+			score: 0,
+			matchedKeywords: [],
+			missingKeywords: [],
+			missingRequirements: [],
+			goodFit: [],
+			warnings: [""],
+		})}\n\`\`\``;
+		expect(() => parseCliMatchAnalysisOutput(stdout)).toThrow(
+			/placeholder match analysis/i,
+		);
 	});
 });

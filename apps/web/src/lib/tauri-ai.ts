@@ -1,8 +1,20 @@
-import type { AiToolId } from "@cv-tailor/ai";
+import type { AiProviderId } from "@cv-tailor/ai";
 import type { Application, BaseProfile, CvRun, CvTemplateId } from "@cv-tailor/core";
 
+export interface LmStudioConfig {
+	baseUrl?: string;
+	apiKey?: string;
+	model?: string;
+	enableReasoning?: boolean;
+}
+
+export interface LmStudioModel {
+	id: string;
+	label: string;
+}
+
 export interface AiToolStatus {
-	id: "claude" | "codex" | "cursor";
+	id: AiProviderId;
 	label: string;
 	available: boolean;
 	version?: string;
@@ -17,16 +29,17 @@ export interface AiToolPaths {
 }
 
 export interface AiRunRequest {
-	tool: AiToolId;
+	tool: AiProviderId;
 	prompt: string;
 	schema: unknown;
 	model?: string;
 	runId?: string;
 	toolPaths?: AiToolPaths;
+	lmStudio?: LmStudioConfig;
 }
 
 export interface AiRunResponse {
-	tool: "claude" | "codex" | "cursor";
+	tool: AiProviderId;
 	stdout: string;
 	stderr: string;
 	durationMs: number;
@@ -76,35 +89,61 @@ async function loadInvoke() {
 	return invoke;
 }
 
+function browserStubStatuses(): AiToolStatus[] {
+	return [
+		{
+			id: "claude",
+			label: "Claude Code",
+			available: false,
+			error: "CLI generation is available in the Tauri desktop app.",
+		},
+		{
+			id: "codex",
+			label: "Codex CLI",
+			available: false,
+			error: "CLI generation is available in the Tauri desktop app.",
+		},
+		{
+			id: "cursor",
+			label: "Cursor Agent",
+			available: false,
+			error: "CLI generation is available in the Tauri desktop app.",
+		},
+		{
+			id: "lmstudio",
+			label: "LM Studio",
+			available: false,
+			error: "API generation is available in the Tauri desktop app.",
+		},
+	];
+}
+
 export async function detectAiTools(
 	paths?: AiToolPaths,
+	lmStudio?: LmStudioConfig,
 ): Promise<AiToolStatus[]> {
 	const invoke = await loadInvoke();
 
 	if (!invoke) {
-		return [
-			{
-				id: "claude",
-				label: "Claude Code",
-				available: false,
-				error: "CLI generation is available in the Tauri desktop app.",
-			},
-			{
-				id: "codex",
-				label: "Codex CLI",
-				available: false,
-				error: "CLI generation is available in the Tauri desktop app.",
-			},
-			{
-				id: "cursor",
-				label: "Cursor Agent",
-				available: false,
-				error: "CLI generation is available in the Tauri desktop app.",
-			},
-		];
+		return browserStubStatuses();
 	}
 
-	return invoke<AiToolStatus[]>("detect_ai_tools", { paths: paths ?? null });
+	return invoke<AiToolStatus[]>("detect_ai_tools", {
+		paths: paths ?? null,
+		lmStudio: lmStudio ?? null,
+	});
+}
+
+export async function listLmStudioModels(
+	config: LmStudioConfig,
+): Promise<LmStudioModel[]> {
+	const invoke = await loadInvoke();
+
+	if (!invoke) {
+		return [];
+	}
+
+	return invoke<LmStudioModel[]>("list_lm_studio_models", { config });
 }
 
 export async function suggestAiToolPaths(): Promise<AiToolPaths> {
@@ -155,14 +194,17 @@ export async function runAiTool(
 
 	if (!invoke) {
 		throw new Error(
-			"CLI generation is available only in the Tauri desktop app.",
+			"AI generation is available only in the Tauri desktop app.",
 		);
 	}
 
-	const runId = request.runId ?? crypto.randomUUID();
+	const shouldStream = Boolean(options?.onProgress);
+	const runId = shouldStream
+		? (request.runId ?? crypto.randomUUID())
+		: undefined;
 	let unlisten: (() => void) | undefined;
 
-	if (options?.onProgress) {
+	if (shouldStream && options?.onProgress) {
 		const { listen } = await import("@tauri-apps/api/event");
 		unlisten = await listen<AiRunProgressEvent>(
 			AI_RUN_PROGRESS_EVENT,
@@ -178,72 +220,12 @@ export async function runAiTool(
 		return await invoke<AiRunResponse>("run_ai_tool", {
 			request: {
 				...request,
-				runId,
+				...(runId ? { runId } : {}),
 			},
 		});
 	} finally {
 		unlisten?.();
 	}
-}
-
-const aiProviderOrder = ["claude", "codex", "cursor"] as const;
-
-function isReadyProvider(
-	provider: (typeof aiProviderOrder)[number],
-	statuses: AiToolStatus[],
-) {
-	return statuses.some((status) => status.id === provider && status.available);
-}
-
-export async function runAiToolResilient(
-	request: AiRunRequest,
-	options: {
-		statuses: AiToolStatus[];
-		model?: string;
-		models?: Partial<Record<(typeof aiProviderOrder)[number], string>>;
-		toolPaths?: AiToolPaths;
-		onProgress?: (event: AiRunProgressEvent) => void;
-	},
-): Promise<AiRunResponse> {
-	const providersToTry =
-		request.tool === "auto"
-			? aiProviderOrder.filter((provider) =>
-					isReadyProvider(provider, options.statuses),
-				)
-			: aiProviderOrder.filter(
-					(provider) =>
-						provider === request.tool &&
-						isReadyProvider(provider, options.statuses),
-				);
-
-	if (providersToTry.length === 0) {
-		throw new Error("No supported AI tool is available on PATH.");
-	}
-
-	let lastError: unknown;
-	for (const provider of providersToTry) {
-		try {
-			return await runAiTool(
-				{
-					...request,
-					tool: provider,
-					toolPaths: options.toolPaths ?? request.toolPaths,
-					model:
-						options.models?.[provider] ??
-						(provider === request.tool ? options.model : undefined) ??
-						request.model,
-				},
-				{ onProgress: options.onProgress },
-			);
-		} catch (error) {
-			lastError = error;
-			if (request.tool !== "auto" || providersToTry.length === 1) {
-				throw error;
-			}
-		}
-	}
-
-	throw lastError ?? new Error("All configured AI tools failed.");
 }
 
 export async function fetchUrlText(url: string): Promise<FetchUrlTextResponse> {

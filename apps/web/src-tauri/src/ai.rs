@@ -17,14 +17,37 @@ use tokio::{
 use crate::errors::AppError;
 
 const AI_TIMEOUT_SECONDS: u64 = 300;
+const LM_STUDIO_TIMEOUT_SECONDS: u64 = 300;
+const LM_STUDIO_REASONING_TIMEOUT_SECONDS: u64 = 1_200;
 const AI_RUN_PROGRESS_EVENT: &str = "ai-run-progress";
 const CURSOR_TOOL_ID: &str = "cursor";
 const CURSOR_BINARY: &str = "agent";
+const LM_STUDIO_TOOL_ID: &str = "lmstudio";
+const LM_STUDIO_DETECT_TIMEOUT_SECS: u64 = 5;
+const LM_STUDIO_MAX_TOKENS: u32 = 32_768;
+const LM_STUDIO_MAX_TOKENS_REASONING: u32 = 12_288;
+const DEFAULT_LM_STUDIO_BASE_URL: &str = "http://localhost:1234";
 
 fn schema_path(app: &AppHandle) -> Result<PathBuf, AppError> {
     let directory = app.path().app_data_dir()?.join("cv-tailor");
     std::fs::create_dir_all(&directory)?;
     Ok(directory.join("tailored_cv_output.schema.json"))
+}
+
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LmStudioConfig {
+    pub base_url: Option<String>,
+    pub api_key: Option<String>,
+    pub model: Option<String>,
+    pub enable_reasoning: Option<bool>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LmStudioModel {
+    pub id: String,
+    pub label: String,
 }
 
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
@@ -55,6 +78,7 @@ pub struct AiRunRequest {
     pub model: Option<String>,
     pub run_id: Option<String>,
     pub tool_paths: Option<AiToolPaths>,
+    pub lm_studio: Option<LmStudioConfig>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -79,6 +103,7 @@ fn label_for_tool(tool: &str) -> &'static str {
         "claude" => "Claude Code",
         "codex" => "Codex CLI",
         CURSOR_TOOL_ID => "Cursor Agent",
+        LM_STUDIO_TOOL_ID => "LM Studio",
         _ => "Unknown",
     }
 }
@@ -241,13 +266,18 @@ async fn run_version(tool: &str, paths: &AiToolPaths) -> AiToolStatus {
     }
 }
 
-pub async fn detect_ai_tools(paths: AiToolPaths) -> Vec<AiToolStatus> {
-    let (claude, codex, cursor) = tokio::join!(
+pub async fn detect_ai_tools(
+    paths: AiToolPaths,
+    lm_studio: Option<LmStudioConfig>,
+) -> Vec<AiToolStatus> {
+    let lm_config = lm_studio.unwrap_or_default();
+    let (claude, codex, cursor, lmstudio) = tokio::join!(
         run_version("claude", &paths),
         run_version("codex", &paths),
-        run_version(CURSOR_TOOL_ID, &paths)
+        run_version(CURSOR_TOOL_ID, &paths),
+        detect_lm_studio(&lm_config)
     );
-    vec![claude, codex, cursor]
+    vec![claude, codex, cursor, lmstudio]
 }
 
 pub fn suggest_ai_tool_paths() -> AiToolPaths {
@@ -262,26 +292,7 @@ async fn available_tool(tool: &str, paths: &AiToolPaths) -> bool {
     run_version(tool, paths).await.available
 }
 
-async fn resolve_tool(requested_tool: &str, paths: &AiToolPaths) -> Result<String, AppError> {
-    if requested_tool == "auto" {
-        if available_tool("claude", paths).await {
-            return Ok("claude".to_string());
-        }
-
-        if available_tool("codex", paths).await {
-            return Ok("codex".to_string());
-        }
-
-        if available_tool(CURSOR_TOOL_ID, paths).await {
-            return Ok(CURSOR_TOOL_ID.to_string());
-        }
-
-        return Err(AppError::new(
-            "ai_tool_unavailable",
-            "No supported AI tool is available. Configure tool paths in Settings → AI.",
-        ));
-    }
-
+async fn resolve_cli_tool(requested_tool: &str, paths: &AiToolPaths) -> Result<String, AppError> {
     if requested_tool != "claude"
         && requested_tool != "codex"
         && requested_tool != CURSOR_TOOL_ID
@@ -582,22 +593,659 @@ fn extract_cursor_result(stdout: &str) -> Result<String, AppError> {
     Ok(stdout.to_string())
 }
 
+fn lm_studio_base_url(config: &LmStudioConfig) -> String {
+    config
+        .base_url
+        .as_ref()
+        .map(|value| value.trim())
+        .filter(|value| !value.is_empty())
+        .map(|value| value.trim_end_matches('/').to_string())
+        .unwrap_or_else(|| DEFAULT_LM_STUDIO_BASE_URL.to_string())
+}
+
+fn apply_lm_studio_auth(
+    request: reqwest::RequestBuilder,
+    config: &LmStudioConfig,
+) -> reqwest::RequestBuilder {
+    if let Some(api_key) = config
+        .api_key
+        .as_ref()
+        .map(|value| value.trim())
+        .filter(|value| !value.is_empty())
+    {
+        request.bearer_auth(api_key)
+    } else {
+        request
+    }
+}
+
+async fn fetch_lm_studio_models(config: &LmStudioConfig) -> Result<Vec<LmStudioModel>, AppError> {
+    let base_url = lm_studio_base_url(config);
+    let url = format!("{base_url}/v1/models");
+    let request = apply_lm_studio_auth(reqwest::Client::new().get(url), config)
+        .timeout(Duration::from_secs(LM_STUDIO_DETECT_TIMEOUT_SECS));
+
+    let response = request.send().await.map_err(|error| {
+        AppError::with_details(
+            "ai_provider_unreachable",
+            "Could not reach LM Studio.",
+            error.to_string(),
+        )
+    })?;
+
+    if !response.status().is_success() {
+        let status = response.status();
+        let body = response.text().await.unwrap_or_default();
+        return Err(AppError::with_details(
+            "ai_provider_unreachable",
+            "LM Studio returned an error while listing models.",
+            format!("HTTP {status}: {body}"),
+        ));
+    }
+
+    let payload: serde_json::Value = response.json().await?;
+    let models = payload
+        .get("data")
+        .and_then(|value| value.as_array())
+        .cloned()
+        .unwrap_or_default();
+
+    Ok(models
+        .into_iter()
+        .filter_map(|model| {
+            let id = model.get("id")?.as_str()?.trim().to_string();
+            if id.is_empty() {
+                return None;
+            }
+
+            let label = model
+                .get("id")
+                .and_then(|value| value.as_str())
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .unwrap_or(id.as_str())
+                .to_string();
+
+            Some(LmStudioModel { id, label })
+        })
+        .collect())
+}
+
+async fn detect_lm_studio(config: &LmStudioConfig) -> AiToolStatus {
+    let base_url = lm_studio_base_url(config);
+    match fetch_lm_studio_models(config).await {
+        Ok(models) if !models.is_empty() => AiToolStatus {
+            id: LM_STUDIO_TOOL_ID.to_string(),
+            label: label_for_tool(LM_STUDIO_TOOL_ID).to_string(),
+            available: true,
+            version: Some(format!("{} model(s) loaded", models.len())),
+            error: None,
+            resolved_path: Some(base_url),
+        },
+        Ok(_) => AiToolStatus {
+            id: LM_STUDIO_TOOL_ID.to_string(),
+            label: label_for_tool(LM_STUDIO_TOOL_ID).to_string(),
+            available: false,
+            version: None,
+            error: Some("LM Studio is reachable but no models are loaded.".to_string()),
+            resolved_path: Some(base_url),
+        },
+        Err(error) => AiToolStatus {
+            id: LM_STUDIO_TOOL_ID.to_string(),
+            label: label_for_tool(LM_STUDIO_TOOL_ID).to_string(),
+            available: false,
+            version: None,
+            error: Some(error.details.unwrap_or(error.message)),
+            resolved_path: Some(base_url),
+        },
+    }
+}
+
+pub async fn list_lm_studio_models(
+    config: LmStudioConfig,
+) -> Result<Vec<LmStudioModel>, AppError> {
+    fetch_lm_studio_models(&config).await
+}
+
+fn lm_studio_reasoning_enabled(config: &LmStudioConfig) -> bool {
+    config.enable_reasoning.unwrap_or(true)
+}
+
+fn lm_studio_timeout_seconds(config: &LmStudioConfig) -> u64 {
+    if lm_studio_reasoning_enabled(config) {
+        LM_STUDIO_REASONING_TIMEOUT_SECONDS
+    } else {
+        LM_STUDIO_TIMEOUT_SECONDS
+    }
+}
+
+fn lm_studio_http_client(config: &LmStudioConfig) -> reqwest::Client {
+    let timeout_secs = lm_studio_timeout_seconds(config);
+    reqwest::Client::builder()
+        .connect_timeout(Duration::from_secs(15))
+        .timeout(Duration::from_secs(timeout_secs))
+        .build()
+        .unwrap_or_else(|_| reqwest::Client::new())
+}
+
+fn classify_lm_studio_transport_error(error: &reqwest::Error) -> (&'static str, &'static str) {
+    if error.is_timeout() {
+        return (
+            "ai_request_timeout",
+            "LM Studio took too long to respond. Reasoning models can run for many minutes — retry or disable reasoning for faster structured output.",
+        );
+    }
+
+    if error.is_connect() {
+        return (
+            "ai_provider_unreachable",
+            "Could not connect to LM Studio. Check that the server is running and the URL in Settings → AI is correct.",
+        );
+    }
+
+    (
+        "ai_provider_unreachable",
+        "Could not reach LM Studio.",
+    )
+}
+
+fn extract_first_json_object(stdout: &str) -> Option<String> {
+    let start = stdout.find('{')?;
+    let end = stdout.rfind('}')?;
+    if end <= start {
+        return None;
+    }
+
+    Some(stdout[start..=end].to_string())
+}
+
+fn looks_like_json_output(stdout: &str) -> bool {
+    let trimmed = stdout.trim();
+    if trimmed.starts_with('{') {
+        return true;
+    }
+
+    if trimmed.contains("```json") {
+        return true;
+    }
+
+    extract_first_json_object(trimmed).is_some()
+}
+
+fn ensure_lm_studio_stdout_is_json_candidate(
+    stdout: &str,
+    reasoning_enabled: bool,
+) -> Result<(), AppError> {
+    if looks_like_json_output(stdout) {
+        return Ok(());
+    }
+
+    let message = if reasoning_enabled {
+        "LM Studio finished reasoning without returning JSON. The model spent the output on thinking — try disabling reasoning, using a larger model, or lowering thinking in LM Studio."
+    } else {
+        "LM Studio returned a response that does not look like JSON."
+    };
+    Err(AppError::new("ai_process_failed", message))
+}
+
+fn normalize_lm_studio_stdout(stdout: String) -> String {
+    if stdout.trim().starts_with('{') {
+        return stdout;
+    }
+
+    extract_first_json_object(&stdout).unwrap_or(stdout)
+}
+
+fn lm_studio_max_tokens(config: &LmStudioConfig) -> u32 {
+    if lm_studio_reasoning_enabled(config) {
+        LM_STUDIO_MAX_TOKENS_REASONING
+    } else {
+        LM_STUDIO_MAX_TOKENS
+    }
+}
+
+fn build_lm_studio_request_body(
+    model: &str,
+    prompt: &str,
+    schema: &serde_json::Value,
+    config: &LmStudioConfig,
+    stream: bool,
+) -> serde_json::Value {
+    let reasoning_enabled = lm_studio_reasoning_enabled(config);
+    let mut body = serde_json::json!({
+        "model": model,
+        "messages": [
+            {
+                "role": "system",
+                "content": if reasoning_enabled {
+                    "You are a structured data API. Keep internal reasoning concise (under 2000 tokens). After a brief analysis, your final assistant message must contain ONLY one complete JSON object that satisfies the schema in the user prompt. Never end a response with thinking alone. Never return placeholder empty strings or hollow arrays when rich profile or job data is provided."
+                } else {
+                    "You are a structured data API. Read the full user input and return complete JSON that satisfies the schema. Never return placeholder empty strings or hollow arrays when rich profile or job data is provided."
+                }
+            },
+            {
+                "role": "user",
+                "content": prompt
+            }
+        ],
+        "max_tokens": lm_studio_max_tokens(config),
+        "temperature": 0,
+        "stream": stream
+    });
+
+    if let Some(object) = body.as_object_mut() {
+        if reasoning_enabled {
+            // LM Studio currently applies json_schema to the thinking stream for Qwen-style
+            // reasoning models, which traps JSON in reasoning_content and leaves content empty.
+            object.insert("reasoning_effort".into(), serde_json::json!("medium"));
+            object.insert(
+                "chat_template_kwargs".into(),
+                serde_json::json!({
+                    "enable_thinking": true,
+                    "thinking": true
+                }),
+            );
+        } else {
+            object.insert(
+                "response_format".into(),
+                serde_json::json!({
+                    "type": "json_schema",
+                    "json_schema": {
+                        "name": "cv_tailor_output",
+                        "strict": true,
+                        "schema": schema
+                    }
+                }),
+            );
+            object.insert("reasoning_effort".into(), serde_json::json!("none"));
+            object.insert(
+                "chat_template_kwargs".into(),
+                serde_json::json!({
+                    "enable_thinking": false,
+                    "thinking": false
+                }),
+            );
+        }
+    }
+
+    body
+}
+
+fn resolve_lm_studio_output(
+    content: Option<String>,
+    reasoning_content: Option<String>,
+) -> Option<String> {
+    let content = content.unwrap_or_default();
+    if !content.trim().is_empty() {
+        return Some(content);
+    }
+
+    let reasoning_content = reasoning_content.unwrap_or_default();
+    if !reasoning_content.trim().is_empty() {
+        return Some(reasoning_content);
+    }
+
+    None
+}
+
+fn extract_lm_studio_message_content(payload: &serde_json::Value) -> Option<String> {
+    payload
+        .get("choices")
+        .and_then(|value| value.as_array())
+        .and_then(|choices| choices.first())
+        .and_then(|choice| choice.get("message"))
+        .and_then(|message| message.get("content"))
+        .and_then(|content| content.as_str())
+        .map(str::to_string)
+}
+
+fn extract_lm_studio_reasoning_content(payload: &serde_json::Value) -> Option<String> {
+    payload
+        .get("choices")
+        .and_then(|value| value.as_array())
+        .and_then(|choices| choices.first())
+        .and_then(|choice| choice.get("message"))
+        .and_then(|message| message.get("reasoning_content"))
+        .and_then(|content| content.as_str())
+        .map(str::to_string)
+        .filter(|value| !value.trim().is_empty())
+}
+
+fn ensure_lm_studio_has_output(stdout: &str, reasoning_enabled: bool) -> Result<(), AppError> {
+    if !stdout.trim().is_empty() {
+        return Ok(());
+    }
+
+    let message = if reasoning_enabled {
+        "LM Studio returned an empty response after reasoning. Retry the request or temporarily disable reasoning for structured output."
+    } else {
+        "LM Studio returned reasoning output but no JSON content. Try enabling reasoning mode in Settings → AI or switch to a non-reasoning instruct model."
+    };
+    Err(AppError::new("ai_process_failed", message))
+}
+
+fn extract_lm_studio_delta_reasoning_content(payload: &serde_json::Value) -> Option<String> {
+    payload
+        .get("choices")
+        .and_then(|value| value.as_array())
+        .and_then(|choices| choices.first())
+        .and_then(|choice| choice.get("delta"))
+        .and_then(|delta| delta.get("reasoning_content"))
+        .and_then(|content| content.as_str())
+        .map(str::to_string)
+}
+
+fn extract_lm_studio_stream_reasoning_content(payload: &serde_json::Value) -> Option<String> {
+    if let Some(content) = extract_lm_studio_delta_reasoning_content(payload) {
+        return Some(content);
+    }
+
+    extract_lm_studio_reasoning_content(payload)
+}
+
+fn extract_lm_studio_finish_reason(payload: &serde_json::Value) -> Option<String> {
+    payload
+        .get("choices")
+        .and_then(|value| value.as_array())
+        .and_then(|choices| choices.first())
+        .and_then(|choice| choice.get("finish_reason"))
+        .and_then(|reason| reason.as_str())
+        .map(str::to_string)
+}
+
+fn extract_lm_studio_stream_content(payload: &serde_json::Value) -> Option<String> {
+    if let Some(content) = extract_lm_studio_delta_content(payload) {
+        return Some(content);
+    }
+
+    extract_lm_studio_message_content(payload)
+}
+
+fn ensure_lm_studio_response_complete(
+    finish_reason: Option<&str>,
+    reasoning_enabled: bool,
+) -> Result<(), AppError> {
+    if finish_reason == Some("length") {
+        let message = if reasoning_enabled {
+            "LM Studio response was truncated. Reasoning models need a large output budget for thinking plus JSON — raise max output tokens in LM Studio or disable reasoning for instruct models."
+        } else {
+            "LM Studio response was truncated. Increase the model output limit in LM Studio or choose a model with a larger context window."
+        };
+        return Err(AppError::new("ai_process_failed", message));
+    }
+
+    Ok(())
+}
+
+fn extract_lm_studio_delta_content(payload: &serde_json::Value) -> Option<String> {
+    payload
+        .get("choices")
+        .and_then(|value| value.as_array())
+        .and_then(|choices| choices.first())
+        .and_then(|choice| choice.get("delta"))
+        .and_then(|delta| delta.get("content"))
+        .and_then(|content| content.as_str())
+        .map(str::to_string)
+}
+
+fn classify_lm_studio_error(status: reqwest::StatusCode, body: &str) -> &'static str {
+    let lower = body.to_lowercase();
+    if status.as_u16() == 401 || lower.contains("unauthorized") || lower.contains("api key") {
+        return "ai_auth_required";
+    }
+
+    if lower.contains("json_schema")
+        || lower.contains("response_format")
+        || lower.contains("structured")
+        || lower.contains("schema")
+    {
+        return "ai_schema_rejected";
+    }
+
+    "ai_process_failed"
+}
+
+fn process_lm_studio_sse_line(
+    line: &str,
+    app: Option<&AppHandle>,
+    run_id: &str,
+    accumulated_content: &mut String,
+    accumulated_reasoning: &mut String,
+    finish_reason: &mut Option<String>,
+) {
+    let trimmed = line.trim();
+    if !trimmed.starts_with("data:") {
+        return;
+    }
+
+    let data = trimmed.trim_start_matches("data:").trim();
+    if data.is_empty() || data == "[DONE]" {
+        return;
+    }
+
+    let Ok(payload) = serde_json::from_str::<serde_json::Value>(data) else {
+        return;
+    };
+
+    if let Some(reason) = extract_lm_studio_finish_reason(&payload) {
+        *finish_reason = Some(reason);
+    }
+
+    if let Some(content) = extract_lm_studio_stream_content(&payload) {
+        if !content.is_empty() {
+            emit_run_progress(app, run_id, "stdout", &content);
+            accumulated_content.push_str(&content);
+        }
+    }
+
+    if let Some(reasoning) = extract_lm_studio_stream_reasoning_content(&payload) {
+        if !reasoning.is_empty() {
+            accumulated_reasoning.push_str(&reasoning);
+        }
+    }
+}
+
+fn drain_lm_studio_sse_buffer(
+    buffer: &mut String,
+    app: Option<&AppHandle>,
+    run_id: &str,
+    accumulated_content: &mut String,
+    accumulated_reasoning: &mut String,
+    finish_reason: &mut Option<String>,
+) {
+    while let Some(newline_index) = buffer.find('\n') {
+        let line = buffer[..newline_index].to_string();
+        buffer.drain(..=newline_index);
+        process_lm_studio_sse_line(
+            &line,
+            app,
+            run_id,
+            accumulated_content,
+            accumulated_reasoning,
+            finish_reason,
+        );
+    }
+}
+
+async fn run_lm_studio(
+    app: Option<&AppHandle>,
+    run_id: &str,
+    config: &LmStudioConfig,
+    request: &AiRunRequest,
+    stream: bool,
+) -> Result<AiRunResponse, AppError> {
+    let model = config
+        .model
+        .as_ref()
+        .or(request.model.as_ref())
+        .map(|value| value.trim())
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| {
+            AppError::new(
+                "ai_tool_unavailable",
+                "No LM Studio model is selected. Choose a model in Settings → AI.",
+            )
+        })?
+        .to_string();
+
+    let base_url = lm_studio_base_url(config);
+    let url = format!("{base_url}/v1/chat/completions");
+    let reasoning_enabled = lm_studio_reasoning_enabled(config);
+    let body = build_lm_studio_request_body(
+        &model,
+        &request.prompt,
+        &request.schema,
+        config,
+        stream,
+    );
+
+    let http_request = apply_lm_studio_auth(lm_studio_http_client(config).post(url), config)
+        .header("Content-Type", "application/json")
+        .json(&body);
+
+    let start = Instant::now();
+    let response = http_request.send().await.map_err(|error| {
+        let (code, message) = classify_lm_studio_transport_error(&error);
+        AppError::with_details(code, message, error.to_string())
+    })?;
+
+    if !response.status().is_success() {
+        let status = response.status();
+        let body = response.text().await.unwrap_or_default();
+        return Err(AppError::with_details(
+            classify_lm_studio_error(status, &body),
+            "LM Studio request failed.",
+            if body.trim().is_empty() {
+                format!("HTTP {status}")
+            } else {
+                body
+            },
+        ));
+    }
+
+    let stdout = if stream {
+        let mut accumulated_content = String::new();
+        let mut accumulated_reasoning = String::new();
+        let mut buffer = String::new();
+        let mut finish_reason = None;
+
+        let mut response = response;
+        while let Some(chunk) = response
+            .chunk()
+            .await
+            .map_err(|error| {
+                let (code, message) = classify_lm_studio_transport_error(&error);
+                AppError::with_details(code, message, error.to_string())
+            })?
+        {
+            buffer.push_str(&String::from_utf8_lossy(&chunk));
+            drain_lm_studio_sse_buffer(
+                &mut buffer,
+                app,
+                run_id,
+                &mut accumulated_content,
+                &mut accumulated_reasoning,
+                &mut finish_reason,
+            );
+        }
+
+        if !buffer.trim().is_empty() {
+            process_lm_studio_sse_line(
+                &buffer,
+                app,
+                run_id,
+                &mut accumulated_content,
+                &mut accumulated_reasoning,
+                &mut finish_reason,
+            );
+        }
+
+        ensure_lm_studio_response_complete(finish_reason.as_deref(), reasoning_enabled)?;
+        resolve_lm_studio_output(
+            Some(accumulated_content),
+            Some(accumulated_reasoning),
+        )
+        .ok_or_else(|| {
+            AppError::new(
+                "ai_process_failed",
+                "LM Studio returned an empty response.",
+            )
+        })?
+    } else {
+        let payload: serde_json::Value = response.json().await?;
+        let finish_reason = extract_lm_studio_finish_reason(&payload);
+        ensure_lm_studio_response_complete(finish_reason.as_deref(), reasoning_enabled)?;
+        let stdout = resolve_lm_studio_output(
+            extract_lm_studio_message_content(&payload),
+            extract_lm_studio_reasoning_content(&payload),
+        )
+        .ok_or_else(|| {
+            AppError::new(
+                "ai_process_failed",
+                "LM Studio returned a response without message content.",
+            )
+        })?;
+        ensure_lm_studio_has_output(&stdout, reasoning_enabled)?;
+        stdout
+    };
+
+    if stdout.trim().is_empty() {
+        return Err(AppError::new(
+            "ai_process_failed",
+            "LM Studio returned an empty response.",
+        ));
+    }
+
+    let stdout = normalize_lm_studio_stdout(stdout);
+    ensure_lm_studio_stdout_is_json_candidate(&stdout, reasoning_enabled)?;
+
+    Ok(AiRunResponse {
+        tool: LM_STUDIO_TOOL_ID.to_string(),
+        stdout,
+        stderr: String::new(),
+        duration_ms: start.elapsed().as_millis(),
+    })
+}
+
 pub async fn run_ai_tool(
     app: &AppHandle,
     request: AiRunRequest,
 ) -> Result<AiRunResponse, AppError> {
-    let tool_paths = request.tool_paths.unwrap_or_default();
-    let tool = resolve_tool(&request.tool, &tool_paths).await?;
-    let binary_path = resolve_binary_path(&tool, &tool_paths);
     let has_progress = request
         .run_id
         .as_ref()
         .is_some_and(|value| !value.trim().is_empty());
     let run_id = request
         .run_id
+        .clone()
         .filter(|value| !value.trim().is_empty())
         .unwrap_or_else(|| "anonymous".to_string());
     let progress_app = has_progress.then(|| app.clone());
+
+    if request.tool == LM_STUDIO_TOOL_ID {
+        let config = request.lm_studio.clone().unwrap_or_default();
+        let status = detect_lm_studio(&config).await;
+        if !status.available {
+            return Err(AppError::with_details(
+                "ai_tool_unavailable",
+                "LM Studio is not available. Check the server URL and loaded model in Settings → AI.",
+                status.error.unwrap_or_else(|| status.version.unwrap_or_default()),
+            ));
+        }
+
+        return run_lm_studio(
+            progress_app.as_ref(),
+            &run_id,
+            &config,
+            &request,
+            true,
+        )
+        .await;
+    }
+
+    let tool_paths = request.tool_paths.unwrap_or_default();
+    let tool = resolve_cli_tool(&request.tool, &tool_paths).await?;
+    let binary_path = resolve_binary_path(&tool, &tool_paths);
 
     if tool == "claude" {
         let schema = serde_json::to_string(&request.schema)?;
@@ -686,4 +1334,52 @@ pub async fn run_ai_tool(
         &request.prompt,
     )
     .await
+}
+
+#[cfg(test)]
+mod lm_studio_tests {
+    use super::{
+        extract_first_json_object, looks_like_json_output, normalize_lm_studio_stdout,
+        resolve_lm_studio_output,
+    };
+
+    #[test]
+    fn prefers_message_content_over_reasoning_content() {
+        let resolved = resolve_lm_studio_output(
+            Some("{\"answer\":1}".to_string()),
+            Some("{\"answer\":2}".to_string()),
+        );
+
+        assert_eq!(resolved.as_deref(), Some("{\"answer\":1}"));
+    }
+
+    #[test]
+    fn falls_back_to_reasoning_content_when_content_is_empty() {
+        let resolved = resolve_lm_studio_output(
+            Some("   ".to_string()),
+            Some("{\"answer\":2}".to_string()),
+        );
+
+        assert_eq!(resolved.as_deref(), Some("{\"answer\":2}"));
+    }
+
+    #[test]
+    fn extracts_json_from_reasoning_prose() {
+        let stdout = normalize_lm_studio_stdout(
+            "Analysis notes...\n{\"score\":75,\"matchedKeywords\":[\"typescript\"]}".to_string(),
+        );
+
+        assert!(looks_like_json_output(&stdout));
+        assert_eq!(
+            extract_first_json_object(&stdout).as_deref(),
+            Some("{\"score\":75,\"matchedKeywords\":[\"typescript\"]}")
+        );
+    }
+
+    #[test]
+    fn rejects_reasoning_only_prose() {
+        assert!(!looks_like_json_output(
+            "The candidate matches TypeScript but lacks four years of experience."
+        ));
+    }
 }

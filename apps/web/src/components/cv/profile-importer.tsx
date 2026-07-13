@@ -1,5 +1,4 @@
 import {
-	type AiToolId,
 	buildGenerateProfilePrompt,
 	generatedProfileOutputJsonSchema,
 	parseCliGeneratedProfileOutput,
@@ -50,11 +49,10 @@ import {
 	type AiRunProgressEvent,
 	fetchUrlText,
 	isTauriRuntime,
-	runAiToolResilient,
+	runAiTool,
 } from "@/lib/tauri-ai";
 
 interface ProfileImporterProps {
-	selectedTool: AiToolId;
 	canUseAi: boolean;
 	preferredTone: string;
 }
@@ -112,7 +110,6 @@ function TargetModeButton({
 }
 
 export function ProfileImporter({
-	selectedTool,
 	canUseAi,
 	preferredTone,
 }: ProfileImporterProps) {
@@ -120,10 +117,12 @@ export function ProfileImporter({
 	const cvLanguageLabel = useCvLanguageLabel();
 	const {
 		aiModels,
-		aiStatuses,
+		aiToolPaths,
 		applyGeneratedProfile,
+		lmStudio,
 		profileRecord,
 		profiles,
+		selectedProvider,
 		switchProfile,
 	} = useCvApp();
 	const fileInputId = useId();
@@ -312,19 +311,28 @@ export function ProfileImporter({
 				preferredTone,
 				targetLanguage,
 			});
-			const response = await runAiToolResilient(
+			const model = resolveEffectiveAiModel(
+				selectedProvider,
+				aiModels,
+				lmStudio,
+			);
+			const response = await runAiTool(
 				{
-					tool: selectedTool,
+					tool: selectedProvider,
 					prompt,
 					schema: generatedProfileOutputJsonSchema,
-					model: resolveEffectiveAiModel(selectedTool, aiStatuses, aiModels),
+					model,
+					toolPaths: aiToolPaths,
+					lmStudio:
+						selectedProvider === "lmstudio"
+							? {
+									baseUrl: lmStudio.baseUrl,
+									apiKey: lmStudio.apiKey,
+									model: lmStudio.model,
+								}
+							: undefined,
 				},
-				{
-					statuses: aiStatuses,
-					model: resolveEffectiveAiModel(selectedTool, aiStatuses, aiModels),
-					models: aiModels,
-					onProgress: handleAiProgress,
-				},
+				{ onProgress: handleAiProgress },
 			);
 			setRawOutput(response.stdout);
 

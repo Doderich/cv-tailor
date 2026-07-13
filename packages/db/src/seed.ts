@@ -1,13 +1,18 @@
 import {
+	buildMigratedAppSettings,
 	createDefaultAppSettings,
 	createDefaultProfileRecord,
-	defaultCvTemplate,
 	defaultProfileId,
 	normalizeCvRun,
 	normalizeProfileRecord,
+	type LegacyAppSettings,
 } from "@cv-tailor/core";
 
 import type { DbCollections } from "./collections";
+
+function cloneSettingsRecord(settings: LegacyAppSettings): LegacyAppSettings {
+	return JSON.parse(JSON.stringify(settings)) as LegacyAppSettings;
+}
 
 export async function seedDefaults(collections: DbCollections) {
 	for (const profile of collections.profiles.values()) {
@@ -19,7 +24,10 @@ export async function seedDefaults(collections: DbCollections) {
 			profile.education !== normalized.education;
 		if (needsUpdate) {
 			collections.profiles.update(profile.id, (draft) => {
-				Object.assign(draft, normalized);
+				draft.language = normalized.language;
+				draft.experience = normalized.experience;
+				draft.projects = normalized.projects;
+				draft.education = normalized.education;
 			});
 		}
 	}
@@ -80,23 +88,21 @@ export async function seedDefaults(collections: DbCollections) {
 	if (hasSettings) {
 		const settings = collections.settings.get("settings");
 		if (settings) {
+			const needsMigration =
+				settings.schemaVersion !== 3 ||
+				!settings.selectedAiProvider ||
+				!settings.lmStudio;
 			const needsAiSettings =
-				!settings.selectedAiTool ||
 				!settings.aiModels?.claude ||
 				!settings.aiModels?.codex ||
 				!settings.aiModels?.cursor;
 			const needsCvTemplate = !settings.cvTemplate;
-			if (needsAiSettings || needsCvTemplate) {
-				const defaults = createDefaultAppSettings(settings.activeProfileId);
-				collections.settings.update("settings", (draft) => {
-					draft.selectedAiTool =
-						draft.selectedAiTool ?? defaults.selectedAiTool;
-					draft.aiModels = {
-						...defaults.aiModels,
-						...draft.aiModels,
-					};
-					draft.cvTemplate = draft.cvTemplate ?? defaultCvTemplate;
-				});
+			if (needsMigration || needsAiSettings || needsCvTemplate) {
+				const migrated = buildMigratedAppSettings(
+					cloneSettingsRecord(settings),
+				);
+				collections.settings.delete("settings");
+				collections.settings.insert(migrated);
 			}
 		}
 

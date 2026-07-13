@@ -1,7 +1,7 @@
 import {
 	type AiModels,
 	type AiProviderId,
-	type AiToolId,
+	type CliProviderId,
 	buildEvaluateProfileMatchPrompt,
 	buildReviewJobPostingPrompt,
 	buildTailorCvPrompt,
@@ -10,7 +10,9 @@ import {
 	cursorModelOptions,
 	defaultAiModels,
 	jobPostingReviewOutputJsonSchema,
+	jobPostingReviewRetryInstruction,
 	matchAnalysisOutputJsonSchema,
+	matchAnalysisRetryInstruction,
 	parseCliJobPostingReviewOutput,
 	parseCliMatchAnalysisOutput,
 	parseCliTailoredCvOutput,
@@ -31,10 +33,12 @@ import {
 	createProfileRecord,
 	cvLanguages,
 	defaultCvTemplate,
+	defaultLmStudioConfig,
 	type JobOffer,
 	type JobPostingReview,
 	type JobSignals,
 	jobOfferNeedsReview,
+	type LmStudioConfig,
 	type MatchAnalysis,
 	normalizeBaseProfile,
 	normalizeCvRun,
@@ -60,7 +64,7 @@ import {
 	useState,
 } from "react";
 import { toast } from "sonner";
-import i18n from "@/i18n";
+import i18n, { isUiLanguage } from "@/i18n";
 import {
 	importAllData as importBackup,
 } from "@/lib/data-backup";
@@ -76,14 +80,17 @@ import { useDb } from "@/lib/db-provider";
 import { createDebouncedCallback } from "@/lib/debounce";
 import { translateCvLanguage } from "@/lib/i18n-labels";
 import {
+	type AiRunRequest,
 	type AiToolPaths,
 	type AiToolStatus,
+	type LmStudioModel,
 	detectAiTools,
 	exportGeneratedCvPdf,
 	formatAppError,
 	isTauriRuntime,
+	listLmStudioModels,
 	printGeneratedCv,
-	runAiToolResilient,
+	runAiTool,
 	suggestAiToolPaths,
 } from "@/lib/tauri-ai";
 
@@ -121,9 +128,11 @@ interface CvAppContextValue {
 	selectedLanguage: CvLanguage;
 	cvTemplate: CvTemplateId;
 	aiStatuses: AiToolStatus[];
-	selectedTool: AiToolId;
+	selectedProvider: AiProviderId;
 	aiModels: AiModels;
 	aiToolPaths: AiToolPaths;
+	lmStudio: LmStudioConfig;
+	lmStudioModels: LmStudioModel[];
 	effectiveAiProvider: AiProviderId | undefined;
 	effectiveAiModel: string | undefined;
 	saveStatus: SaveStatus;
@@ -139,9 +148,14 @@ interface CvAppContextValue {
 	rawCliOutput: string | undefined;
 	rawJobReviewOutput: string | undefined;
 	rawProfileMatchOutput: string | undefined;
-	setSelectedTool: (tool: AiToolId) => void;
-	setAiModel: (provider: AiProviderId, model: string) => void;
-	setAiToolPath: (provider: AiProviderId, path: string) => void;
+	setSelectedProvider: (provider: AiProviderId) => void;
+	setAiModel: (provider: CliProviderId, model: string) => void;
+	setAiToolPath: (provider: CliProviderId, path: string) => void;
+	setLmStudioBaseUrl: (baseUrl: string) => void;
+	setLmStudioApiKey: (apiKey: string) => void;
+	setLmStudioModel: (model: string) => void;
+	setLmStudioEnableReasoning: (enabled: boolean) => void;
+	refreshLmStudioModels: () => Promise<void>;
 	suggestAndApplyAiToolPaths: () => Promise<void>;
 	setSelectedLanguage: (language: CvLanguage) => void;
 	setCvTemplate: (template: CvTemplateId) => void;
@@ -202,58 +216,76 @@ export function getErrorMessage(error: unknown) {
 	return formatAppError(error);
 }
 
-export function toolIsReady(tool: AiToolId, statuses: AiToolStatus[]) {
+export function providerIsReady(
+	provider: AiProviderId,
+	statuses: AiToolStatus[],
+	lmStudio?: LmStudioConfig,
+) {
 	if (!isTauriRuntime()) {
 		return false;
 	}
 
-	if (tool === "auto") {
-		return statuses.some((status) => status.available);
+	if (provider === "lmstudio") {
+		const status = statuses.find((entry) => entry.id === "lmstudio");
+		return Boolean(status?.available && lmStudio?.model?.trim());
 	}
 
-	return Boolean(statuses.find((status) => status.id === tool)?.available);
+	return Boolean(statuses.find((status) => status.id === provider)?.available);
 }
 
 export function resolveEffectiveAiProvider(
-	tool: AiToolId,
+	provider: AiProviderId,
 	statuses: AiToolStatus[],
+	lmStudio?: LmStudioConfig,
 ): AiProviderId | undefined {
-	if (tool === "claude" && toolIsReady("claude", statuses)) {
-		return "claude";
-	}
-
-	if (tool === "codex" && toolIsReady("codex", statuses)) {
-		return "codex";
-	}
-
-	if (tool === "cursor" && toolIsReady("cursor", statuses)) {
-		return "cursor";
-	}
-
-	if (tool === "auto") {
-		if (toolIsReady("claude", statuses)) {
-			return "claude";
-		}
-
-		if (toolIsReady("codex", statuses)) {
-			return "codex";
-		}
-
-		if (toolIsReady("cursor", statuses)) {
-			return "cursor";
-		}
-	}
-
-	return undefined;
+	return providerIsReady(provider, statuses, lmStudio) ? provider : undefined;
 }
 
 export function resolveEffectiveAiModel(
-	tool: AiToolId,
-	statuses: AiToolStatus[],
+	provider: AiProviderId,
 	models: AiModels,
+	lmStudio?: LmStudioConfig,
 ) {
-	const provider = resolveEffectiveAiProvider(tool, statuses);
-	return provider ? models[provider] : undefined;
+	if (provider === "lmstudio") {
+		return lmStudio?.model;
+	}
+
+	return models[provider];
+}
+
+function createAiRunRequest(input: {
+	provider: AiProviderId;
+	prompt: string;
+	schema: unknown;
+	model?: string;
+	toolPaths: AiToolPaths;
+	lmStudio: LmStudioConfig;
+}): AiRunRequest {
+	return {
+		tool: input.provider,
+		prompt: input.prompt,
+		schema: input.schema,
+		model: input.model,
+		toolPaths: input.toolPaths,
+		lmStudio:
+			input.provider === "lmstudio"
+				? {
+						baseUrl: input.lmStudio.baseUrl,
+						apiKey: input.lmStudio.apiKey,
+						model: input.lmStudio.model,
+						enableReasoning: input.lmStudio.enableReasoning,
+					}
+				: undefined,
+	};
+}
+
+/** @deprecated Use providerIsReady */
+export function toolIsReady(
+	provider: AiProviderId,
+	statuses: AiToolStatus[],
+	lmStudio?: LmStudioConfig,
+) {
+	return providerIsReady(provider, statuses, lmStudio);
 }
 
 export { claudeModelOptions, codexModelOptions, cursorModelOptions };
@@ -268,6 +300,10 @@ export function applicationCompany(application: Pick<Application, "jobOffer">) {
 	return (
 		application.jobOffer.company.trim() || i18n.t("app.application.noCompany")
 	);
+}
+
+function uiOutputLanguage(): CvLanguage {
+	return isUiLanguage(i18n.language) ? i18n.language : "en";
 }
 
 function runLabel(language: CvLanguage, version: number) {
@@ -361,6 +397,7 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 	const [selectedLanguage, setSelectedLanguageState] =
 		useState<CvLanguage>("en");
 	const [aiStatuses, setAiStatuses] = useState<AiToolStatus[]>([]);
+	const [lmStudioModels, setLmStudioModels] = useState<LmStudioModel[]>([]);
 	const [isGenerating, setIsGenerating] = useState(false);
 	const [isReviewingJobOffer, setIsReviewingJobOffer] = useState(false);
 	const [isAnalyzingProfileMatch, setIsAnalyzingProfileMatch] = useState(false);
@@ -387,7 +424,12 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 		new Map<string, DeletedApplicationSnapshot>(),
 	);
 	const pendingAiSettingsRef = useRef<
-		Partial<Pick<AppSettings, "selectedAiTool" | "aiModels" | "aiToolPaths">>
+		Partial<
+			Pick<
+				AppSettings,
+				"selectedAiProvider" | "aiModels" | "aiToolPaths" | "lmStudio"
+			>
+		>
 	>({});
 
 	const {
@@ -428,9 +470,10 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 	const runRowsRef = useRef(runRows);
 	const selectedLanguageRef = useRef(selectedLanguage);
 	const aiStatusesRef = useRef(aiStatuses);
-	const selectedToolRef = useRef<AiToolId>("auto");
+	const selectedProviderRef = useRef<AiProviderId>("claude");
 	const aiModelsRef = useRef<AiModels>(defaultAiModels);
 	const aiToolPathsRef = useRef<AiToolPaths>({});
+	const lmStudioRef = useRef<LmStudioConfig>(defaultLmStudioConfig);
 	const effectiveAiModelRef = useRef<string | undefined>(undefined);
 	const profileMatchRequestRef = useRef(0);
 	const persistProfilePatchRef = useRef<(patch: Partial<BaseProfile>) => void>(
@@ -477,8 +520,8 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 	selectedLanguageRef.current = selectedLanguage;
 	aiStatusesRef.current = aiStatuses;
 
-	const selectedTool =
-		(settings?.selectedAiTool as AiToolId | undefined) ?? "auto";
+	const selectedProvider =
+		(settings?.selectedAiProvider as AiProviderId | undefined) ?? "claude";
 	const aiModels = useMemo(
 		() =>
 			({
@@ -490,6 +533,13 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 	const aiToolPaths = useMemo(
 		() => ({ ...(settings?.aiToolPaths ?? {}) }),
 		[settings?.aiToolPaths],
+	);
+	const lmStudio = useMemo(
+		() => ({
+			...defaultLmStudioConfig,
+			...(settings?.lmStudio ?? {}),
+		}),
+		[settings?.lmStudio],
 	);
 
 	useEffect(() => {
@@ -559,17 +609,23 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 				? "error"
 				: "saved";
 
-	const canUseSelectedAi = toolIsReady(selectedTool, aiStatuses);
-	const effectiveAiProvider = resolveEffectiveAiProvider(
-		selectedTool,
+	const canUseSelectedAi = providerIsReady(
+		selectedProvider,
 		aiStatuses,
+		lmStudio,
+	);
+	const effectiveAiProvider = resolveEffectiveAiProvider(
+		selectedProvider,
+		aiStatuses,
+		lmStudio,
 	);
 	const effectiveAiModel = effectiveAiProvider
-		? aiModels[effectiveAiProvider]
+		? resolveEffectiveAiModel(selectedProvider, aiModels, lmStudio)
 		: undefined;
-	selectedToolRef.current = selectedTool;
+	selectedProviderRef.current = selectedProvider;
 	aiModelsRef.current = aiModels;
 	aiToolPathsRef.current = aiToolPaths;
+	lmStudioRef.current = lmStudio;
 	effectiveAiModelRef.current = effectiveAiModel;
 	const canGenerateActive =
 		Boolean(activeApplication?.jobOffer.rawText.trim()) &&
@@ -585,7 +641,13 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 	useEffect(() => {
 		async function loadAiStatuses() {
 			try {
-				setAiStatuses(await detectAiTools(aiToolPathsRef.current));
+				setAiStatuses(
+					await detectAiTools(aiToolPathsRef.current, {
+						baseUrl: lmStudioRef.current.baseUrl,
+						apiKey: lmStudioRef.current.apiKey,
+						model: lmStudioRef.current.model,
+					}),
+				);
 			} catch (error) {
 				toast.error(i18n.t("app.toast.aiDetectFailed"), {
 					description: getErrorMessage(error),
@@ -594,7 +656,7 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 		}
 
 		void loadAiStatuses();
-	}, [aiToolPaths]);
+	}, [aiToolPaths, lmStudio.baseUrl, lmStudio.apiKey]);
 
 	function updateSettings(patch: Partial<typeof settings>) {
 		if (!settings) {
@@ -663,7 +725,10 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 
 	async function persistAiSettings(
 		patch: Partial<
-			Pick<AppSettings, "selectedAiTool" | "aiModels" | "aiToolPaths">
+			Pick<
+				AppSettings,
+				"selectedAiProvider" | "aiModels" | "aiToolPaths" | "lmStudio"
+			>
 		>,
 	) {
 		if (!settingsRef.current) {
@@ -683,11 +748,11 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 		}
 	}
 
-	function setSelectedTool(tool: AiToolId) {
-		void persistAiSettings({ selectedAiTool: tool });
+	function setSelectedProvider(provider: AiProviderId) {
+		void persistAiSettings({ selectedAiProvider: provider });
 	}
 
-	function setAiModel(provider: AiProviderId, model: string) {
+	function setAiModel(provider: CliProviderId, model: string) {
 		const current = {
 			...defaultAiModels,
 			...(settingsRef.current?.aiModels ?? {}),
@@ -697,7 +762,7 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 		});
 	}
 
-	function setAiToolPath(provider: AiProviderId, path: string) {
+	function setAiToolPath(provider: CliProviderId, path: string) {
 		const current = { ...(settingsRef.current?.aiToolPaths ?? {}) };
 		const trimmed = path.trim();
 		if (trimmed) {
@@ -706,6 +771,63 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 			delete current[provider];
 		}
 		void persistAiSettings({ aiToolPaths: current });
+	}
+
+	function setLmStudioBaseUrl(baseUrl: string) {
+		const current = {
+			...defaultLmStudioConfig,
+			...(settingsRef.current?.lmStudio ?? {}),
+			baseUrl: baseUrl.trim() || defaultLmStudioConfig.baseUrl,
+		};
+		void persistAiSettings({ lmStudio: current });
+	}
+
+	function setLmStudioApiKey(apiKey: string) {
+		const current = {
+			...defaultLmStudioConfig,
+			...(settingsRef.current?.lmStudio ?? {}),
+		};
+		const trimmed = apiKey.trim();
+		if (trimmed) {
+			current.apiKey = trimmed;
+		} else {
+			delete current.apiKey;
+		}
+		void persistAiSettings({ lmStudio: current });
+	}
+
+	function setLmStudioModel(model: string) {
+		const current = {
+			...defaultLmStudioConfig,
+			...(settingsRef.current?.lmStudio ?? {}),
+			model: model.trim() || undefined,
+		};
+		void persistAiSettings({ lmStudio: current });
+	}
+
+	function setLmStudioEnableReasoning(enabled: boolean) {
+		const current = {
+			...defaultLmStudioConfig,
+			...(settingsRef.current?.lmStudio ?? {}),
+			enableReasoning: enabled,
+		};
+		void persistAiSettings({ lmStudio: current });
+	}
+
+	async function refreshLmStudioModels() {
+		try {
+			const models = await listLmStudioModels({
+				baseUrl: lmStudioRef.current.baseUrl,
+				apiKey: lmStudioRef.current.apiKey,
+				model: lmStudioRef.current.model,
+			});
+			setLmStudioModels(models);
+			await refreshAiStatuses();
+		} catch (error) {
+			toast.error(i18n.t("app.toast.aiDetectFailed"), {
+				description: getErrorMessage(error),
+			});
+		}
 	}
 
 	async function suggestAndApplyAiToolPaths() {
@@ -718,7 +840,13 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 				}
 			}
 			await persistAiSettings({ aiToolPaths: current });
-			setAiStatuses(await detectAiTools(current));
+			setAiStatuses(
+				await detectAiTools(current, {
+					baseUrl: lmStudioRef.current.baseUrl,
+					apiKey: lmStudioRef.current.apiKey,
+					model: lmStudioRef.current.model,
+				}),
+			);
 		} catch (error) {
 			toast.error(i18n.t("app.toast.aiDetectFailed"), {
 				description: getErrorMessage(error),
@@ -738,7 +866,13 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 
 	async function refreshAiStatuses() {
 		try {
-			setAiStatuses(await detectAiTools(aiToolPathsRef.current));
+			setAiStatuses(
+				await detectAiTools(aiToolPathsRef.current, {
+					baseUrl: lmStudioRef.current.baseUrl,
+					apiKey: lmStudioRef.current.apiKey,
+					model: lmStudioRef.current.model,
+				}),
+			);
 		} catch (error) {
 			toast.error(i18n.t("app.toast.aiDetectFailed"), {
 				description: getErrorMessage(error),
@@ -892,12 +1026,12 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 		jobOffer: JobOffer,
 		signals: JobSignals,
 	): Promise<{ analysis: MatchAnalysis; stdout: string }> {
-		const tool = selectedToolRef.current;
+		const provider = selectedProviderRef.current;
 		const statuses = aiStatusesRef.current;
 		const model = effectiveAiModelRef.current;
-		const models = aiModelsRef.current;
+		const lmStudioConfig = lmStudioRef.current;
 
-		if (!toolIsReady(tool, statuses)) {
+		if (!providerIsReady(provider, statuses, lmStudioConfig)) {
 			return {
 				analysis: scoreProfileAgainstJob(profileForScoring, {
 					...jobOffer,
@@ -907,38 +1041,48 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 			};
 		}
 
-		const response = await runAiToolResilient(
-			{
-				tool,
-				prompt: buildEvaluateProfileMatchPrompt({
-					profile: profileForScoring,
-					jobOffer,
-					signals,
-				}),
-				schema: matchAnalysisOutputJsonSchema,
-				model,
-			},
-			{
-				statuses,
-				model,
-				models,
-				toolPaths: aiToolPathsRef.current,
-			},
-		);
+		const basePrompt = buildEvaluateProfileMatchPrompt({
+			profile: profileForScoring,
+			jobOffer,
+			signals,
+			outputLanguage: uiOutputLanguage(),
+		});
+		let lastStdout = "";
+		let lastError: unknown;
 
-		try {
-			const analysis = parseCliMatchAnalysisOutput(response.stdout);
-			return {
-				analysis: normalizeMatchAnalysis({
-					...analysis,
-					evaluatorTool: response.tool,
+		for (let attempt = 0; attempt < 2; attempt += 1) {
+			const prompt =
+				attempt === 0
+					? basePrompt
+					: `${basePrompt}\n\n${matchAnalysisRetryInstruction}`;
+			const response = await runAiTool(
+				createAiRunRequest({
+					provider,
+					prompt,
+					schema: matchAnalysisOutputJsonSchema,
+					model,
+					toolPaths: aiToolPathsRef.current,
+					lmStudio: lmStudioConfig,
 				}),
-				stdout: response.stdout,
-			};
-		} catch (parseError) {
-			setRawProfileMatchOutput(response.stdout);
-			throw parseError;
+			);
+			lastStdout = response.stdout;
+
+			try {
+				const analysis = parseCliMatchAnalysisOutput(response.stdout);
+				return {
+					analysis: normalizeMatchAnalysis({
+						...analysis,
+						evaluatorTool: response.tool,
+					}),
+					stdout: response.stdout,
+				};
+			} catch (parseError) {
+				lastError = parseError;
+			}
 		}
+
+		setRawProfileMatchOutput(lastStdout);
+		throw lastError;
 	}
 
 	function saveApplicationProfileMatch(
@@ -1020,7 +1164,13 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 			return;
 		}
 
-		if (!toolIsReady(selectedToolRef.current, aiStatusesRef.current)) {
+		if (
+			!providerIsReady(
+				selectedProviderRef.current,
+				aiStatusesRef.current,
+				lmStudioRef.current,
+			)
+		) {
 			updateApplicationRunsMatchAnalysis(applicationId, signals, draftAnalysis);
 			return;
 		}
@@ -1226,33 +1376,50 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 		setRawJobReviewOutput(undefined);
 
 		try {
-			const prompt = buildReviewJobPostingPrompt({
+			const basePrompt = buildReviewJobPostingPrompt({
 				jobOffer: application.jobOffer,
 				rawText,
+				outputLanguage: uiOutputLanguage(),
 			});
-			const response = await runAiToolResilient(
-				{
-					tool: selectedTool,
-					prompt,
-					schema: jobPostingReviewOutputJsonSchema,
-					model: effectiveAiModel,
-				},
-				{
-					statuses: aiStatuses,
-					model: effectiveAiModel,
-					models: aiModels,
-					toolPaths: aiToolPaths,
-				},
-			);
 			let parsedReview: {
 				signals: JobPostingReview["signals"];
 				summary: string;
-			};
-			try {
-				parsedReview = parseCliJobPostingReviewOutput(response.stdout);
-			} catch (parseError) {
-				setRawJobReviewOutput(response.stdout);
-				throw parseError;
+			} | undefined;
+			let lastStdout = "";
+			let lastResponse:
+				| Awaited<ReturnType<typeof runAiTool>>
+				| undefined;
+			let lastError: unknown;
+
+			for (let attempt = 0; attempt < 2; attempt += 1) {
+				const prompt =
+					attempt === 0
+						? basePrompt
+						: `${basePrompt}\n\n${jobPostingReviewRetryInstruction}`;
+				const response = await runAiTool(
+					createAiRunRequest({
+						provider: selectedProvider,
+						prompt,
+						schema: jobPostingReviewOutputJsonSchema,
+						model: effectiveAiModel,
+						toolPaths: aiToolPaths,
+						lmStudio,
+					}),
+				);
+				lastStdout = response.stdout;
+				lastResponse = response;
+
+				try {
+					parsedReview = parseCliJobPostingReviewOutput(response.stdout);
+					break;
+				} catch (parseError) {
+					lastError = parseError;
+				}
+			}
+
+			if (!parsedReview || !lastResponse) {
+				setRawJobReviewOutput(lastStdout);
+				throw lastError;
 			}
 
 			const now = new Date().toISOString();
@@ -1261,8 +1428,8 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 				summary: parsedReview.summary,
 				rawText,
 				reviewedAt: now,
-				reviewTool: response.tool,
-				stdout: response.stdout,
+				reviewTool: lastResponse.tool,
+				stdout: lastResponse.stdout,
 			};
 			const jobOffer: JobOffer = {
 				...application.jobOffer,
@@ -1320,7 +1487,7 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 		const signals = resolveJobSignals(application.jobOffer);
 		const jobOffer: JobOffer = { ...application.jobOffer, signals };
 		let analysis = scoreProfileAgainstJob(profile, jobOffer);
-		if (toolIsReady(selectedTool, aiStatuses)) {
+		if (providerIsReady(selectedProvider, aiStatuses, lmStudio)) {
 			try {
 				const cached = activeApplication
 					? resolveCachedProfileMatch(
@@ -1360,19 +1527,15 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 		});
 
 		try {
-			const response = await runAiToolResilient(
-				{
-					tool: selectedTool,
+			const response = await runAiTool(
+				createAiRunRequest({
+					provider: selectedProvider,
 					prompt,
 					schema: tailoredCvOutputJsonSchema,
 					model: effectiveAiModel,
-				},
-				{
-					statuses: aiStatuses,
-					model: effectiveAiModel,
-					models: aiModels,
 					toolPaths: aiToolPaths,
-				},
+					lmStudio,
+				}),
 			);
 			let parsedCv: TailoredCv;
 			try {
@@ -1970,9 +2133,11 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 			selectedLanguage,
 			cvTemplate,
 			aiStatuses,
-			selectedTool,
+			selectedProvider,
 			aiModels,
 			aiToolPaths,
+			lmStudio,
+			lmStudioModels,
 			effectiveAiProvider,
 			effectiveAiModel,
 			saveStatus,
@@ -1989,9 +2154,14 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 			rawCliOutput,
 			rawJobReviewOutput,
 			rawProfileMatchOutput,
-			setSelectedTool,
+			setSelectedProvider,
 			setAiModel,
 			setAiToolPath,
+			setLmStudioBaseUrl,
+			setLmStudioApiKey,
+			setLmStudioModel,
+			setLmStudioEnableReasoning,
+			refreshLmStudioModels,
 			suggestAndApplyAiToolPaths,
 			setSelectedLanguage,
 			setCvTemplate,
@@ -2046,9 +2216,11 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 			selectedLanguage,
 			cvTemplate,
 			aiStatuses,
-			selectedTool,
+			selectedProvider,
 			aiModels,
 			aiToolPaths,
+			lmStudio,
+			lmStudioModels,
 			effectiveAiProvider,
 			effectiveAiModel,
 			saveStatus,

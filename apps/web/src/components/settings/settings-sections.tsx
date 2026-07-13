@@ -1,5 +1,6 @@
-import type { AiProviderId, AiToolId } from "@cv-tailor/ai";
+import type { AiProviderId, CliProviderId } from "@cv-tailor/ai";
 import { Button } from "@cv-tailor/ui/components/button";
+import { Checkbox } from "@cv-tailor/ui/components/checkbox";
 import { Input } from "@cv-tailor/ui/components/input";
 import {
 	Select,
@@ -29,7 +30,7 @@ import {
 	claudeModelOptions,
 	codexModelOptions,
 	cursorModelOptions,
-	toolIsReady,
+	providerIsReady,
 	useCvApp,
 } from "@/lib/cv-app-context";
 import { isTauriRuntime } from "@/lib/tauri-ai";
@@ -76,8 +77,13 @@ const segmentedContainerClass =
 	"inline-flex w-fit rounded-md border bg-card p-0.5";
 const segmentedButtonClass = `rounded-sm px-2.5 py-1 font-medium text-sm ${interactiveSegment}`;
 
-const toolOptionIds: AiToolId[] = ["auto", "claude", "codex", "cursor"];
-const aiProviderIds: AiProviderId[] = ["claude", "codex", "cursor"];
+const providerOptionIds: AiProviderId[] = [
+	"claude",
+	"codex",
+	"cursor",
+	"lmstudio",
+];
+const cliProviderIds: CliProviderId[] = ["claude", "codex", "cursor"];
 
 function AiToolPathFields() {
 	const { t } = useTranslation();
@@ -93,7 +99,7 @@ function AiToolPathFields() {
 					{t("settings.ai.toolPathsHelp")}
 				</p>
 			</div>
-			{aiProviderIds.map((provider) => (
+			{cliProviderIds.map((provider) => (
 				<label key={provider} className="grid gap-1.5">
 					<span className="font-medium text-sm">
 						{t(`settings.ai.tool.${provider}`)}
@@ -115,6 +121,109 @@ function AiToolPathFields() {
 					<RefreshCw /> {t("settings.ai.autoDetectPaths")}
 				</Button>
 			</div>
+		</div>
+	);
+}
+
+function LmStudioFields() {
+	const { t } = useTranslation();
+	const {
+		lmStudio,
+		lmStudioModels,
+		refreshLmStudioModels,
+		setLmStudioApiKey,
+		setLmStudioBaseUrl,
+		setLmStudioEnableReasoning,
+		setLmStudioModel,
+	} = useCvApp();
+
+	return (
+		<div className="grid gap-3">
+			<div className="grid gap-1">
+				<span className="font-medium text-base">
+					{t("settings.ai.sections.apiProviders")}
+				</span>
+				<p className="text-muted-foreground text-sm">
+					{t("settings.ai.lmStudio.help")}
+				</p>
+			</div>
+			<label className="grid gap-1.5">
+				<span className="font-medium text-sm">
+					{t("settings.ai.lmStudio.baseUrl")}
+				</span>
+				<Input
+					value={lmStudio.baseUrl}
+					onChange={(event) => setLmStudioBaseUrl(event.target.value)}
+					placeholder="http://localhost:1234"
+					className="font-mono text-sm"
+				/>
+			</label>
+			<label className="grid gap-1.5">
+				<span className="font-medium text-sm">
+					{t("settings.ai.lmStudio.apiKey")}
+				</span>
+				<Input
+					type="password"
+					value={lmStudio.apiKey ?? ""}
+					onChange={(event) => setLmStudioApiKey(event.target.value)}
+					placeholder={t("settings.ai.lmStudio.apiKeyPlaceholder")}
+					className="font-mono text-sm"
+				/>
+			</label>
+			<div className="grid gap-1.5">
+				<span className="font-medium text-sm">
+					{t("settings.ai.lmStudio.model")}
+				</span>
+				<div className="flex flex-wrap items-center gap-2">
+					<Select
+						value={lmStudio.model ?? ""}
+						onValueChange={(value) => {
+							if (value) {
+								setLmStudioModel(value);
+							}
+						}}
+					>
+						<SelectTrigger className="max-w-md" size="sm">
+							<SelectValue
+								placeholder={t("settings.ai.lmStudio.modelPlaceholder")}
+							>
+								{lmStudio.model ?? t("settings.ai.lmStudio.modelPlaceholder")}
+							</SelectValue>
+						</SelectTrigger>
+						<SelectContent>
+							{lmStudioModels.map((model) => (
+								<SelectItem key={model.id} value={model.id}>
+									{model.label}
+								</SelectItem>
+							))}
+						</SelectContent>
+					</Select>
+					<Button
+						variant="outline"
+						size="sm"
+						onClick={() => void refreshLmStudioModels()}
+					>
+						<RefreshCw /> {t("settings.ai.lmStudio.refreshModels")}
+					</Button>
+				</div>
+			</div>
+			<label className="flex items-start gap-3">
+				<Checkbox
+					checked={lmStudio.enableReasoning ?? true}
+					onCheckedChange={(checked) =>
+						setLmStudioEnableReasoning(checked === true)
+					}
+					className="mt-0.5"
+				/>
+				<span className="grid gap-1">
+					<span className="font-medium text-sm">
+						{t("settings.ai.lmStudio.enableReasoning")}
+					</span>
+					<span className="text-muted-foreground text-sm">
+						{t("settings.ai.lmStudio.enableReasoningHelp")}
+					</span>
+				</span>
+			</label>
 		</div>
 	);
 }
@@ -246,25 +355,28 @@ export function SettingsAiSection() {
 		aiModels,
 		aiStatuses,
 		effectiveAiProvider,
+		lmStudio,
 		refreshAiStatuses,
-		selectedTool,
+		selectedProvider,
 		setAiModel,
-		setSelectedTool,
+		setSelectedProvider,
 	} = useCvApp();
 
+	const isCliProvider =
+		selectedProvider === "claude" ||
+		selectedProvider === "codex" ||
+		selectedProvider === "cursor";
 	const modelOptions =
-		effectiveAiProvider === "codex"
+		selectedProvider === "codex"
 			? codexModelOptions
-			: effectiveAiProvider === "cursor"
+			: selectedProvider === "cursor"
 				? cursorModelOptions
 				: claudeModelOptions;
-	const activeModel = effectiveAiProvider
-		? aiModels[effectiveAiProvider]
-		: undefined;
+	const activeModel = isCliProvider ? aiModels[selectedProvider] : lmStudio.model;
 
-	const toolOptions = toolOptionIds.map((id) => ({
+	const providerOptions = providerOptionIds.map((id) => ({
 		id,
-		label: t(`settings.ai.tool.${id}`),
+		label: t(`settings.ai.provider.${id}`),
 	}));
 
 	return (
@@ -272,29 +384,36 @@ export function SettingsAiSection() {
 			<div className="grid gap-4">
 				<div className="grid gap-3">
 					<span className="font-medium text-base">
-						{t("settings.ai.preferredTool")}
+						{t("settings.ai.activeProvider")}
 					</span>
 					<SegmentedControl
-						options={toolOptions}
-						value={selectedTool}
-						onChange={setSelectedTool}
+						options={providerOptions}
+						value={selectedProvider}
+						onChange={setSelectedProvider}
 					/>
 				</div>
-				{effectiveAiProvider ? (
-					<div className="grid gap-3">
-						<span className="font-medium text-base">
-							{t("settings.ai.model")}
-						</span>
-						<SegmentedControl
-							options={modelOptions}
-							value={activeModel ?? modelOptions[0]?.id ?? ""}
-							onChange={(model) =>
-								setAiModel(effectiveAiProvider as AiProviderId, model)
-							}
-						/>
+				{isCliProvider ? (
+					<div className="grid gap-4 rounded-xl border p-4">
+						<div className="grid gap-3">
+							<span className="font-medium text-base">
+								{t("settings.ai.sections.cliTools")}
+							</span>
+							<span className="font-medium text-base">
+								{t("settings.ai.model")}
+							</span>
+							<SegmentedControl
+								options={modelOptions}
+								value={activeModel ?? modelOptions[0]?.id ?? ""}
+								onChange={(model) => setAiModel(selectedProvider, model)}
+							/>
+						</div>
+						<AiToolPathFields />
 					</div>
-				) : null}
-				<AiToolPathFields />
+				) : (
+					<div className="rounded-xl border p-4">
+						<LmStudioFields />
+					</div>
+				)}
 				<div>
 					<Button
 						variant="outline"
@@ -304,7 +423,10 @@ export function SettingsAiSection() {
 						<RefreshCw /> {t("settings.ai.refreshTools")}
 					</Button>
 				</div>
-				<AiStatusPanel statuses={aiStatuses} />
+				<AiStatusPanel
+					statuses={aiStatuses}
+					selectedProvider={effectiveAiProvider ?? selectedProvider}
+				/>
 			</div>
 		</SettingsSection>
 	);
@@ -326,11 +448,12 @@ export function SettingsDataSection() {
 export function SettingsProfileSection() {
 	const {
 		aiStatuses,
+		lmStudio,
 		patchProfile,
 		profile,
 		profileRecord,
 		profileRevision,
-		selectedTool,
+		selectedProvider,
 	} = useCvApp();
 
 	return (
@@ -338,8 +461,7 @@ export function SettingsProfileSection() {
 			<div className="grid gap-4">
 				<ProfileManager />
 				<ProfileImporter
-					selectedTool={selectedTool}
-					canUseAi={toolIsReady(selectedTool, aiStatuses)}
+					canUseAi={providerIsReady(selectedProvider, aiStatuses, lmStudio)}
 					preferredTone={profile.preferredTone}
 				/>
 				<ProfileEditor

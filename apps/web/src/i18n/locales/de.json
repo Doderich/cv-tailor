@@ -123,9 +123,14 @@
 			"larger": "Größer"
 		},
 		"ai": {
+			"activeProvider": "Aktiver Anbieter",
 			"preferredTool": "Bevorzugtes Tool",
 			"model": "Modell",
 			"refreshTools": "Tools aktualisieren",
+			"sections": {
+				"cliTools": "CLI-Tools",
+				"apiProviders": "API-Anbieter"
+			},
 			"toolPaths": "CLI-Pfade",
 			"toolPathsHelp": "Release-Builds erben nicht deinen Shell-PATH. Setze den vollständigen Pfad zu jedem CLI, wenn die Auto-Erkennung fehlschlägt.",
 			"autoDetectPaths": "Pfade automatisch erkennen",
@@ -134,8 +139,24 @@
 				"codex": "/Users/you/.bun/bin/codex",
 				"cursor": "/Users/you/.local/bin/agent"
 			},
+			"provider": {
+				"claude": "Claude Code",
+				"codex": "Codex CLI",
+				"cursor": "Cursor Agent",
+				"lmstudio": "LM Studio"
+			},
+			"lmStudio": {
+				"help": "Verbinde dich mit einem lokalen LM-Studio-Server über eine OpenAI-kompatible API. Aktiviere Reasoning-Modus für Denk-Modelle (höheres Token-Budget). Deaktiviere ihn für normale Instruct-Modelle.",
+				"baseUrl": "Server-URL",
+				"apiKey": "API-Schlüssel (optional)",
+				"apiKeyPlaceholder": "Leer lassen für lokale Server ohne Authentifizierung",
+				"model": "Modell",
+				"modelPlaceholder": "Geladenes Modell wählen",
+				"refreshModels": "Modelle aktualisieren",
+				"enableReasoning": "Reasoning erlauben",
+				"enableReasoningHelp": "Lässt Denken aktiv für qualitativ bessere Analysen. CV Tailor wartet bis zu 20 Minuten und überspringt in diesem Modus das strikte JSON-Schema. Für schnellere, schema-erzwungene Ausgabe bei Instruct-Modellen deaktivieren."
+			},
 			"tool": {
-				"auto": "Automatisch",
 				"claude": "Claude",
 				"codex": "Codex",
 				"cursor": "Cursor"
@@ -256,6 +277,7 @@
 			"reanalyze": "Stelle neu analysieren",
 			"generateCv": "Lebenslauf generieren",
 			"roleSummary": "Rollenübersicht",
+			"roleSummaryUnavailable": "Rollenübersicht nicht verfügbar. Nutze „Stelle neu analysieren“, um sie zu erstellen.",
 			"metric": {
 				"profileMatch": "Profilpassung",
 				"seniority": "Erfahrungslevel",
