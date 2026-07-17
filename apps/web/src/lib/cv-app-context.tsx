@@ -35,12 +35,16 @@ import {
 	cvLanguages,
 	defaultCvTemplate,
 	defaultLmStudioConfig,
+	type ApplicationProfileMatch,
+	createJobReviewVersion,
+	createProfileMatchVersion,
 	type JobOffer,
 	type JobPostingReview,
 	type JobSignals,
 	jobOfferNeedsReview,
 	type LmStudioConfig,
 	type MatchAnalysis,
+	normalizeApplication,
 	normalizeBaseProfile,
 	normalizeCvRun,
 	normalizeCvTemplate,
@@ -52,6 +56,8 @@ import {
 	resolveCachedProfileMatch,
 	resolveJobSignals,
 	scoreProfileAgainstJob,
+	stripMatchVersionMeta,
+	stripReviewVersionMeta,
 	type TailoredCv,
 } from "@cv-tailor/core";
 import { useLiveQuery } from "@tanstack/react-db";
@@ -179,6 +185,8 @@ interface CvAppContextValue {
 	analyzeActiveProfileMatch: (options?: { force?: boolean }) => Promise<void>;
 	generateActive: (language?: CvLanguage) => Promise<void>;
 	switchActiveRun: (runId: string) => void;
+	activateReviewVersion: (reviewId: string) => void;
+	activateMatchVersion: (matchId: string) => void;
 	exportPdf: () => Promise<void>;
 	printCv: () => void;
 	exportAllData: () => Promise<void>;
@@ -626,9 +634,13 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 			profileSnapshotUpdatedAtRef.current = undefined;
 		}
 	}, [profileSnapshot, storedProfile]);
+	const normalizedApplications = useMemo(
+		() => applicationRows.map((application) => normalizeApplication(application)),
+		[applicationRows],
+	);
 	const applications = useMemo(
 		() =>
-			applicationRows.map((application) =>
+			normalizedApplications.map((application) =>
 				toListItem(
 					application,
 					normalizedRunRows.filter(
@@ -636,14 +648,15 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 					),
 				),
 			),
-		[applicationRows, normalizedRunRows],
+		[normalizedApplications, normalizedRunRows],
 	);
 	const activeApplications = applications.filter((item) => !item.archived);
 	const archivedApplications = applications.filter((item) => item.archived);
 	const activeId = settings?.activeApplicationId;
 	const activeApplication =
-		applicationRows.find((item) => item.id === activeId) ??
-		activeApplications[0];
+		normalizedApplications.find((item) => item.id === activeId) ??
+		normalizedApplications.find((item) => !item.archived) ??
+		normalizedApplications[0];
 	const activeRuns = normalizedRunRows.filter(
 		(run) => run.applicationId === activeApplication?.id,
 	);
@@ -1061,6 +1074,79 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 		setSelectedLanguageState(run.language);
 	}
 
+	function activateReviewVersion(reviewId: string) {
+		const application = activeApplication;
+		if (!application) {
+			return;
+		}
+
+		const version = application.reviewHistory.find(
+			(entry) => entry.id === reviewId,
+		);
+		if (!version) {
+			return;
+		}
+
+		const review = stripReviewVersionMeta(version);
+		const now = new Date().toISOString();
+		db.applications.update(application.id, (draft) => {
+			if (!(draft.reviewHistory?.length)) {
+				draft.reviewHistory = application.reviewHistory;
+			}
+			draft.jobOffer = {
+				...draft.jobOffer,
+				review,
+				signals: review.signals,
+			};
+			draft.activeReviewId = reviewId;
+			draft.updatedAt = now;
+		});
+		updateApplicationRunsMatchAnalysis(
+			application.id,
+			review.signals,
+			application.profileMatch?.matchAnalysis ??
+				scoreProfileAgainstJob(profile, {
+					...application.jobOffer,
+					review,
+					signals: review.signals,
+				}),
+		);
+	}
+
+	function activateMatchVersion(matchId: string) {
+		const application = activeApplication;
+		if (!application) {
+			return;
+		}
+
+		const version = application.matchHistory.find(
+			(entry) => entry.id === matchId,
+		);
+		if (!version) {
+			return;
+		}
+
+		const match = stripMatchVersionMeta(version);
+		const now = new Date().toISOString();
+		db.applications.update(application.id, (draft) => {
+			if (!(draft.matchHistory?.length)) {
+				draft.matchHistory = application.matchHistory;
+			}
+			draft.profileMatch = match;
+			draft.activeMatchId = matchId;
+			draft.updatedAt = now;
+		});
+		const jobSignals =
+			application.jobOffer.signals ??
+			application.jobOffer.review?.signals ??
+			resolveJobSignals(application.jobOffer);
+		updateApplicationRunsMatchAnalysis(
+			application.id,
+			jobSignals,
+			match.matchAnalysis,
+		);
+	}
+
 	function updateActiveJobOffer(patch: JobOfferPatch) {
 		pendingJobOfferPatchRef.current = mergeJobOfferPatch(
 			pendingJobOfferPatchRef.current,
@@ -1073,6 +1159,7 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 		debouncedPersistJobOfferPatch.current.flush();
 	}
 
+	/** Only update draft CV runs — freeze AI/manual versions as historical snapshots. */
 	function updateApplicationRunsMatchAnalysis(
 		applicationId: string,
 		signals: JobSignals,
@@ -1080,7 +1167,8 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 	) {
 		const now = new Date().toISOString();
 		for (const run of runRowsRef.current.filter(
-			(entry) => entry.applicationId === applicationId,
+			(entry) =>
+				entry.applicationId === applicationId && entry.source === "draft",
 		)) {
 			db.cvRuns.update(run.id, (draft) => {
 				draft.signals = signals;
@@ -1166,16 +1254,26 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 		},
 	) {
 		const now = new Date().toISOString();
+		const match: ApplicationProfileMatch = {
+			profileId: input.profileId,
+			jobRawText: input.jobRawText,
+			jobReviewedAt: input.jobReviewedAt,
+			profileUpdatedAt: input.profileUpdatedAt,
+			matchAnalysis: normalizeMatchAnalysis(input.matchAnalysis),
+			evaluatedAt: now,
+			stdout: input.stdout,
+		};
 		db.applications.update(applicationId, (draft) => {
-			draft.profileMatch = {
-				profileId: input.profileId,
-				jobRawText: input.jobRawText,
-				jobReviewedAt: input.jobReviewedAt,
-				profileUpdatedAt: input.profileUpdatedAt,
-				matchAnalysis: normalizeMatchAnalysis(input.matchAnalysis),
-				evaluatedAt: now,
-				stdout: input.stdout,
-			};
+			const history = [...(draft.matchHistory ?? [])];
+			if (history.length === 0 && draft.profileMatch) {
+				history.push(
+					createProfileMatchVersion(draft.profileMatch, []),
+				);
+			}
+			const version = createProfileMatchVersion(match, history);
+			draft.matchHistory = [...history, version];
+			draft.activeMatchId = version.id;
+			draft.profileMatch = match;
 			draft.updatedAt = now;
 		});
 	}
@@ -1350,11 +1448,17 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 		db.applications.update(application.id, (draft) => {
 			draft.jobOffer = jobOffer;
 			draft.profileMatch = profileMatch;
+			if (rawTextChanged) {
+				draft.activeReviewId = undefined;
+				draft.activeMatchId = undefined;
+			}
 			draft.updatedAt = now;
 		});
 
+		// Freeze AI/manual CV versions; only refresh draft runs for job edits.
 		for (const run of runs.filter(
-			(entry) => entry.applicationId === application.id,
+			(entry) =>
+				entry.applicationId === application.id && entry.source === "draft",
 		)) {
 			db.cvRuns.update(run.id, (draft) => {
 				draft.signals = signals;
@@ -1506,22 +1610,34 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 				signals: parsedReview.signals,
 			};
 			const profileForScoring = profileFromRecord(record);
+			const draftMatchAnalysis = scoreProfileAgainstJob(
+				profileForScoring,
+				jobOffer,
+			);
 
 			db.applications.update(application.id, (draft) => {
+				const history = [...(draft.reviewHistory ?? [])];
+				if (history.length === 0 && draft.jobOffer.review) {
+					history.push(createJobReviewVersion(draft.jobOffer.review, []));
+				}
+				const version = createJobReviewVersion(review, history);
+				draft.reviewHistory = [...history, version];
+				draft.activeReviewId = version.id;
 				draft.jobOffer = jobOffer;
+				// Match must be recomputed for the new review; keep history for browsing.
 				draft.profileMatch = undefined;
+				draft.activeMatchId = undefined;
 				draft.updatedAt = now;
 			});
 
+			// Freeze historical CV versions; only refresh draft runs for the new review.
 			for (const run of runs.filter(
-				(entry) => entry.applicationId === application.id,
+				(entry) =>
+					entry.applicationId === application.id && entry.source === "draft",
 			)) {
 				db.cvRuns.update(run.id, (draft) => {
 					draft.signals = parsedReview.signals;
-					draft.matchAnalysis = scoreProfileAgainstJob(
-						profileForScoring,
-						jobOffer,
-					);
+					draft.matchAnalysis = draftMatchAnalysis;
 					draft.updatedAt = now;
 				});
 			}
@@ -2250,6 +2366,8 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 			analyzeActiveProfileMatch,
 			generateActive,
 			switchActiveRun,
+			activateReviewVersion,
+			activateMatchVersion,
 			exportPdf,
 			printCv,
 			exportAllData,

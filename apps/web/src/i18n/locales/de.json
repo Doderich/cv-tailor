@@ -304,6 +304,16 @@
 			"aiSetupDesktop": "Installiere oder authentifiziere ein KI-Tool (Claude, Codex oder Cursor) und aktualisiere es in den Einstellungen.",
 			"aiSetupWeb": "KI braucht die Desktop-App oder den CV Tailor Gateway mit einem bereiten Anbieter. Du kannst weiterhin manuell bearbeiten.",
 			"noVersionYet": "Noch keine {{language}}-Version. Generiere eine, um mit Bearbeitung und Export zu beginnen."
+		},
+		"versions": {
+			"active": "Aktiv",
+			"open": "Öffnen",
+			"reviews": "Analyse-Versionen",
+			"matches": "Match-Versionen",
+			"cvs": "Lebenslauf-Versionen",
+			"reviewsEmpty": "Noch keine Analyse-Versionen. Starte Analyse für die erste Version.",
+			"matchesEmpty": "Noch keine Match-Versionen. Starte Match für die erste Version.",
+			"cvsEmpty": "Noch keine generierten Lebenslauf-Versionen. Generiere für die erste Version."
 		}
 	},
 	"jobPosition": {

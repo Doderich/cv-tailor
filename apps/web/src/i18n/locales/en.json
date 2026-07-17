@@ -304,6 +304,16 @@
 			"aiSetupDesktop": "Install or authenticate an AI tool (Claude, Codex, or Cursor), then refresh in settings.",
 			"aiSetupWeb": "AI needs the desktop app or the CV Tailor gateway with a ready provider. You can still edit manually.",
 			"noVersionYet": "No {{language}} version yet. Generate one to start editing and exporting."
+		},
+		"versions": {
+			"active": "Active",
+			"open": "Open",
+			"reviews": "Review versions",
+			"matches": "Match versions",
+			"cvs": "CV versions",
+			"reviewsEmpty": "No review versions yet. Run Analyze to create the first one.",
+			"matchesEmpty": "No match versions yet. Run Match to create the first one.",
+			"cvsEmpty": "No generated CV versions yet. Generate to create the first one."
 		}
 	},
 	"jobPosition": {

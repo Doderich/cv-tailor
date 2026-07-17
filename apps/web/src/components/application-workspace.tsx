@@ -48,6 +48,7 @@ import { type ComponentProps, type ReactNode, useEffect, useRef, useState } from
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
+import { ActionVersionList } from "@/components/action-version-list";
 import { ArrayLinesField } from "@/components/array-lines-field";
 import { CvPreview } from "@/components/cv/cv-preview";
 import { CvTemplatePicker } from "@/components/cv/cv-template-picker";
@@ -56,6 +57,7 @@ import { KeywordMatchGrid, MatchBulletList } from "@/components/cv/insights";
 import { applicationStepPath } from "@/lib/application-route";
 import { isAnalysisInProgress } from "@/lib/application-steps";
 import { cvLanguages, useCvApp } from "@/lib/cv-app-context";
+import { formatSnapshotDate } from "@/lib/data-snapshots";
 import { useCvLanguageLabel, useJobPositionLabel } from "@/lib/i18n-labels";
 import { formatSourceError, parseSourceUrls } from "@/lib/profile-source-urls";
 import { fetchUrlText, isTauriRuntime } from "@/lib/tauri-ai";
@@ -146,6 +148,8 @@ export function GenerateCvStep({
 		rawCliOutput,
 		exportPdf,
 		printCv,
+		activeRuns,
+		switchActiveRun,
 	} = useCvApp();
 
 	return (
@@ -153,6 +157,7 @@ export function GenerateCvStep({
 			<TailorStep
 				application={application}
 				run={run}
+				runs={activeRuns}
 				profile={profile}
 				selectedLanguage={selectedLanguage}
 				onLanguageChange={setSelectedLanguage}
@@ -165,6 +170,7 @@ export function GenerateCvStep({
 				onEditCv={updateActiveCv}
 				onPrintCv={printCv}
 				onExportPdf={() => void exportPdf()}
+				onSelectRun={switchActiveRun}
 				canGenerate={canGenerateActive}
 				canUseSelectedAi={canUseSelectedAi}
 				isGenerating={isGenerating}
@@ -522,6 +528,8 @@ function ReviewStepContent({
 	const {
 		reviewActiveJobOffer,
 		analyzeActiveProfileMatch,
+		activateReviewVersion,
+		activateMatchVersion,
 		isReviewingJobOffer,
 		isAnalyzingProfileMatch,
 		jobReviewError,
@@ -532,11 +540,17 @@ function ReviewStepContent({
 	} = useCvApp();
 	const needsReview = jobOfferNeedsReview(application.jobOffer);
 	const review = application.jobOffer.review;
+	const matchAnalysis =
+		application.profileMatch?.matchAnalysis ?? run?.matchAnalysis;
+	const signals =
+		application.jobOffer.signals ??
+		application.jobOffer.review?.signals ??
+		run?.signals;
 	const hasUsableRoleSummary = isUsableJobReviewSummary(review?.summary);
 	const autoReviewKey = `${application.id}:${application.jobOffer.rawText.trim()}:${review?.reviewedAt ?? "none"}:${hasUsableRoleSummary ? "ok" : "retry"}`;
 	const lastAutoReviewKeyRef = useRef<string | null>(null);
 	const lastAutoMatchKeyRef = useRef<string | null>(null);
-	const autoMatchKey = `${application.id}:${run?.id ?? "none"}:${run?.matchAnalysis.source ?? "draft"}:${application.jobOffer.review?.reviewedAt ?? "none"}`;
+	const autoMatchKey = `${application.id}:${application.activeMatchId ?? "none"}:${application.profileMatch?.matchAnalysis.source ?? run?.matchAnalysis.source ?? "draft"}:${application.jobOffer.review?.reviewedAt ?? "none"}`;
 
 	useEffect(() => {
 		if (!needsReview || !canUseSelectedAi || isReviewingJobOffer) {
@@ -562,7 +576,10 @@ function ReviewStepContent({
 		if (!canUseSelectedAi || !run) {
 			return;
 		}
-		if (run.matchAnalysis.source === "ai") {
+		if (
+			application.profileMatch?.matchAnalysis.source === "ai" ||
+			run.matchAnalysis.source === "ai"
+		) {
 			return;
 		}
 		if (lastAutoMatchKeyRef.current === autoMatchKey) {
@@ -577,10 +594,11 @@ function ReviewStepContent({
 		isAnalyzingProfileMatch,
 		canUseSelectedAi,
 		run,
+		application.profileMatch?.matchAnalysis.source,
 		analyzeActiveProfileMatch,
 	]);
 
-	if (!run) {
+	if (!run || !matchAnalysis || !signals) {
 		return (
 			<div className="rounded-xl border bg-card p-6 text-muted-foreground text-sm">
 				{t("application.review.noRun")}
@@ -588,7 +606,6 @@ function ReviewStepContent({
 		);
 	}
 
-	const { matchAnalysis, signals } = run;
 	const analysisState = {
 		isReviewingJobOffer,
 		isAnalyzingProfileMatch,
@@ -665,6 +682,35 @@ function ReviewStepContent({
 						{t("application.review.reanalyze")}
 					</Button>
 				</div>
+			</div>
+
+			<div className="grid gap-4 lg:grid-cols-2">
+				<ActionVersionList
+					title={t("application.versions.reviews")}
+					emptyLabel={t("application.versions.reviewsEmpty")}
+					activeId={application.activeReviewId}
+					onSelect={activateReviewVersion}
+					items={application.reviewHistory.map((entry) => ({
+						id: entry.id,
+						label: entry.label,
+						subtitle: entry.reviewTool,
+						meta: formatSnapshotDate(entry.reviewedAt),
+					}))}
+				/>
+				<ActionVersionList
+					title={t("application.versions.matches")}
+					emptyLabel={t("application.versions.matchesEmpty")}
+					activeId={application.activeMatchId}
+					onSelect={activateMatchVersion}
+					items={application.matchHistory.map((entry) => ({
+						id: entry.id,
+						label: entry.label,
+						subtitle: entry.matchAnalysis.evaluatorTool
+							? `${entry.matchAnalysis.evaluatorTool} · ${entry.matchAnalysis.score}%`
+							: `${entry.matchAnalysis.score}%`,
+						meta: formatSnapshotDate(entry.evaluatedAt),
+					}))}
+				/>
 			</div>
 
 			{showRoleSummarySection ? (
@@ -778,6 +824,7 @@ function ReviewStepContent({
 function TailorStep({
 	application,
 	run,
+	runs,
 	profile,
 	selectedLanguage,
 	onLanguageChange,
@@ -788,6 +835,7 @@ function TailorStep({
 	onEditCv,
 	onPrintCv,
 	onExportPdf,
+	onSelectRun,
 	canGenerate,
 	canUseSelectedAi,
 	isGenerating,
@@ -797,6 +845,7 @@ function TailorStep({
 }: {
 	application: Application;
 	run: CvRun | undefined;
+	runs: CvRun[];
 	profile: ReturnType<typeof useCvApp>["profile"];
 	selectedLanguage: CvLanguage;
 	onLanguageChange: (language: CvLanguage) => void;
@@ -807,6 +856,7 @@ function TailorStep({
 	onEditCv: ReturnType<typeof useCvApp>["updateActiveCv"];
 	onPrintCv: () => void;
 	onExportPdf: () => void;
+	onSelectRun: (runId: string) => void;
 	canGenerate: boolean;
 	canUseSelectedAi: boolean;
 	isGenerating: boolean;
@@ -822,6 +872,7 @@ function TailorStep({
 			? t("application.generate.regenerate")
 			: t("application.generate.generate");
 	const showExportPdf = isTauriRuntime();
+	const cvVersions = runs.filter((entry) => entry.source !== "draft");
 
 	return (
 		<div className="grid gap-4">
@@ -933,6 +984,19 @@ function TailorStep({
 						: t("application.generate.aiSetupWeb")}
 				</p>
 			) : null}
+
+			<ActionVersionList
+				title={t("application.versions.cvs")}
+				emptyLabel={t("application.versions.cvsEmpty")}
+				activeId={run?.id}
+				onSelect={onSelectRun}
+				items={cvVersions.map((entry) => ({
+					id: entry.id,
+					label: entry.label,
+					subtitle: `${entry.aiTool} · ${cvLanguageLabel(entry.language)}`,
+					meta: formatSnapshotDate(entry.createdAt),
+				}))}
+			/>
 
 			{!hasRunForLanguage ? (
 				<p className="rounded-lg border bg-muted/40 p-3 text-muted-foreground text-sm">

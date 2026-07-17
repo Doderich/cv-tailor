@@ -148,6 +148,18 @@ export const applicationProfileMatchSchema = z.object({
 	stdout: z.string().optional(),
 });
 
+/** Append-only job-review version kept on the application. */
+export const jobReviewVersionSchema = jobPostingReviewSchema.extend({
+	id: z.string(),
+	label: z.string(),
+});
+
+/** Append-only profile-match version kept on the application. */
+export const profileMatchVersionSchema = applicationProfileMatchSchema.extend({
+	id: z.string(),
+	label: z.string(),
+});
+
 export const cvLanguages = ["en", "de"] as const;
 
 export const cvLanguageSchema = z.enum(cvLanguages);
@@ -167,6 +179,12 @@ export const applicationSchema = z.object({
 	profileId: z.string(),
 	jobOffer: jobOfferSchema,
 	profileMatch: applicationProfileMatchSchema.optional(),
+	/** Past job-review AI runs; latest is also mirrored on jobOffer.review. */
+	reviewHistory: z.array(jobReviewVersionSchema).default([]),
+	/** Past profile-match AI runs; latest is also mirrored on profileMatch. */
+	matchHistory: z.array(profileMatchVersionSchema).default([]),
+	activeReviewId: z.string().optional(),
+	activeMatchId: z.string().optional(),
 	archived: z.boolean().optional(),
 	createdAt: z.string(),
 	updatedAt: z.string(),
@@ -259,6 +277,8 @@ export type MatchAnalysis = z.infer<typeof matchAnalysisSchema>;
 export type ApplicationProfileMatch = z.infer<
 	typeof applicationProfileMatchSchema
 >;
+export type JobReviewVersion = z.infer<typeof jobReviewVersionSchema>;
+export type ProfileMatchVersion = z.infer<typeof profileMatchVersionSchema>;
 export type CvLanguage = z.infer<typeof cvLanguageSchema>;
 export type CvRunSource = z.infer<typeof cvRunSourceSchema>;
 export type ProfileRecord = z.infer<typeof profileRecordSchema>;
@@ -790,19 +810,108 @@ export function resolveCachedProfileMatch(
 	return normalizeMatchAnalysis(matchAnalysis);
 }
 
+function stripReviewVersionMeta(
+	version: JobReviewVersion | JobPostingReview,
+): JobPostingReview {
+	const { id: _id, label: _label, ...review } = version as JobReviewVersion;
+	return jobPostingReviewSchema.parse(review);
+}
+
+function stripMatchVersionMeta(
+	version: ProfileMatchVersion | ApplicationProfileMatch,
+): ApplicationProfileMatch {
+	const { id: _id, label: _label, ...match } = version as ProfileMatchVersion;
+	return applicationProfileMatchSchema.parse({
+		...match,
+		matchAnalysis: normalizeMatchAnalysis(match.matchAnalysis),
+	});
+}
+
+export function createJobReviewVersion(
+	review: JobPostingReview,
+	existing: JobReviewVersion[],
+): JobReviewVersion {
+	return jobReviewVersionSchema.parse({
+		...review,
+		id: createId("review"),
+		label: `Review v${existing.length + 1}`,
+	});
+}
+
+export function createProfileMatchVersion(
+	match: ApplicationProfileMatch,
+	existing: ProfileMatchVersion[],
+): ProfileMatchVersion {
+	return profileMatchVersionSchema.parse({
+		...match,
+		matchAnalysis: normalizeMatchAnalysis(match.matchAnalysis),
+		id: createId("match"),
+		label: `Match v${existing.length + 1}`,
+	});
+}
+
+/** Ensure history arrays exist and seed from current review/match when migrating older data. */
 export function normalizeApplication(application: Application): Application {
+	const profileMatch = application.profileMatch
+		? {
+				...application.profileMatch,
+				matchAnalysis: normalizeMatchAnalysis(
+					application.profileMatch.matchAnalysis,
+				),
+			}
+		: undefined;
+
+	let reviewHistory = [...(application.reviewHistory ?? [])];
+	let matchHistory = [...(application.matchHistory ?? [])];
+	let activeReviewId = application.activeReviewId;
+	let activeMatchId = application.activeMatchId;
+
+	const currentReview = application.jobOffer.review;
+	// Stable legacy ids (no createId) so migrate-on-read stays referentially stable across renders.
+	if (currentReview && reviewHistory.length === 0) {
+		const seeded = jobReviewVersionSchema.parse({
+			...currentReview,
+			id: `legacy-review-${currentReview.reviewedAt}`,
+			label: "Review v1",
+		});
+		reviewHistory = [seeded];
+		activeReviewId = seeded.id;
+	}
+
+	if (profileMatch && matchHistory.length === 0) {
+		const seeded = profileMatchVersionSchema.parse({
+			...profileMatch,
+			id: `legacy-match-${profileMatch.evaluatedAt}`,
+			label: "Match v1",
+		});
+		matchHistory = [seeded];
+		activeMatchId = seeded.id;
+	}
+
+	if (
+		activeReviewId &&
+		!reviewHistory.some((entry) => entry.id === activeReviewId)
+	) {
+		activeReviewId = reviewHistory[reviewHistory.length - 1]?.id;
+	}
+	if (
+		activeMatchId &&
+		!matchHistory.some((entry) => entry.id === activeMatchId)
+	) {
+		activeMatchId = matchHistory[matchHistory.length - 1]?.id;
+	}
+
 	return {
 		...application,
-		profileMatch: application.profileMatch
-			? {
-					...application.profileMatch,
-					matchAnalysis: normalizeMatchAnalysis(
-						application.profileMatch.matchAnalysis,
-					),
-				}
-			: undefined,
+		profileMatch,
+		reviewHistory,
+		matchHistory,
+		activeReviewId,
+		activeMatchId,
 	};
 }
+
+export { stripReviewVersionMeta, stripMatchVersionMeta };
 
 function profileSearchText(profile: BaseProfile) {
 	const sections = [
