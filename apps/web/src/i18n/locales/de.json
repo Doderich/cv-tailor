@@ -597,7 +597,7 @@
 		"importMode": "Importmodus",
 		"merge": "Zusammenführen",
 		"replaceAll": "Alles ersetzen",
-		"mergeHelp": "Zusammenführen fügt Datensätze aus der Sicherung hinzu, die noch nicht existieren. Bestehende Datensätze bleiben erhalten.",
+		"mergeHelp": "Zusammenführen übernimmt neue Datensätze und aktualisiert bestehende, wenn die Sicherung neuer ist. Analyse-, Match- und Lebenslauf-Historien werden nach ID zusammengeführt.",
 		"replaceHelp": "Ersetzen löscht zuerst alle lokalen Daten und stellt dann die Sicherung exakt wieder her.",
 		"confirmReplace": "Alle lokalen Daten durch diese Sicherung ersetzen? Dies kann nicht rückgängig gemacht werden.",
 		"cloud": {

@@ -1,12 +1,17 @@
 import {
 	type AppSettings,
+	type Application,
+	type CvRun,
+	type ProfileRecord,
 	aiOutputSchema,
 	applicationSchema,
 	appSettingsSchema,
 	cvRunSchema,
 	type LegacyAppSettings,
+	mergeApplicationForImport,
 	mergeSettingsPreservingSecrets,
 	migrateAppSettings,
+	normalizeApplication,
 	normalizeProfileRecord,
 	profileRecordSchema,
 	redactSettingsForBackup,
@@ -50,7 +55,9 @@ export function createBackupSnapshot(
 		profiles: [...collections.profiles.values()].map((profile) =>
 			normalizeProfileRecord(profile),
 		),
-		applications: [...collections.applications.values()],
+		applications: [...collections.applications.values()].map((application) =>
+			normalizeApplication(application),
+		),
 		cvRuns: [...collections.cvRuns.values()],
 		aiOutputs: [...collections.aiOutputs.values()],
 		settings: redactSettingsForBackup(settings),
@@ -144,6 +151,21 @@ async function clearAllData(collections: DbCollections) {
 	}
 }
 
+function isNewerTimestamp(incoming: string, existing: string) {
+	return Date.parse(incoming) >= Date.parse(existing);
+}
+
+async function replaceCollectionRecord<T extends { id: string }>(
+	collection: {
+		delete: (id: string) => { isPersisted: { promise: Promise<unknown> } };
+		insert: (item: T) => { isPersisted: { promise: Promise<unknown> } };
+	},
+	item: T,
+) {
+	await awaitPersisted(collection.delete(item.id));
+	await awaitPersisted(collection.insert(item));
+}
+
 async function insertBackupData(
 	collections: DbCollections,
 	backup: CvTailorBackup,
@@ -155,7 +177,9 @@ async function insertBackupData(
 		);
 	}
 	for (const application of backup.applications) {
-		await awaitPersisted(collections.applications.insert(application));
+		await awaitPersisted(
+			collections.applications.insert(normalizeApplication(application)),
+		);
 	}
 	for (const run of backup.cvRuns) {
 		await awaitPersisted(collections.cvRuns.insert(run));
@@ -164,6 +188,68 @@ async function insertBackupData(
 		await awaitPersisted(collections.aiOutputs.insert(output));
 	}
 	await awaitPersisted(collections.settings.insert(settings));
+}
+
+function profileContentScore(profile: ProfileRecord) {
+	return (
+		profile.skills.length +
+		profile.experience.length +
+		profile.projects.length +
+		profile.education.length +
+		profile.achievements.length +
+		(profile.summary.trim() ? 1 : 0) +
+		(profile.contact.name.trim() ? 1 : 0)
+	);
+}
+
+async function mergeProfileRecord(
+	collections: DbCollections,
+	incoming: ProfileRecord,
+) {
+	const normalized = normalizeProfileRecord(incoming);
+	const existing = collections.profiles.get(normalized.id);
+	if (!existing) {
+		await awaitPersisted(collections.profiles.insert(normalized));
+		return;
+	}
+	const existingNormalized = normalizeProfileRecord(existing);
+	const incomingIsNewer = isNewerTimestamp(
+		normalized.updatedAt,
+		existingNormalized.updatedAt,
+	);
+	const incomingIsRicher =
+		profileContentScore(normalized) > profileContentScore(existingNormalized);
+	if (!incomingIsNewer && !incomingIsRicher) {
+		return;
+	}
+	await replaceCollectionRecord(collections.profiles, normalized);
+}
+
+async function mergeApplicationRecord(
+	collections: DbCollections,
+	incoming: Application,
+) {
+	const existing = collections.applications.get(incoming.id);
+	if (!existing) {
+		await awaitPersisted(
+			collections.applications.insert(normalizeApplication(incoming)),
+		);
+		return;
+	}
+	const merged = mergeApplicationForImport(existing, incoming);
+	await replaceCollectionRecord(collections.applications, merged);
+}
+
+async function mergeCvRunRecord(collections: DbCollections, incoming: CvRun) {
+	const existing = collections.cvRuns.get(incoming.id);
+	if (!existing) {
+		await awaitPersisted(collections.cvRuns.insert(incoming));
+		return;
+	}
+	if (!isNewerTimestamp(incoming.updatedAt, existing.updatedAt)) {
+		return;
+	}
+	await replaceCollectionRecord(collections.cvRuns, incoming);
 }
 
 export async function importBackup(
@@ -185,26 +271,15 @@ export async function importBackup(
 	}
 
 	for (const profile of backup.profiles) {
-		if (collections.profiles.has(profile.id)) {
-			continue;
-		}
-		await awaitPersisted(
-			collections.profiles.insert(normalizeProfileRecord(profile)),
-		);
+		await mergeProfileRecord(collections, profile);
 	}
 
 	for (const application of backup.applications) {
-		if (collections.applications.has(application.id)) {
-			continue;
-		}
-		await awaitPersisted(collections.applications.insert(application));
+		await mergeApplicationRecord(collections, application);
 	}
 
 	for (const run of backup.cvRuns) {
-		if (collections.cvRuns.has(run.id)) {
-			continue;
-		}
-		await awaitPersisted(collections.cvRuns.insert(run));
+		await mergeCvRunRecord(collections, run);
 	}
 
 	for (const output of backup.aiOutputs) {

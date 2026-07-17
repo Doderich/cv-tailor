@@ -111,7 +111,7 @@ describe("backup", () => {
 		expect([...target.cvRuns.values()]).toHaveLength(1);
 	});
 
-	it("merges records without overwriting existing ids", async () => {
+	it("merges records without dropping local-only profiles", async () => {
 		const sourceProfile = createDefaultProfileRecord(undefined, {
 			id: "profile-import",
 			name: "Imported",
@@ -126,6 +126,125 @@ describe("backup", () => {
 		expect(target.profiles.has(existingProfileId ?? "")).toBe(true);
 		expect(target.profiles.has("profile-import")).toBe(true);
 		expect([...target.profiles.values()]).toHaveLength(2);
+	});
+
+	it("merges AI histories into an existing application with the same id", async () => {
+		const profile = createDefaultProfileRecord(undefined, {
+			id: "profile-shared",
+			name: "Shared",
+		});
+		const { application: sharedApp, draftRun } = createEmptyApplication({
+			id: "app-shared",
+			profileId: profile.id,
+			profile,
+		});
+		const source = createMockCollections({ profiles: [profile] });
+		const target = createMockCollections({ profiles: [profile] });
+
+		for (const app of [...source.applications.values()]) {
+			source.applications.delete(app.id);
+		}
+		for (const run of [...source.cvRuns.values()]) {
+			source.cvRuns.delete(run.id);
+		}
+		for (const app of [...target.applications.values()]) {
+			target.applications.delete(app.id);
+		}
+		for (const run of [...target.cvRuns.values()]) {
+			target.cvRuns.delete(run.id);
+		}
+
+		target.applications.insert(sharedApp);
+		target.cvRuns.insert(draftRun);
+		source.cvRuns.insert(draftRun);
+
+		const reviewedAt = "2026-07-17T10:00:00.000Z";
+		const review = {
+			signals: {
+				keywords: ["react"],
+				requirements: ["TypeScript"],
+				responsibilities: ["Build UI"],
+				seniority: "mid" as const,
+				technologies: ["React"],
+				softSkills: ["Communication"],
+			},
+			summary: "Frontend role",
+			rawText: "We need React",
+			reviewedAt,
+			reviewTool: "claude",
+			stdout: "review-stdout",
+		};
+
+		source.applications.insert({
+			...sharedApp,
+			updatedAt: "2026-07-17T12:00:00.000Z",
+			jobOffer: {
+				...sharedApp.jobOffer,
+				rawText: "We need React",
+				review,
+				signals: review.signals,
+			},
+			reviewHistory: [
+				{
+					...review,
+					id: "review-web-1",
+					label: "Review v1",
+				},
+			],
+			activeReviewId: "review-web-1",
+			matchHistory: [
+				{
+					id: "match-web-1",
+					label: "Match v1",
+					profileId: profile.id,
+					jobRawText: "We need React",
+					jobReviewedAt: reviewedAt,
+					profileUpdatedAt: profile.updatedAt,
+					evaluatedAt: "2026-07-17T11:00:00.000Z",
+					matchAnalysis: {
+						score: 82,
+						matchedKeywords: ["react"],
+						missingKeywords: [],
+						missingRequirements: [],
+						goodFit: ["React"],
+						warnings: [],
+						source: "ai",
+						evaluatorTool: "claude",
+					},
+				},
+			],
+			activeMatchId: "match-web-1",
+			profileMatch: {
+				profileId: profile.id,
+				jobRawText: "We need React",
+				jobReviewedAt: reviewedAt,
+				profileUpdatedAt: profile.updatedAt,
+				evaluatedAt: "2026-07-17T11:00:00.000Z",
+				matchAnalysis: {
+					score: 82,
+					matchedKeywords: ["react"],
+					missingKeywords: [],
+					missingRequirements: [],
+					goodFit: ["React"],
+					warnings: [],
+					source: "ai",
+					evaluatorTool: "claude",
+				},
+			},
+		});
+
+		const backup = createBackupSnapshot(source);
+		await importBackup(target, backup, "merge");
+
+		const merged = target.applications.get(sharedApp.id);
+		expect(merged?.reviewHistory.map((entry) => entry.id)).toContain(
+			"review-web-1",
+		);
+		expect(merged?.matchHistory.map((entry) => entry.id)).toContain(
+			"match-web-1",
+		);
+		expect(merged?.jobOffer.review?.reviewTool).toBe("claude");
+		expect(merged?.profileMatch?.matchAnalysis.score).toBe(82);
 	});
 
 	it("redacts cloud backup secrets from exported snapshots", () => {

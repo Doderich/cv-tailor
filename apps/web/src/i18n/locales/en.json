@@ -597,7 +597,7 @@
 		"importMode": "Import mode",
 		"merge": "Merge",
 		"replaceAll": "Replace all",
-		"mergeHelp": "Merge adds records from the backup that do not already exist. Existing records are kept.",
+		"mergeHelp": "Merge brings in new records and updates existing ones when the backup is newer. Review, match, and CV histories are combined by id.",
 		"replaceHelp": "Replace deletes all local data first, then restores the backup exactly.",
 		"confirmReplace": "Replace all local data with this backup? This cannot be undone.",
 		"cloud": {

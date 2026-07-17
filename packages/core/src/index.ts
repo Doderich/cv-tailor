@@ -911,6 +911,76 @@ export function normalizeApplication(application: Application): Application {
 	};
 }
 
+function mergeRecordsById<T extends { id: string }>(
+	existing: T[],
+	incoming: T[],
+): T[] {
+	const byId = new Map<string, T>();
+	for (const item of existing) {
+		byId.set(item.id, item);
+	}
+	for (const item of incoming) {
+		byId.set(item.id, item);
+	}
+	return [...byId.values()];
+}
+
+/**
+ * Merge an imported application into a local one for backup sync.
+ * Unions review/match histories by id and prefers the newer working copy.
+ */
+export function mergeApplicationForImport(
+	existing: Application,
+	incoming: Application,
+): Application {
+	const local = normalizeApplication(existing);
+	const remote = normalizeApplication(incoming);
+	const remoteIsNewer =
+		Date.parse(remote.updatedAt) >= Date.parse(local.updatedAt);
+	// Prefer backup content when it carries AI work the local copy lacks,
+	// even if the local row was touched more recently (e.g. empty desktop seed).
+	const remoteIsRicher =
+		remote.reviewHistory.length > local.reviewHistory.length ||
+		remote.matchHistory.length > local.matchHistory.length ||
+		(Boolean(remote.jobOffer.review) && !local.jobOffer.review) ||
+		(Boolean(remote.profileMatch) && !local.profileMatch);
+	const base = remoteIsNewer || remoteIsRicher ? remote : local;
+
+	const reviewHistory = mergeRecordsById(
+		local.reviewHistory,
+		remote.reviewHistory,
+	).sort((a, b) => Date.parse(a.reviewedAt) - Date.parse(b.reviewedAt));
+
+	const matchHistory = mergeRecordsById(
+		local.matchHistory,
+		remote.matchHistory,
+	).sort((a, b) => Date.parse(a.evaluatedAt) - Date.parse(b.evaluatedAt));
+
+	let activeReviewId = base.activeReviewId;
+	let activeMatchId = base.activeMatchId;
+	if (
+		activeReviewId &&
+		!reviewHistory.some((entry) => entry.id === activeReviewId)
+	) {
+		activeReviewId = reviewHistory[reviewHistory.length - 1]?.id;
+	}
+	if (
+		activeMatchId &&
+		!matchHistory.some((entry) => entry.id === activeMatchId)
+	) {
+		activeMatchId = matchHistory[matchHistory.length - 1]?.id;
+	}
+
+	return {
+		...base,
+		reviewHistory,
+		matchHistory,
+		activeReviewId,
+		activeMatchId,
+		updatedAt: remoteIsNewer || remoteIsRicher ? remote.updatedAt : local.updatedAt,
+	};
+}
+
 export { stripReviewVersionMeta, stripMatchVersionMeta };
 
 function profileSearchText(profile: BaseProfile) {
