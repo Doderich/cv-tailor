@@ -44,7 +44,7 @@ finally {
 	Pop-Location
 }
 
-$bundleRoot = Join-Path $webRoot "src-tauri\target\release\bundle"
+$bundleRoot = Join-Path $RepoPath "target\release\bundle"
 Require-Path $bundleRoot "Build finished but bundle directory is missing: $bundleRoot"
 
 Write-Host "Build complete. Artifacts are in $bundleRoot"

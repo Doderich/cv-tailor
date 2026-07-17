@@ -14,6 +14,7 @@ import { join } from "node:path";
 import {
 	buildGithubReleaseDownloadUrl,
 	buildLatestJson,
+	desktopBundleRoot,
 	downloadExistingLatestJson,
 	type LatestJson,
 	toGithubReleaseAssetName,
@@ -30,7 +31,7 @@ import {
 const repoRoot = join(import.meta.dirname, "..");
 const webRoot = join(repoRoot, "apps/web");
 const tauriConfigPath = join(webRoot, "src-tauri/tauri.conf.json");
-const bundleRoot = join(webRoot, "src-tauri/target/release/bundle");
+const bundleRoot = desktopBundleRoot(repoRoot);
 const privateKeyPath = join(homedir(), ".tauri", "cv-tailor.key");
 const githubRepo = "Doderich/cv-tailor";
 

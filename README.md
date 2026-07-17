@@ -176,7 +176,7 @@ After the app is installed once, **in-app auto-updates** work normally. You only
 cd apps/web && pnpm run desktop:build
 ```
 
-Installers and bundles are written to `apps/web/src-tauri/target/release/bundle/`.
+Installers and bundles are written to `target/release/bundle/`.
 
 ### Auto-updates
 

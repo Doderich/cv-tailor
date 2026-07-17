@@ -5,6 +5,7 @@ import { join } from "node:path";
 
 import {
 	buildLatestJson,
+	desktopBundleRoot,
 	downloadExistingLatestJson,
 	ensureGhAvailable,
 	githubRepo,
@@ -179,10 +180,11 @@ function main() {
 	console.log(`Building CV Tailor ${version} for Windows...`);
 	runLocalBuild();
 
+	const bundleRoot = desktopBundleRoot(repoRoot);
 	const updaterArtifacts = findWindowsUpdaterArtifacts(windowsNsisBundleDir);
 	const stagedArtifacts = stageWindowsGithubUploadArtifacts(
 		updaterArtifacts,
-		join(repoRoot, "apps/web/src-tauri/target/release/bundle/github-upload"),
+		join(bundleRoot, "github-upload"),
 	);
 	const existingLatestJson = downloadExistingLatestJson(tag);
 	const latestJson = buildLatestJson({
@@ -194,7 +196,7 @@ function main() {
 	});
 	const latestJsonPath = writeLatestJson(
 		latestJson,
-		join(repoRoot, "apps/web/src-tauri/target/release/bundle/latest.json"),
+		join(bundleRoot, "latest.json"),
 	);
 
 	console.log(`Prepared ${latestJsonPath}`);

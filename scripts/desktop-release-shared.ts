@@ -1,9 +1,15 @@
 import { spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 export const githubRepo = "Doderich/cv-tailor";
+
+/** Cargo workspace target dir (src-tauri is a workspace member). */
+export function desktopBundleRoot(repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..")) {
+	return join(repoRoot, "target/release/bundle");
+}
 
 export function toGithubReleaseAssetName(fileName: string) {
 	return fileName.replace(/ /g, ".");

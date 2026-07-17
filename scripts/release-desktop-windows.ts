@@ -293,7 +293,7 @@ function downloadWindowsArtifacts(config: SshConfig) {
 
 	const remoteNsisDir = toRemotePath(
 		config,
-		"apps/web/src-tauri/target/release/bundle/nsis",
+		"target/release/bundle/nsis",
 	);
 	const escapedNsisDir = escapePowerShellSingleQuotedString(remoteNsisDir);
 	const packCommand =
