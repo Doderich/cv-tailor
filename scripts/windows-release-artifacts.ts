@@ -147,5 +147,5 @@ export function buildWindowsPlatforms(
 
 export const windowsNsisBundleDir = join(
 	import.meta.dirname,
-	"../apps/web/src-tauri/target/release/bundle/nsis",
+	"../target/release/bundle/nsis",
 );

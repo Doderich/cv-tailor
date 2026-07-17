@@ -10,7 +10,9 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const webRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
-const debugDir = join(webRoot, "src-tauri/target/debug");
+const repoRoot = join(webRoot, "../..");
+// Cargo workspace puts artifacts in the repo-root target dir.
+const debugDir = join(repoRoot, "target/debug");
 const sourceBinary = join(debugDir, "cv-tailor");
 const displayBinary = join(debugDir, "CV Tailor");
 
