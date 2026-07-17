@@ -15,11 +15,13 @@ use axum::{
     routing::get,
     Json, Router,
 };
+use cv_tailor_native::{ai_routes, cloud_backup_routes, shared_state};
 use serde::Serialize;
 use std::{env, net::TcpListener, thread};
 use tower_http::cors::CorsLayer;
 
-const DEFAULT_LOCAL_API_ADDR: &str = "127.0.0.1:3911";
+// Keep off :3911 so the headless gateway can bind there while the desktop app is open.
+const DEFAULT_LOCAL_API_ADDR: &str = "127.0.0.1:3912";
 
 #[derive(Clone)]
 struct LocalApiState {
@@ -65,9 +67,17 @@ fn start_local_api() -> Result<LocalApiState, Box<dyn std::error::Error>> {
     let state = LocalApiState {
         url: format!("http://{local_addr}"),
     };
+    let data_dir = env::temp_dir().join("cv-tailor-local-api");
+    let _ = std::fs::create_dir_all(&data_dir);
+    let gateway_state = shared_state(data_dir, local_addr.to_string(), None);
 
-    let app = Router::new()
+    let status_router = Router::new()
         .route("/api/status", get(http_status))
+        .with_state(state.clone());
+    let app = Router::new()
+        .merge(status_router)
+        .merge(ai_routes().with_state(gateway_state.clone()))
+        .merge(cloud_backup_routes().with_state(gateway_state))
         .layer(
             CorsLayer::new()
                 .allow_origin([
@@ -76,9 +86,9 @@ fn start_local_api() -> Result<LocalApiState, Box<dyn std::error::Error>> {
                     HeaderValue::from_static("http://localhost:4173"),
                     HeaderValue::from_static("http://127.0.0.1:4173"),
                 ])
-                .allow_methods([Method::GET]),
-        )
-        .with_state(state.clone());
+                .allow_methods([Method::GET, Method::POST])
+                .allow_headers(tower_http::cors::Any),
+        );
 
     thread::spawn(move || {
         let runtime = match tokio::runtime::Builder::new_current_thread()
@@ -149,6 +159,11 @@ pub fn run() {
             commands::read_data_snapshot,
             commands::delete_data_snapshot,
             commands::download_data_snapshot,
+            commands::cloud_backup_env_defaults,
+            commands::cloud_backup_test,
+            commands::cloud_backup_upload,
+            commands::cloud_backup_list,
+            commands::cloud_backup_download,
             commands::fetch_updater_manifest
         ])
         .run(tauri::generate_context!())

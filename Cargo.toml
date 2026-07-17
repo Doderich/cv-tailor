@@ -1,0 +1,7 @@
+[workspace]
+resolver = "2"
+members = [
+  "crates/cv-tailor-native",
+  "apps/cv-tailor-gateway",
+  "apps/web/src-tauri",
+]

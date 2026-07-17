@@ -28,6 +28,10 @@
 		"desktop:windows:release": "node scripts/desktop-windows.mjs release",
 		"desktop:windows:remote:release": "tsx scripts/release-desktop-windows.ts",
 		"desktop:icon": "node scripts/generate-app-icon.mjs && node scripts/generate-dmg-background.mjs && pnpm -F web tauri icon src-tauri/app-icon.png -o src-tauri/icons",
+		"gateway:ui:build": "VITE_AI_GATEWAY_SAME_ORIGIN=true VITE_AI_GATEWAY_URL= VITE_AI_GATEWAY_TOKEN= VITE_CLOUD_BACKUP_ENDPOINT= VITE_CLOUD_BACKUP_BUCKET= VITE_CLOUD_BACKUP_REGION= VITE_CLOUD_BACKUP_ACCESS_KEY_ID= VITE_CLOUD_BACKUP_SECRET_ACCESS_KEY= VITE_CLOUD_BACKUP_PREFIX= pnpm -F web build",
+		"gateway:dev": "cargo run -p cv-tailor-gateway",
+		"gateway:serve": "pnpm run gateway:ui:build && cargo run -p cv-tailor-gateway",
+		"gateway:build": "cargo build -p cv-tailor-gateway --release",
 		"check": "biome check --write .",
 		"clean:install": "node scripts/clean-install-dispatch.mjs",
 		"test": "vitest run"

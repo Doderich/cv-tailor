@@ -10,8 +10,10 @@ CV Tailor is a local-first desktop app. Your profiles, applications, and generat
 | Tauri IPC | Over-privileged commands | Capability-based permissions (`capabilities/*.json`) |
 | URL fetch (Rust) | SSRF against local network | Host/IP blocklist in `web_fetch.rs` |
 | Local HTTP bridge | LAN access during browser dev | Binds to `127.0.0.1` only; CORS limited to local dev origins |
+| Headless AI gateway | Unauthorized remote AI execution | Bind on VPN only; set `CV_TAILOR_GATEWAY_TOKEN`; clients send bearer token |
 | Auto-updater | Tampered updates | Tauri updater signatures + pinned GitHub release endpoint |
 | AI CLI integration | Arbitrary command execution | User-configured local tools only; no remote code execution |
+| Cloud backup (S3/MinIO) | Credential leakage in exports/repo | Keys stored only in local settings; secrets redacted from backup JSON; no secrets in the public repository |
 
 ## Content Security Policy
 

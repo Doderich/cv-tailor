@@ -302,7 +302,7 @@
 			"regenerate": "Regenerate",
 			"moreActions": "More actions",
 			"aiSetupDesktop": "Install or authenticate an AI tool (Claude, Codex, or Cursor), then refresh in settings.",
-			"aiSetupWeb": "Open the Tauri desktop app to run local AI generation. You can still edit manually.",
+			"aiSetupWeb": "AI needs the desktop app or the CV Tailor gateway with a ready provider. You can still edit manually.",
 			"noVersionYet": "No {{language}} version yet. Generate one to start editing and exporting."
 		}
 	},
@@ -457,7 +457,7 @@
 			"urls": "Public URLs",
 			"urlsPlaceholder": "https://www.linkedin.com/in/...\nhttps://example.com/about",
 			"submit": "Create profile",
-			"aiNotReady": "Local AI is not ready for profile creation.",
+			"aiNotReady": "AI is not ready for profile creation. Check Settings → AI.",
 			"sourceFetched": "Fetched",
 			"sourceStatus": "{{status}} · {{count}} chars",
 			"rawResponse": "AI response (raw)",
@@ -589,7 +589,38 @@
 		"replaceAll": "Replace all",
 		"mergeHelp": "Merge adds records from the backup that do not already exist. Existing records are kept.",
 		"replaceHelp": "Replace deletes all local data first, then restores the backup exactly.",
-		"confirmReplace": "Replace all local data with this backup? This cannot be undone."
+		"confirmReplace": "Replace all local data with this backup? This cannot be undone.",
+		"cloud": {
+			"title": "Cloud backup (S3 / MinIO)",
+			"description": "Upload snapshots to an S3-compatible bucket on your network (for example MinIO on a NAS). Prefill from apps/web/.env; access and secret keys are password fields and are never written into backup files.",
+			"descriptionServer": "Upload and restore backups through the gateway. MinIO connection settings are configured on the server via environment variables — not in this browser UI.",
+			"desktopOnly": "Cloud backup needs the desktop app or the CV Tailor gateway.",
+			"runtimeRequired": "Cloud backup needs the desktop app or the CV Tailor gateway.",
+			"endpoint": "Endpoint",
+			"endpointPlaceholder": "http://192.168.188.50:9000",
+			"bucket": "Bucket",
+			"bucketPlaceholder": "cv-tailor-backups",
+			"region": "Region",
+			"regionPlaceholder": "us-east-1",
+			"accessKeyId": "Access key",
+			"accessKeyIdPlaceholder": "From .env or MinIO",
+			"secretAccessKey": "Secret key",
+			"secretAccessKeyPlaceholder": "From .env — never committed",
+			"prefix": "Object prefix",
+			"prefixPlaceholder": "cv-tailor/",
+			"test": "Test connection",
+			"upload": "Upload backup",
+			"refresh": "Refresh list",
+			"restore": "Restore",
+			"testing": "Testing connection…",
+			"uploading": "Uploading…",
+			"loading": "Loading remote backups…",
+			"empty": "No remote backups yet. Upload one to share data with another device.",
+			"testOk": "Connected to {{bucket}} at {{endpoint}}",
+			"uploadOk": "Uploaded {{key}}",
+			"incomplete": "Fill in endpoint, bucket, access key, and secret key first.",
+			"help": "Prefills from apps/web/.env (VITE_CLOUD_BACKUP_*). Access and secret keys use password fields. Secrets are not included in uploaded JSON and must not be committed."
+		}
 	},
 	"font": {
 		"product": {

@@ -3,9 +3,11 @@ import { invoke } from "@tauri-apps/api/core";
 export type NativeStatus = {
 	status: "ok";
 	appName: string;
-	runtime: "tauri" | "local-http";
+	runtime: "tauri" | "local-http" | "gateway";
 	pid: number;
 	localApiUrl: string;
+	uiEnabled?: boolean;
+	cloudBackupConfigured?: boolean;
 };
 
 export type NativeConnection = {
@@ -13,9 +15,14 @@ export type NativeConnection = {
 	transport: "tauri" | "http";
 };
 
-const DEFAULT_LOCAL_API_URL = "http://127.0.0.1:3911";
+const DEFAULT_LOCAL_API_URL = "http://127.0.0.1:3912";
 
 function localApiUrl() {
+	// When the gateway hosts the UI, prefer same-origin status checks.
+	if (import.meta.env.VITE_AI_GATEWAY_SAME_ORIGIN === "true") {
+		return "";
+	}
+
 	return import.meta.env.VITE_LOCAL_API_URL ?? DEFAULT_LOCAL_API_URL;
 }
 

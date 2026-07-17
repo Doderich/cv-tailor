@@ -300,7 +300,7 @@ describe("migrateAppSettings", () => {
 			selectedAiProvider: undefined,
 		});
 
-		expect(migrated.schemaVersion).toBe(3);
+		expect(migrated.schemaVersion).toBe(4);
 		expect(migrated.selectedAiProvider).toBe("claude");
 		expect(migrated.lmStudio?.baseUrl).toBe("http://localhost:1234");
 	});
@@ -309,10 +309,22 @@ describe("migrateAppSettings", () => {
 		const defaults = createDefaultAppSettings();
 		const migrated = migrateAppSettings({
 			...defaults,
+			schemaVersion: 2,
 			selectedAiTool: "lmstudio",
 			selectedAiProvider: undefined,
 		});
 
 		expect(migrated.selectedAiProvider).toBe("lmstudio");
+	});
+
+	it("upgrades schema v3 settings to v4", () => {
+		const defaults = createDefaultAppSettings();
+		const migrated = migrateAppSettings({
+			...defaults,
+			schemaVersion: 3,
+			cloudBackup: undefined,
+		});
+
+		expect(migrated.schemaVersion).toBe(4);
 	});
 });

@@ -302,7 +302,7 @@
 			"regenerate": "Neu generieren",
 			"moreActions": "Weitere Aktionen",
 			"aiSetupDesktop": "Installiere oder authentifiziere ein KI-Tool (Claude, Codex oder Cursor) und aktualisiere es in den Einstellungen.",
-			"aiSetupWeb": "Öffne die Tauri-Desktop-App für lokale KI-Generierung. Du kannst weiterhin manuell bearbeiten.",
+			"aiSetupWeb": "KI braucht die Desktop-App oder den CV Tailor Gateway mit einem bereiten Anbieter. Du kannst weiterhin manuell bearbeiten.",
 			"noVersionYet": "Noch keine {{language}}-Version. Generiere eine, um mit Bearbeitung und Export zu beginnen."
 		}
 	},
@@ -457,7 +457,7 @@
 			"urls": "Öffentliche URLs",
 			"urlsPlaceholder": "https://www.linkedin.com/in/...\nhttps://example.com/about",
 			"submit": "Profil erstellen",
-			"aiNotReady": "Lokale KI ist nicht bereit für die Profilerstellung.",
+			"aiNotReady": "KI ist nicht bereit für die Profilerstellung. Prüfe Einstellungen → KI.",
 			"sourceFetched": "Geladen",
 			"sourceStatus": "{{status}} · {{count}} Zeichen",
 			"rawResponse": "KI-Antwort (Rohdaten)",
@@ -589,7 +589,38 @@
 		"replaceAll": "Alles ersetzen",
 		"mergeHelp": "Zusammenführen fügt Datensätze aus der Sicherung hinzu, die noch nicht existieren. Bestehende Datensätze bleiben erhalten.",
 		"replaceHelp": "Ersetzen löscht zuerst alle lokalen Daten und stellt dann die Sicherung exakt wieder her.",
-		"confirmReplace": "Alle lokalen Daten durch diese Sicherung ersetzen? Dies kann nicht rückgängig gemacht werden."
+		"confirmReplace": "Alle lokalen Daten durch diese Sicherung ersetzen? Dies kann nicht rückgängig gemacht werden.",
+		"cloud": {
+			"title": "Cloud-Sicherung (S3 / MinIO)",
+			"description": "Lade Sicherungen in einen S3-kompatiblen Bucket in deinem Netzwerk hoch (z. B. MinIO auf einer NAS). Vorausfüllung aus apps/web/.env; Access- und Secret-Key sind Passwortfelder und stehen nicht in Sicherungsdateien.",
+			"descriptionServer": "Lade Sicherungen über den Gateway hoch und stelle sie wieder her. Die MinIO-Verbindung wird auf dem Server über Umgebungsvariablen konfiguriert — nicht in dieser Browser-Oberfläche.",
+			"desktopOnly": "Cloud-Sicherung braucht die Desktop-App oder den CV Tailor Gateway.",
+			"runtimeRequired": "Cloud-Sicherung braucht die Desktop-App oder den CV Tailor Gateway.",
+			"endpoint": "Endpunkt",
+			"endpointPlaceholder": "http://192.168.188.50:9000",
+			"bucket": "Bucket",
+			"bucketPlaceholder": "cv-tailor-backups",
+			"region": "Region",
+			"regionPlaceholder": "us-east-1",
+			"accessKeyId": "Access Key",
+			"accessKeyIdPlaceholder": "Aus .env oder MinIO",
+			"secretAccessKey": "Secret Key",
+			"secretAccessKeyPlaceholder": "Aus .env — wird nicht committed",
+			"prefix": "Objekt-Präfix",
+			"prefixPlaceholder": "cv-tailor/",
+			"test": "Verbindung testen",
+			"upload": "Sicherung hochladen",
+			"refresh": "Liste aktualisieren",
+			"restore": "Wiederherstellen",
+			"testing": "Verbindung wird getestet…",
+			"uploading": "Wird hochgeladen…",
+			"loading": "Remote-Sicherungen werden geladen…",
+			"empty": "Noch keine Remote-Sicherungen. Lade eine hoch, um Daten mit einem anderen Gerät zu teilen.",
+			"testOk": "Verbunden mit {{bucket}} unter {{endpoint}}",
+			"uploadOk": "{{key}} hochgeladen",
+			"incomplete": "Bitte zuerst Endpunkt, Bucket, Access Key und Secret Key ausfüllen.",
+			"help": "Vorausgefüllt aus apps/web/.env (VITE_CLOUD_BACKUP_*). Access- und Secret-Key sind Passwortfelder. Geheimnisse sind nicht in der hochgeladenen JSON und gehören nicht ins Repository."
+		}
 	},
 	"font": {
 		"product": {

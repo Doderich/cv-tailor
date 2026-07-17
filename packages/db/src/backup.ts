@@ -1,12 +1,15 @@
 import {
+	type AppSettings,
 	aiOutputSchema,
 	applicationSchema,
 	appSettingsSchema,
 	cvRunSchema,
 	type LegacyAppSettings,
+	mergeSettingsPreservingSecrets,
 	migrateAppSettings,
 	normalizeProfileRecord,
 	profileRecordSchema,
+	redactSettingsForBackup,
 } from "@cv-tailor/core";
 import { z } from "zod";
 
@@ -50,7 +53,7 @@ export function createBackupSnapshot(
 		applications: [...collections.applications.values()],
 		cvRuns: [...collections.cvRuns.values()],
 		aiOutputs: [...collections.aiOutputs.values()],
-		settings,
+		settings: redactSettingsForBackup(settings),
 	});
 }
 
@@ -144,6 +147,7 @@ async function clearAllData(collections: DbCollections) {
 async function insertBackupData(
 	collections: DbCollections,
 	backup: CvTailorBackup,
+	settings: AppSettings,
 ) {
 	for (const profile of backup.profiles) {
 		await awaitPersisted(
@@ -159,7 +163,7 @@ async function insertBackupData(
 	for (const output of backup.aiOutputs) {
 		await awaitPersisted(collections.aiOutputs.insert(output));
 	}
-	await awaitPersisted(collections.settings.insert(backup.settings));
+	await awaitPersisted(collections.settings.insert(settings));
 }
 
 export async function importBackup(
@@ -170,8 +174,13 @@ export async function importBackup(
 	validateBackupReferences(backup);
 
 	if (mode === "replace") {
+		const existingSettings = collections.settings.get("settings");
+		const settings = mergeSettingsPreservingSecrets(
+			backup.settings,
+			existingSettings,
+		);
 		await clearAllData(collections);
-		await insertBackupData(collections, backup);
+		await insertBackupData(collections, backup, settings);
 		return;
 	}
 

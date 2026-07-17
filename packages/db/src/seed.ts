@@ -89,7 +89,7 @@ export async function seedDefaults(collections: DbCollections) {
 		const settings = collections.settings.get("settings");
 		if (settings) {
 			const needsMigration =
-				settings.schemaVersion !== 3 ||
+				settings.schemaVersion !== 4 ||
 				!settings.selectedAiProvider ||
 				!settings.lmStudio;
 			const needsAiSettings =

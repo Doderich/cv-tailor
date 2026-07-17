@@ -1,7 +1,14 @@
 use tauri::{AppHandle, Manager};
 
+use cv_tailor_native::{
+    cloud_backup, config_from_env, AiRunRequest, AiRunResponse, CloudBackupConfig,
+    CloudBackupDownloadRequest, CloudBackupDownloadResponse, CloudBackupListRequest,
+    CloudBackupListResponse, CloudBackupTestResponse, CloudBackupUploadRequest,
+    CloudBackupUploadResponse,
+};
+
 use crate::{
-    ai::{self, AiRunRequest, AiRunResponse, AiToolPaths, AiToolStatus, LmStudioConfig, LmStudioModel},
+    ai::{self, AiToolPaths, AiToolStatus, LmStudioConfig, LmStudioModel},
     data_snapshots::{
         self, DataSnapshotContentResponse, DataSnapshotIdRequest, DataSnapshotMeta,
         DownloadDataSnapshotResponse, SaveDataSnapshotRequest,
@@ -37,7 +44,7 @@ pub fn suggest_ai_tool_paths() -> AiToolPaths {
 
 #[tauri::command]
 pub async fn run_ai_tool(app: AppHandle, request: AiRunRequest) -> Result<AiRunResponse, AppError> {
-    ai::run_ai_tool(&app, request).await
+    ai::run_ai_tool(app, request).await
 }
 
 #[tauri::command]
@@ -104,12 +111,24 @@ pub fn delete_data_snapshot(
     data_snapshots::delete_data_snapshot(&app, &request.id)
 }
 
+/// Must be async: `blocking_save_file` deadlocks/crashes on macOS when run from a sync command (main thread).
 #[tauri::command]
-pub fn download_data_snapshot(
+pub async fn download_data_snapshot(
     app: AppHandle,
     request: DataSnapshotIdRequest,
 ) -> Result<DownloadDataSnapshotResponse, AppError> {
-    data_snapshots::download_data_snapshot(&app, &request.id)
+    let id = request.id;
+    tauri::async_runtime::spawn_blocking(move || {
+        data_snapshots::download_data_snapshot(&app, &id)
+    })
+    .await
+    .map_err(|error| {
+        AppError::with_details(
+            "dialog_join_error",
+            "The save dialog was interrupted.",
+            error.to_string(),
+        )
+    })?
 }
 
 #[tauri::command]
@@ -117,4 +136,38 @@ pub async fn fetch_updater_manifest(
     request: FetchUpdaterManifestRequest,
 ) -> Result<FetchUpdaterManifestResponse, AppError> {
     updater_debug::fetch_updater_manifest(request).await
+}
+
+/// Desktop-only prefills from process env (never baked into the web bundle).
+#[tauri::command]
+pub fn cloud_backup_env_defaults() -> Option<CloudBackupConfig> {
+    config_from_env()
+}
+
+#[tauri::command]
+pub async fn cloud_backup_test(
+    config: CloudBackupConfig,
+) -> Result<CloudBackupTestResponse, AppError> {
+    Ok(cloud_backup::test_connection(config).await?)
+}
+
+#[tauri::command]
+pub async fn cloud_backup_upload(
+    request: CloudBackupUploadRequest,
+) -> Result<CloudBackupUploadResponse, AppError> {
+    Ok(cloud_backup::upload_backup(request).await?)
+}
+
+#[tauri::command]
+pub async fn cloud_backup_list(
+    request: CloudBackupListRequest,
+) -> Result<CloudBackupListResponse, AppError> {
+    Ok(cloud_backup::list_backups(request).await?)
+}
+
+#[tauri::command]
+pub async fn cloud_backup_download(
+    request: CloudBackupDownloadRequest,
+) -> Result<CloudBackupDownloadResponse, AppError> {
+    Ok(cloud_backup::download_backup(request).await?)
 }

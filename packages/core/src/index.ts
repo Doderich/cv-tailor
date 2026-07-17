@@ -1,17 +1,14 @@
 import { z } from "zod";
 
-import {
-	cvTemplateSchema,
-	defaultCvTemplate,
-} from "./cv-template";
+import { cvTemplateSchema, defaultCvTemplate } from "./cv-template";
 import { jobPositionSchema } from "./job-position";
 
 export {
+	type CvTemplateId,
 	cvTemplateIds,
 	cvTemplateSchema,
 	defaultCvTemplate,
 	normalizeCvTemplate,
-	type CvTemplateId,
 } from "./cv-template";
 
 const seniorityValues = [
@@ -210,9 +207,18 @@ export const lmStudioConfigSchema = z.object({
 	enableReasoning: z.boolean().optional(),
 });
 
+export const cloudBackupConfigSchema = z.object({
+	endpoint: z.string(),
+	region: z.string().default("us-east-1"),
+	bucket: z.string(),
+	accessKeyId: z.string(),
+	secretAccessKey: z.string().optional(),
+	prefix: z.string().optional(),
+});
+
 export const appSettingsSchema = z.object({
 	id: z.literal("settings"),
-	schemaVersion: z.literal(3),
+	schemaVersion: z.literal(4),
 	activeProfileId: z.string(),
 	activeApplicationId: z.string().optional(),
 	activeRunId: z.string().optional(),
@@ -235,6 +241,7 @@ export const appSettingsSchema = z.object({
 		.partial()
 		.optional(),
 	lmStudio: lmStudioConfigSchema.optional(),
+	cloudBackup: cloudBackupConfigSchema.optional(),
 	appliedProfilePatches: z.array(z.string()).optional(),
 	cvTemplate: cvTemplateSchema.default(defaultCvTemplate),
 });
@@ -260,6 +267,7 @@ export type CvRun = z.infer<typeof cvRunSchema>;
 export type AiOutput = z.infer<typeof aiOutputSchema>;
 export type AiProviderId = z.infer<typeof aiProviderIdSchema>;
 export type LmStudioConfig = z.infer<typeof lmStudioConfigSchema>;
+export type CloudBackupConfig = z.infer<typeof cloudBackupConfigSchema>;
 export type AppSettings = z.infer<typeof appSettingsSchema>;
 
 export const defaultLmStudioConfig: LmStudioConfig = {
@@ -267,9 +275,18 @@ export const defaultLmStudioConfig: LmStudioConfig = {
 	enableReasoning: true,
 };
 
+export const defaultCloudBackupConfig: CloudBackupConfig = {
+	endpoint: "",
+	region: "us-east-1",
+	bucket: "",
+	accessKeyId: "",
+	secretAccessKey: "",
+	prefix: "cv-tailor/",
+};
+
 export type LegacyAppSettings = {
 	id: "settings";
-	schemaVersion?: 2 | 3;
+	schemaVersion?: 2 | 3 | 4;
 	activeProfileId: string;
 	activeApplicationId?: string;
 	activeRunId?: string;
@@ -282,41 +299,32 @@ export type LegacyAppSettings = {
 	}>;
 	aiToolPaths?: Partial<Record<"claude" | "codex" | "cursor", string>>;
 	lmStudio?: Partial<LmStudioConfig>;
+	cloudBackup?: Partial<CloudBackupConfig>;
 	appliedProfilePatches?: string[];
 	cvTemplate?: AppSettings["cvTemplate"];
 };
 
 export function applyAppSettingsMigration(draft: LegacyAppSettings): void {
 	const existingLmStudio = draft.lmStudio;
+	const existingCloudBackup = draft.cloudBackup;
 
-	if (draft.schemaVersion === 3 && draft.selectedAiProvider) {
-		draft.lmStudio = {
-			baseUrl: existingLmStudio?.baseUrl ?? defaultLmStudioConfig.baseUrl,
-			apiKey: existingLmStudio?.apiKey,
-			model: existingLmStudio?.model,
-			enableReasoning:
-				existingLmStudio?.enableReasoning ??
-				defaultLmStudioConfig.enableReasoning,
-		};
-		return;
-	}
-
-	const legacyTool = draft.selectedAiTool;
-	if (!draft.selectedAiProvider) {
-		if (
-			legacyTool === "claude" ||
-			legacyTool === "codex" ||
-			legacyTool === "cursor" ||
-			legacyTool === "lmstudio"
-		) {
-			draft.selectedAiProvider = legacyTool;
-		} else {
-			draft.selectedAiProvider = "claude";
+	if (draft.schemaVersion !== 3 && draft.schemaVersion !== 4) {
+		const legacyTool = draft.selectedAiTool;
+		if (!draft.selectedAiProvider) {
+			if (
+				legacyTool === "claude" ||
+				legacyTool === "codex" ||
+				legacyTool === "cursor" ||
+				legacyTool === "lmstudio"
+			) {
+				draft.selectedAiProvider = legacyTool;
+			} else {
+				draft.selectedAiProvider = "claude";
+			}
 		}
+		delete draft.selectedAiTool;
 	}
 
-	draft.schemaVersion = 3;
-	delete draft.selectedAiTool;
 	draft.lmStudio = {
 		baseUrl: existingLmStudio?.baseUrl ?? defaultLmStudioConfig.baseUrl,
 		apiKey: existingLmStudio?.apiKey,
@@ -325,6 +333,67 @@ export function applyAppSettingsMigration(draft: LegacyAppSettings): void {
 			existingLmStudio?.enableReasoning ??
 			defaultLmStudioConfig.enableReasoning,
 	};
+
+	if (existingCloudBackup) {
+		draft.cloudBackup = {
+			endpoint:
+				existingCloudBackup.endpoint ?? defaultCloudBackupConfig.endpoint,
+			region: existingCloudBackup.region ?? defaultCloudBackupConfig.region,
+			bucket: existingCloudBackup.bucket ?? defaultCloudBackupConfig.bucket,
+			accessKeyId:
+				existingCloudBackup.accessKeyId ?? defaultCloudBackupConfig.accessKeyId,
+			secretAccessKey: existingCloudBackup.secretAccessKey,
+			prefix: existingCloudBackup.prefix ?? defaultCloudBackupConfig.prefix,
+		};
+	}
+
+	draft.schemaVersion = 4;
+}
+
+/** Strip secrets before writing backups to disk or object storage. */
+export function redactSettingsForBackup(settings: AppSettings): AppSettings {
+	const clone = structuredClone(settings);
+
+	if (clone.lmStudio?.apiKey) {
+		delete clone.lmStudio.apiKey;
+	}
+
+	if (clone.cloudBackup) {
+		delete clone.cloudBackup.secretAccessKey;
+	}
+
+	return clone;
+}
+
+export function mergeSettingsPreservingSecrets(
+	incoming: AppSettings,
+	existing: AppSettings | undefined,
+): AppSettings {
+	if (!existing) {
+		return incoming;
+	}
+
+	const merged = structuredClone(incoming);
+
+	if (existing.lmStudio?.apiKey && !merged.lmStudio?.apiKey) {
+		merged.lmStudio = {
+			...(merged.lmStudio ?? defaultLmStudioConfig),
+			apiKey: existing.lmStudio.apiKey,
+		};
+	}
+
+	if (existing.cloudBackup?.secretAccessKey) {
+		if (!merged.cloudBackup) {
+			merged.cloudBackup = { ...existing.cloudBackup };
+		} else if (!merged.cloudBackup.secretAccessKey) {
+			merged.cloudBackup.secretAccessKey = existing.cloudBackup.secretAccessKey;
+			if (!merged.cloudBackup.accessKeyId) {
+				merged.cloudBackup.accessKeyId = existing.cloudBackup.accessKeyId;
+			}
+		}
+	}
+
+	return merged;
 }
 
 export function migrateAppSettings(settings: LegacyAppSettings): AppSettings {
@@ -359,6 +428,7 @@ export function buildMigratedAppSettings(
 				defaults.lmStudio?.enableReasoning ??
 				defaultLmStudioConfig.enableReasoning,
 		},
+		cloudBackup: migrated.cloudBackup ?? defaults.cloudBackup,
 		cvTemplate: migrated.cvTemplate ?? defaults.cvTemplate,
 	});
 }
@@ -1030,7 +1100,7 @@ export function createDefaultAppSettings(
 ): AppSettings {
 	return {
 		id: "settings",
-		schemaVersion: 3,
+		schemaVersion: 4,
 		activeProfileId: profileId,
 		selectedAiProvider: "claude",
 		aiModels: {

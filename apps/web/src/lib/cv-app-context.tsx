@@ -1,10 +1,10 @@
 import {
 	type AiModels,
 	type AiProviderId,
-	type CliProviderId,
 	buildEvaluateProfileMatchPrompt,
 	buildReviewJobPostingPrompt,
 	buildTailorCvPrompt,
+	type CliProviderId,
 	claudeModelOptions,
 	codexModelOptions,
 	cursorModelOptions,
@@ -22,6 +22,7 @@ import {
 	type Application,
 	type AppSettings,
 	type BaseProfile,
+	type CloudBackupConfig,
 	type CvLanguage,
 	type CvRun,
 	type CvTemplateId,
@@ -66,15 +67,17 @@ import {
 import { toast } from "sonner";
 import i18n, { isUiLanguage } from "@/i18n";
 import {
-	importAllData as importBackup,
-} from "@/lib/data-backup";
+	loadCloudBackupEnvDefaults,
+	resolveCloudBackupConfig,
+} from "@/lib/cloud-backup";
+import { importAllData as importBackup } from "@/lib/data-backup";
 import {
+	type DataSnapshotMeta,
+	listDataSnapshots,
 	createDataSnapshot as persistDataSnapshot,
+	readDataSnapshot,
 	deleteDataSnapshot as removeDataSnapshot,
 	downloadDataSnapshot as saveDataSnapshotToFile,
-	listDataSnapshots,
-	readDataSnapshot,
-	type DataSnapshotMeta,
 } from "@/lib/data-snapshots";
 import { useDb } from "@/lib/db-provider";
 import { createDebouncedCallback } from "@/lib/debounce";
@@ -83,11 +86,12 @@ import {
 	type AiRunRequest,
 	type AiToolPaths,
 	type AiToolStatus,
-	type LmStudioModel,
 	detectAiTools,
 	exportGeneratedCvPdf,
 	formatAppError,
+	hasAiGateway,
 	isTauriRuntime,
+	type LmStudioModel,
 	listLmStudioModels,
 	printGeneratedCv,
 	runAiTool,
@@ -133,6 +137,7 @@ interface CvAppContextValue {
 	aiToolPaths: AiToolPaths;
 	lmStudio: LmStudioConfig;
 	lmStudioModels: LmStudioModel[];
+	cloudBackup: CloudBackupConfig;
 	effectiveAiProvider: AiProviderId | undefined;
 	effectiveAiModel: string | undefined;
 	saveStatus: SaveStatus;
@@ -155,6 +160,7 @@ interface CvAppContextValue {
 	setLmStudioApiKey: (apiKey: string) => void;
 	setLmStudioModel: (model: string) => void;
 	setLmStudioEnableReasoning: (enabled: boolean) => void;
+	setCloudBackup: (patch: Partial<CloudBackupConfig>) => void;
 	refreshLmStudioModels: () => Promise<void>;
 	suggestAndApplyAiToolPaths: () => Promise<void>;
 	setSelectedLanguage: (language: CvLanguage) => void;
@@ -182,10 +188,7 @@ interface CvAppContextValue {
 	isCreatingDataSnapshot: boolean;
 	refreshDataSnapshots: () => Promise<void>;
 	createDataSnapshot: (name?: string) => Promise<void>;
-	restoreDataSnapshot: (
-		id: string,
-		mode: "replace" | "merge",
-	) => Promise<void>;
+	restoreDataSnapshot: (id: string, mode: "replace" | "merge") => Promise<void>;
 	downloadDataSnapshot: (id: string) => Promise<void>;
 	deleteDataSnapshot: (id: string) => Promise<void>;
 	isImportingData: boolean;
@@ -221,7 +224,8 @@ export function providerIsReady(
 	statuses: AiToolStatus[],
 	lmStudio?: LmStudioConfig,
 ) {
-	if (!isTauriRuntime()) {
+	// Desktop (Tauri) or gateway-hosted web — plain browser without a gateway stays disabled.
+	if (!isTauriRuntime() && !hasAiGateway()) {
 		return false;
 	}
 
@@ -541,10 +545,56 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 		}),
 		[settings?.lmStudio],
 	);
+	const cloudBackup = useMemo(
+		() => resolveCloudBackupConfig(settings?.cloudBackup),
+		[settings?.cloudBackup],
+	);
 
 	useEffect(() => {
 		void refreshDataSnapshots();
 	}, []);
+
+	// Desktop: prefill empty MinIO fields from process env (not Vite / not the web bundle).
+	useEffect(() => {
+		if (!settings) {
+			return;
+		}
+
+		let cancelled = false;
+		void loadCloudBackupEnvDefaults().then((defaults) => {
+			if (cancelled || Object.keys(defaults).length === 0) {
+				return;
+			}
+
+			const stored = settingsRef.current?.cloudBackup;
+			const patch: Partial<CloudBackupConfig> = {};
+			if (!stored?.endpoint?.trim() && defaults.endpoint) {
+				patch.endpoint = defaults.endpoint;
+			}
+			if (!stored?.bucket?.trim() && defaults.bucket) {
+				patch.bucket = defaults.bucket;
+			}
+			if (!stored?.region?.trim() && defaults.region) {
+				patch.region = defaults.region;
+			}
+			if (!stored?.accessKeyId?.trim() && defaults.accessKeyId) {
+				patch.accessKeyId = defaults.accessKeyId;
+			}
+			if (!stored?.secretAccessKey?.trim() && defaults.secretAccessKey) {
+				patch.secretAccessKey = defaults.secretAccessKey;
+			}
+			if (!stored?.prefix?.trim() && defaults.prefix) {
+				patch.prefix = defaults.prefix;
+			}
+			if (Object.keys(patch).length > 0) {
+				setCloudBackup(patch);
+			}
+		});
+
+		return () => {
+			cancelled = true;
+		};
+	}, [settings]);
 
 	useEffect(() => {
 		if (!settings?.cvTemplate) {
@@ -812,6 +862,25 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 			enableReasoning: enabled,
 		};
 		void persistAiSettings({ lmStudio: current });
+	}
+
+	function setCloudBackup(patch: Partial<CloudBackupConfig>) {
+		const current = resolveCloudBackupConfig({
+			...(settingsRef.current?.cloudBackup ?? {}),
+			...patch,
+		});
+		const next: CloudBackupConfig = {
+			endpoint: current.endpoint.trim(),
+			region: current.region.trim() || "us-east-1",
+			bucket: current.bucket.trim(),
+			accessKeyId: current.accessKeyId.trim(),
+			prefix: (current.prefix?.trim() || "cv-tailor/") ?? "cv-tailor/",
+		};
+		const secret = current.secretAccessKey?.trim();
+		if (secret) {
+			next.secretAccessKey = secret;
+		}
+		void persistSettings({ cloudBackup: next });
 	}
 
 	async function refreshLmStudioModels() {
@@ -1381,14 +1450,14 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 				rawText,
 				outputLanguage: uiOutputLanguage(),
 			});
-			let parsedReview: {
-				signals: JobPostingReview["signals"];
-				summary: string;
-			} | undefined;
-			let lastStdout = "";
-			let lastResponse:
-				| Awaited<ReturnType<typeof runAiTool>>
+			let parsedReview:
+				| {
+						signals: JobPostingReview["signals"];
+						summary: string;
+				  }
 				| undefined;
+			let lastStdout = "";
+			let lastResponse: Awaited<ReturnType<typeof runAiTool>> | undefined;
 			let lastError: unknown;
 
 			for (let attempt = 0; attempt < 2; attempt += 1) {
@@ -2138,6 +2207,7 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 			aiToolPaths,
 			lmStudio,
 			lmStudioModels,
+			cloudBackup,
 			effectiveAiProvider,
 			effectiveAiModel,
 			saveStatus,
@@ -2161,6 +2231,7 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 			setLmStudioApiKey,
 			setLmStudioModel,
 			setLmStudioEnableReasoning,
+			setCloudBackup,
 			refreshLmStudioModels,
 			suggestAndApplyAiToolPaths,
 			setSelectedLanguage,
@@ -2221,6 +2292,7 @@ export function CvAppProvider({ children }: { children: ReactNode }) {
 			aiToolPaths,
 			lmStudio,
 			lmStudioModels,
+			cloudBackup,
 			effectiveAiProvider,
 			effectiveAiModel,
 			saveStatus,

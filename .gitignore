@@ -3,6 +3,9 @@ node_modules
 .pnp
 .pnp.js
 
+# Rust workspace
+/target/
+
 # Build outputs
 dist
 build

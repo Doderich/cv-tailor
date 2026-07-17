@@ -216,6 +216,7 @@ pub fn download_data_snapshot(
     app: &AppHandle,
     id: &str,
 ) -> Result<DownloadDataSnapshotResponse, AppError> {
+    // Caller must invoke this off the UI/main thread (async command + spawn_blocking).
     let snapshot = read_data_snapshot(app, id)?;
     let suggested_name = suggested_download_name(&snapshot.meta);
     let selected_path = app
@@ -233,13 +234,22 @@ pub fn download_data_snapshot(
         });
     };
 
-    let path = selected_path.into_path().map_err(|error| {
+    let mut path = selected_path.into_path().map_err(|error| {
         AppError::with_details(
             "invalid_path",
             "Selected path is invalid.",
             error.to_string(),
         )
     })?;
+
+    // macOS save panels often omit the extension in the text field; keep .json on disk.
+    if path.extension().is_none() {
+        path.set_extension("json");
+    }
+
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)?;
+    }
     fs::write(&path, snapshot.content)?;
 
     Ok(DownloadDataSnapshotResponse {

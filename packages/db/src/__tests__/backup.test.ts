@@ -127,4 +127,59 @@ describe("backup", () => {
 		expect(target.profiles.has("profile-import")).toBe(true);
 		expect([...target.profiles.values()]).toHaveLength(2);
 	});
+
+	it("redacts cloud backup secrets from exported snapshots", () => {
+		const source = createMockCollections();
+		const settings = source.settings.get("settings");
+		if (!settings) {
+			throw new Error("missing settings");
+		}
+		source.settings.insert({
+			...settings,
+			cloudBackup: {
+				endpoint: "http://192.168.188.50:9000",
+				region: "us-east-1",
+				bucket: "cv-tailor-backups",
+				accessKeyId: "cvtailor",
+				secretAccessKey: "super-secret",
+				prefix: "cv-tailor/",
+			},
+			lmStudio: {
+				baseUrl: "http://localhost:1234",
+				apiKey: "lm-secret",
+				enableReasoning: true,
+			},
+		});
+
+		const backup = createBackupSnapshot(source);
+		expect(backup.settings.cloudBackup?.secretAccessKey).toBeUndefined();
+		expect(backup.settings.cloudBackup?.accessKeyId).toBe("cvtailor");
+		expect(backup.settings.lmStudio?.apiKey).toBeUndefined();
+	});
+
+	it("keeps local cloud secrets when replacing from a redacted backup", async () => {
+		const source = createMockCollections();
+		const backup = createBackupSnapshot(source);
+		const target = createMockCollections();
+		const existing = target.settings.get("settings");
+		if (!existing) {
+			throw new Error("missing settings");
+		}
+		target.settings.insert({
+			...existing,
+			cloudBackup: {
+				endpoint: "http://192.168.188.50:9000",
+				region: "us-east-1",
+				bucket: "cv-tailor-backups",
+				accessKeyId: "cvtailor",
+				secretAccessKey: "keep-me",
+				prefix: "cv-tailor/",
+			},
+		});
+
+		await importBackup(target, backup, "replace");
+		expect(target.settings.get("settings")?.cloudBackup?.secretAccessKey).toBe(
+			"keep-me",
+		);
+	});
 });

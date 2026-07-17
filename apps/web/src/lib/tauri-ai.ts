@@ -80,6 +80,47 @@ export function isTauriRuntime() {
 	return "__TAURI_INTERNALS__" in globalThis;
 }
 
+function usesSameOriginGateway() {
+	return import.meta.env.VITE_AI_GATEWAY_SAME_ORIGIN === "true";
+}
+
+function aiGatewayUrl() {
+	// Hosted by the gateway: always call relative `/api/...` (works on phone/VPN hosts).
+	if (usesSameOriginGateway()) {
+		return "";
+	}
+
+	const value = import.meta.env.VITE_AI_GATEWAY_URL;
+	if (typeof value === "string" && value.trim()) {
+		return value.trim().replace(/\/$/, "");
+	}
+	return "";
+}
+
+/**
+ * Optional Bearer token for cross-origin gateway clients.
+ * Never read from `import.meta.env` — Vite would bake secrets into the web bundle.
+ * Same-origin UI uses an HttpOnly cookie set by the gateway instead.
+ */
+function aiGatewayToken() {
+	if (usesSameOriginGateway() || typeof sessionStorage === "undefined") {
+		return "";
+	}
+
+	return sessionStorage.getItem("cv-tailor-gateway-token")?.trim() ?? "";
+}
+
+export function hasAiGateway() {
+	if (usesSameOriginGateway()) {
+		return true;
+	}
+
+	return (
+		typeof import.meta.env.VITE_AI_GATEWAY_URL === "string" &&
+		Boolean(import.meta.env.VITE_AI_GATEWAY_URL.trim())
+	);
+}
+
 async function loadInvoke() {
 	if (!isTauriRuntime()) {
 		return undefined;
@@ -89,31 +130,76 @@ async function loadInvoke() {
 	return invoke;
 }
 
+/** Shared HTTP client for gateway-hosted AI / cloud-backup APIs. */
+export async function gatewayFetch<T>(path: string, init?: RequestInit): Promise<T> {
+	const base = aiGatewayUrl();
+	if (!usesSameOriginGateway() && !base) {
+		throw new Error("AI gateway URL is not configured.");
+	}
+
+	const headers = new Headers(init?.headers);
+	headers.set("Accept", "application/json");
+	if (init?.body && !headers.has("Content-Type")) {
+		headers.set("Content-Type", "application/json");
+	}
+	const token = aiGatewayToken();
+	if (token) {
+		headers.set("Authorization", `Bearer ${token}`);
+	}
+
+	const response = await fetch(`${base}${path}`, {
+		...init,
+		headers,
+		// Same-origin UI auth is an HttpOnly cookie set by the gateway.
+		credentials: usesSameOriginGateway() ? "include" : "same-origin",
+	});
+
+	if (!response.ok) {
+		let details = `HTTP ${response.status}`;
+		try {
+			const payload = (await response.json()) as {
+				message?: string;
+				details?: string;
+			};
+			details = [payload.message, payload.details].filter(Boolean).join(" ");
+		} catch {
+			// ignore non-JSON error bodies
+		}
+		throw new Error(details || `AI gateway request failed (${response.status})`);
+	}
+
+	return (await response.json()) as T;
+}
+
 function browserStubStatuses(): AiToolStatus[] {
+	const gatewayHint = hasAiGateway()
+		? "AI gateway is configured but unreachable."
+		: "Open the Tauri desktop app or set VITE_AI_GATEWAY_URL.";
+
 	return [
 		{
 			id: "claude",
 			label: "Claude Code",
 			available: false,
-			error: "CLI generation is available in the Tauri desktop app.",
+			error: gatewayHint,
 		},
 		{
 			id: "codex",
 			label: "Codex CLI",
 			available: false,
-			error: "CLI generation is available in the Tauri desktop app.",
+			error: gatewayHint,
 		},
 		{
 			id: "cursor",
 			label: "Cursor Agent",
 			available: false,
-			error: "CLI generation is available in the Tauri desktop app.",
+			error: gatewayHint,
 		},
 		{
 			id: "lmstudio",
 			label: "LM Studio",
 			available: false,
-			error: "API generation is available in the Tauri desktop app.",
+			error: gatewayHint,
 		},
 	];
 }
@@ -124,14 +210,24 @@ export async function detectAiTools(
 ): Promise<AiToolStatus[]> {
 	const invoke = await loadInvoke();
 
-	if (!invoke) {
-		return browserStubStatuses();
+	if (invoke) {
+		return invoke<AiToolStatus[]>("detect_ai_tools", {
+			paths: paths ?? null,
+			lmStudio: lmStudio ?? null,
+		});
 	}
 
-	return invoke<AiToolStatus[]>("detect_ai_tools", {
-		paths: paths ?? null,
-		lmStudio: lmStudio ?? null,
-	});
+	if (hasAiGateway()) {
+		return gatewayFetch<AiToolStatus[]>("/api/ai/tools", {
+			method: "POST",
+			body: JSON.stringify({
+				paths: paths ?? null,
+				lmStudio: lmStudio ?? null,
+			}),
+		});
+	}
+
+	return browserStubStatuses();
 }
 
 export async function listLmStudioModels(
@@ -139,21 +235,32 @@ export async function listLmStudioModels(
 ): Promise<LmStudioModel[]> {
 	const invoke = await loadInvoke();
 
-	if (!invoke) {
-		return [];
+	if (invoke) {
+		return invoke<LmStudioModel[]>("list_lm_studio_models", { config });
 	}
 
-	return invoke<LmStudioModel[]>("list_lm_studio_models", { config });
+	if (hasAiGateway()) {
+		return gatewayFetch<LmStudioModel[]>("/api/ai/lmstudio/models", {
+			method: "POST",
+			body: JSON.stringify(config),
+		});
+	}
+
+	return [];
 }
 
 export async function suggestAiToolPaths(): Promise<AiToolPaths> {
 	const invoke = await loadInvoke();
 
-	if (!invoke) {
-		return {};
+	if (invoke) {
+		return invoke<AiToolPaths>("suggest_ai_tool_paths");
 	}
 
-	return invoke<AiToolPaths>("suggest_ai_tool_paths");
+	if (hasAiGateway()) {
+		return gatewayFetch<AiToolPaths>("/api/ai/paths");
+	}
+
+	return {};
 }
 
 export function formatAppError(error: unknown) {
@@ -192,13 +299,13 @@ export async function runAiTool(
 ): Promise<AiRunResponse> {
 	const invoke = await loadInvoke();
 
-	if (!invoke) {
+	if (!invoke && !hasAiGateway()) {
 		throw new Error(
-			"AI generation is available only in the Tauri desktop app.",
+			"AI generation needs the Tauri desktop app or VITE_AI_GATEWAY_URL.",
 		);
 	}
 
-	const shouldStream = Boolean(options?.onProgress);
+	const shouldStream = Boolean(options?.onProgress && invoke);
 	const runId = shouldStream
 		? (request.runId ?? crypto.randomUUID())
 		: undefined;
@@ -217,11 +324,20 @@ export async function runAiTool(
 	}
 
 	try {
-		return await invoke<AiRunResponse>("run_ai_tool", {
-			request: {
-				...request,
-				...(runId ? { runId } : {}),
-			},
+		const payload = {
+			...request,
+			...(runId ? { runId } : {}),
+		};
+
+		if (invoke) {
+			return await invoke<AiRunResponse>("run_ai_tool", {
+				request: payload,
+			});
+		}
+
+		return await gatewayFetch<AiRunResponse>("/api/ai/run", {
+			method: "POST",
+			body: JSON.stringify(payload),
 		});
 	} finally {
 		unlisten?.();

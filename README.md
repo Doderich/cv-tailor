@@ -14,7 +14,7 @@ Licensed under the [MIT License](LICENSE). See [SECURITY.md](SECURITY.md) for th
 - **Match scoring** — compare your profile against the posting (draft or AI-powered)
 - **Generate tailored CVs** — produce language-specific CV versions per application
 - **Export to PDF** — from the desktop app (`Cmd+Shift+E` or File menu)
-- **Back up & restore** — export/import your local database from Settings → Data
+- **Back up & restore** — local snapshots, JSON export/import, and optional S3/MinIO cloud backup from Settings → Data
 - **Auto-update** — production desktop builds check GitHub Releases for new versions
 - **Localized UI** — English and German interface (Settings → Appearance)
 
@@ -59,6 +59,30 @@ cd apps/web && pnpm run desktop:run
 ```
 
 The browser talks to the Tauri backend over a small local HTTP bridge at `http://127.0.0.1:3911`.
+
+### Headless AI gateway (+ optional web UI)
+
+Shared AI logic lives in `crates/cv-tailor-native`. The desktop app and a headless binary both use it. Devices keep local SQLite; the gateway runs AI tools / LM Studio and can also serve the built web app.
+
+```bash
+# Builds apps/web/dist with same-origin API, then serves UI + API
+pnpm run gateway:serve
+```
+
+Open **`http://127.0.0.1:3911/`** in the browser (not `http://0.0.0.0:3911/`).  
+API check: `curl http://127.0.0.1:3911/api/status`
+
+Env (also loaded from `apps/web/.env`):
+
+| Variable | Purpose |
+| --- | --- |
+| `CV_TAILOR_GATEWAY_ADDR` | Bind address (default `0.0.0.0:3911`) |
+| `CV_TAILOR_GATEWAY_TOKEN` | Bearer/cookie auth for `/api/*` (HttpOnly cookie for same-origin UI; never put in `VITE_*`) |
+| `CV_TAILOR_GATEWAY_UI_DIR` | Static UI dir (default `apps/web/dist`; set `none` for API-only) |
+
+From another device on VPN, use the machine’s real IP or Tailscale name, e.g. `http://100.x.x.x:3911/`.
+
+Desktop Tauri still uses local `invoke` when available; gateway HTTP is the fallback when not in Tauri.
 
 ---
 
@@ -291,6 +315,7 @@ macOS Gatekeeper requires an [Apple Developer Program](https://developer.apple.c
 - Nothing is sent to a backend server by default.
 - AI calls go to whichever **local CLI** you configure; those tools may contact their own APIs using your credentials.
 - Use **Settings → Data** to export a backup JSON file or restore from one.
+- Optional **S3 / MinIO cloud backup** (desktop app or gateway): the MinIO client runs in `cv-tailor-native`. **Desktop** can configure endpoint/bucket/keys under **Settings → Data**. **Gateway-hosted web** only uploads/syncs — MinIO is configured via server env (`CV_TAILOR_CLOUD_BACKUP_*` or `VITE_CLOUD_BACKUP_*` in `apps/web/.env`). Credentials are **never committed to git** or written into backup JSON.
 
 ---
 
@@ -302,7 +327,18 @@ The web app has minimal env requirements. Optional overrides:
 | --- | --- | --- |
 | `VITE_LOCAL_API_URL` | `http://127.0.0.1:3911` | Local Tauri HTTP bridge URL (browser dev mode) |
 | `CV_TAILOR_LOCAL_API_ADDR` | `127.0.0.1:3911` | Address the Rust bridge binds to |
+| `CV_TAILOR_CLOUD_BACKUP_*` | — | MinIO settings for gateway + desktop process env (never baked into the web JS bundle) |
+| `VITE_CLOUD_BACKUP_*` | — | Optional process-env aliases for the above (also not shipped to the browser) |
+| `VITE_AI_GATEWAY_URL` | — | Gateway base URL for clients (use `http://127.0.0.1:3911`, never `0.0.0.0`) |
+| `VITE_AI_GATEWAY_SAME_ORIGIN` | — | `true` when UI is hosted by the gateway (`gateway:ui:build`) |
+| `CV_TAILOR_GATEWAY_TOKEN` | — | Gateway auth secret (process env only; same-origin UI gets HttpOnly cookie) |
+| `CV_TAILOR_GATEWAY_ADDR` | `0.0.0.0:3911` | Bind address for `cv-tailor-gateway` |
+| `CV_TAILOR_GATEWAY_TOKEN` | — | Protects `/api/ai/*` |
+| `CV_TAILOR_GATEWAY_UI_DIR` | `apps/web/dist` | Web UI static files (`none` = API only) |
+| `CV_TAILOR_GATEWAY_DATA_DIR` | OS data dir | Working directory for schema temp files |
 | `SKIP_ENV_VALIDATION` | — | Skip env schema validation in tooling |
+
+Copy [`apps/web/.env.example`](apps/web/.env.example) to `apps/web/.env` for local values. `.env` is gitignored — never commit real MinIO keys.
 
 For Vercel web deploys, sync env vars with:
 

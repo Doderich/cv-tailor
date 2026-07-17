@@ -101,7 +101,7 @@ describe("seedDefaults", () => {
 		await seedDefaults(collections);
 
 		const migrated = collections.settings.get("settings");
-		expect(migrated?.schemaVersion).toBe(3);
+		expect(migrated?.schemaVersion).toBe(4);
 		expect(migrated?.selectedAiProvider).toBe("claude");
 		expect(migrated?.lmStudio?.baseUrl).toBe("http://localhost:1234");
 		expect(migrated?.selectedAiTool).toBeUndefined();
